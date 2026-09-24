@@ -1197,10 +1197,44 @@ function ContractManagementPage() {
     { id: "#DOC-3023", client: "Fernanda Dias", document: "Análise documental inicial", file: "documentacao-fernanda-dias.pdf", status: "Rascunho", channel: "Manual", date: "Em revisão" },
   ];
 
+  const clientDocuments = [
+    { id: "DOC-001", name: "Proposta comercial", version: "v2.1", status: "Assinado", date: "24/09/2026", channel: "e-Gov" },
+    { id: "DOC-002", name: "Análise documental", version: "v1.4", status: "Validado", date: "23/09/2026", channel: "Coleta interna" },
+    { id: "DOC-003", name: "Comprovante de renda", version: "v1.0", status: "Conferido", date: "22/09/2026", channel: "Cliente" },
+    { id: "DOC-004", name: "Checklist bancária", version: "v3.0", status: "Pendência", date: "21/09/2026", channel: "Operação" },
+  ];
+
   const legalHistory = [
     { date: "24/09/2026 · 14:20", title: "PDF assinado armazenado", detail: "Arquivo legal registrado para Camila Rocha com assinatura válida do e-Gov.", tone: "green", icon: "check" as IconName },
     { date: "24/09/2026 · 09:45", title: "Proposta aceita", detail: "Ricardo Nunes confirmou ciência e aceite da proposta de consultoria.", tone: "blue", icon: "file" as IconName },
     { date: "23/09/2026 · 16:35", title: "Análise documental concluída", detail: "Checklist de renda e histórico cadastral validada para revisão jurídica.", tone: "purple", icon: "contract" as IconName },
+  ];
+
+  const billingRows = [
+    { id: "INV-001", client: "Camila Rocha", amount: "R$ 7.000,00", status: "Pendente", dueDate: "30/09/2026", channel: "Boleto", progress: 38 },
+    { id: "INV-002", client: "Ricardo Nunes", amount: "R$ 7.000,00", status: "Pago", dueDate: "18/09/2026", channel: "Pix", progress: 100 },
+    { id: "INV-003", client: "Fernanda Dias", amount: "R$ 7.000,00", status: "Em análise", dueDate: "02/10/2026", channel: "Cartão", progress: 62 },
+  ];
+
+  const deliveryChannels = [
+    { id: "MSG-001", client: "Camila Rocha", channel: "WhatsApp", status: "Entregue", recipient: "+55 (11) 9 9123-4455", sentAt: "24/09/2026 · 12:10", deliveryState: "Aceite em andamento" },
+    { id: "MSG-002", client: "Ricardo Nunes", channel: "E-mail", status: "Lido", recipient: "ricardo.nunes@gmail.com", sentAt: "24/09/2026 · 09:40", deliveryState: "Aceite confirmado" },
+    { id: "MSG-003", client: "Fernanda Dias", channel: "SMS", status: "Pendente", recipient: "+55 (11) 9 8824-7710", sentAt: "Aguardando envio", deliveryState: "Não entregue" },
+  ];
+
+  const approvalDashboard = [
+    { seller: "Marcos Costa", proposals: 11, sent: 9, accepted: 6, pending: 3, revenue: "R$ 84.000" },
+    { seller: "Juliana Castro", proposals: 8, sent: 7, accepted: 5, pending: 2, revenue: "R$ 67.500" },
+    { seller: "Rafael Lima", proposals: 10, sent: 8, accepted: 4, pending: 4, revenue: "R$ 59.000" },
+    { seller: "Amanda Silva", proposals: 7, sent: 6, accepted: 5, pending: 1, revenue: "R$ 52.000" },
+  ];
+
+  const approvalChecklist = [
+    { label: "Cobrança enviada", status: "Concluído" },
+    { label: "Proposta entregue", status: "Concluído" },
+    { label: "Cliente recebeu e leu", status: "Concluído" },
+    { label: "Aceite confirmado", status: "Em revisão" },
+    { label: "Arquivo jurídico arquivado", status: "Pendente" },
   ];
 
   const registerSignedProposal = () => {
@@ -1381,6 +1415,22 @@ CONDIÇÃO ESPECIAL: Proposta estruturada com condições diferenciadas de negoc
           ))}</tbody></table></div>
       </section>
 
+      <section className="panel contract-panel" style={{ display: "grid", gap: "1rem" }}>
+        <div className="panel-header"><div><h3>Gestão documental por cliente</h3><p>Documentos, versões e arquivamento da consultoria para {selectedRecoveryContract.customer}</p></div><button className="primary-button" type="button">+ Novo anexo</button></div>
+        <div className="table-wrap"><table><thead><tr><th>ID</th><th>NOME</th><th>VERSÃO</th><th>STATUS</th><th>DATA</th><th>CANAL</th><th>AÇÃO</th></tr></thead>
+          <tbody>{clientDocuments.map((doc) => (
+            <tr key={doc.id}>
+              <td><strong>{doc.id}</strong></td>
+              <td>{doc.name}</td>
+              <td>{doc.version}</td>
+              <td><span className={`status ${doc.status === "Assinado" || doc.status === "Validado" ? "green" : doc.status === "Conferido" ? "blue" : "yellow"}`}>{doc.status}</span></td>
+              <td>{doc.date}</td>
+              <td>{doc.channel}</td>
+              <td><div style={{ display: "flex", gap: "0.5rem" }}><button className="secondary-button" type="button">Baixar</button><button className="secondary-button" type="button">Arquivar</button></div></td>
+            </tr>
+          ))}</tbody></table></div>
+      </section>
+
       <section className="panel support-note contract-panel">
         <div className="panel-header"><div><h3>Histórico jurídico</h3><p>Eventos vinculados ao aceite e entrega da proposta</p></div></div>
         <div className="timeline">
@@ -1395,6 +1445,82 @@ CONDIÇÃO ESPECIAL: Proposta estruturada com condições diferenciadas de negoc
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="panel support-note contract-panel" style={{ display: "grid", gap: "1rem" }}>
+        <div className="panel-header"><div><h3>Honorários e cobrança</h3><p>Pagamento pelos serviços prestados conforme proposta comercial</p></div></div>
+        <div className="table-wrap"><table><thead><tr><th>FATURA</th><th>CLIENTE</th><th>VALOR</th><th>STATUS</th><th>VENCIMENTO</th><th>CANAL</th><th>PROGRESSO</th></tr></thead>
+          <tbody>{billingRows.map((row) => (
+            <tr key={row.id}>
+              <td><strong>{row.id}</strong></td>
+              <td>{row.client}</td>
+              <td>{row.amount}</td>
+              <td><span className={`status ${row.status === "Pago" ? "green" : row.status === "Pendente" ? "yellow" : "blue"}`}>{row.status}</span></td>
+              <td>{row.dueDate}</td>
+              <td>{row.channel}</td>
+              <td>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                  <div className="progress-bar" style={{ minWidth: "90px" }}><i style={{ width: `${row.progress}%` }} /></div>
+                  <small>{row.progress}%</small>
+                </div>
+              </td>
+            </tr>
+          ))}</tbody></table></div>
+      </section>
+
+      <section className="panel support-note contract-panel" style={{ display: "grid", gap: "1rem" }}>
+        <div className="panel-header"><div><h3>Entrega da proposta</h3><p>Envio por canal e rastreio do aceite do cliente</p></div></div>
+        <div className="table-wrap"><table><thead><tr><th>ID</th><th>CLIENTE</th><th>CANAL</th><th>CONTATO</th><th>STATUS</th><th>ENVIADO EM</th><th>ESTADO</th></tr></thead>
+          <tbody>{deliveryChannels.map((item) => (
+            <tr key={item.id}>
+              <td><strong>{item.id}</strong></td>
+              <td>{item.client}</td>
+              <td>{item.channel}</td>
+              <td>{item.recipient}</td>
+              <td><span className={`status ${item.status === "Entregue" || item.status === "Lido" ? "green" : item.status === "Pendente" ? "yellow" : "blue"}`}>{item.status}</span></td>
+              <td>{item.sentAt}</td>
+              <td>{item.deliveryState}</td>
+            </tr>
+          ))}</tbody></table></div>
+      </section>
+
+      <section className="panel support-note contract-panel" style={{ display: "grid", gap: "1rem" }}>
+        <div className="panel-header"><div><h3>Painel de aprovação</h3><p>Checklist operacional de cobrança, envio e aceite para gestão por gerente</p></div></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "1rem" }}>
+          <div className="table-wrap"><table><thead><tr><th>ETAPA</th><th>STATUS</th></tr></thead><tbody>{approvalChecklist.map((step) => (
+            <tr key={step.label}>
+              <td>{step.label}</td>
+              <td><span className={`status ${step.status === "Concluído" ? "green" : step.status === "Em revisão" ? "yellow" : "blue"}`}>{step.status}</span></td>
+            </tr>
+          ))}</tbody></table></div>
+          <div style={{ display: "grid", gap: "0.8rem" }}>
+            <div style={{ background: "#f4f8ff", border: "1px solid #dfe7f4", borderRadius: "12px", padding: "0.9rem 1rem" }}>
+              <strong style={{ display: "block", marginBottom: "0.2rem" }}>Taxa de aprovação</strong>
+              <span style={{ fontSize: "1.9rem", fontWeight: 700, color: "#173d82" }}>68%</span>
+              <small style={{ color: "#53627a" }}>Média da equipe no mês</small>
+            </div>
+            <div style={{ background: "#f9fbff", border: "1px solid #dfe7f4", borderRadius: "12px", padding: "0.9rem 1rem" }}>
+              <strong style={{ display: "block", marginBottom: "0.2rem" }}>Receita potencial</strong>
+              <span style={{ fontSize: "1.8rem", fontWeight: 700, color: "#0d7a62" }}>R$ 263.500</span>
+              <small style={{ color: "#53627a" }}>Honorários em carteira</small>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="panel support-note contract-panel" style={{ display: "grid", gap: "1rem" }}>
+        <div className="panel-header"><div><h3>Dashboard por gerente</h3><p>Dados de propostas, envios e aceites por vendedor</p></div></div>
+        <div className="table-wrap"><table><thead><tr><th>VENDEDOR</th><th>PROPOSTAS</th><th>ENVIADAS</th><th>ACEITES</th><th>PENDENTES</th><th>RECEITA</th></tr></thead>
+          <tbody>{approvalDashboard.map((row) => (
+            <tr key={row.seller}>
+              <td><strong>{row.seller}</strong></td>
+              <td>{row.proposals}</td>
+              <td>{row.sent}</td>
+              <td>{row.accepted}</td>
+              <td>{row.pending}</td>
+              <td>{row.revenue}</td>
+            </tr>
+          ))}</tbody></table></div>
       </section>
     </div>
   );
