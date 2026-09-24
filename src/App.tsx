@@ -159,6 +159,7 @@ const navGroups = [
       { label: "Painel do gerente", icon: "home" as IconName },
       { label: "Minha equipe", icon: "users" as IconName },
       { label: "Painel de suporte", icon: "trend" as IconName },
+      { label: "Entrega e pós-venda", icon: "car" as IconName },
       { label: "Equipes e comissões", icon: "chart" as IconName },
       { label: "Relatórios", icon: "file" as IconName },
       { label: "Configurações", icon: "settings" as IconName },
@@ -1013,6 +1014,13 @@ function ProposalReviewPage({ onAddCustomerHistory }: { onAddCustomerHistory: (c
   const [submitted, setSubmitted] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState<ReviewStatus | "ALL">("ALL");
+  const [selectedProposalId, setSelectedProposalId] = useState<string>("#0842");
+  const [documentChecklist, setDocumentChecklist] = useState<Record<string, Record<string, boolean>>>({
+    "#0842": { "RG/CPF": true, "Comprovante residencial": true, "Contrato digital": false, "Assinatura do cliente": false },
+    "#0841": { "RG/CPF": true, "Comprovante residencial": false, "Contrato digital": false, "Assinatura do cliente": false },
+    "#0838": { "RG/CPF": true, "Comprovante residencial": true, "Contrato digital": true, "Assinatura do cliente": true },
+    "#0837": { "RG/CPF": false, "Comprovante residencial": false, "Contrato digital": false, "Assinatura do cliente": false },
+  });
   const [reviewRows, setReviewRows] = useState([
     { id: "#0842", customer: "Ricardo Nunes", seller: "Marcos Costa", bank: "Banco Alfa", amount: "R$ 118.900", score: "782", status: "PENDING" as ReviewStatus },
     { id: "#0841", customer: "Camila Rocha", seller: "Rafael Lima", bank: "Banco Capital", amount: "R$ 92.500", score: "714", status: "BANK_ANALYSIS" as ReviewStatus },
@@ -1078,6 +1086,25 @@ function ProposalReviewPage({ onAddCustomerHistory }: { onAddCustomerHistory: (c
     }
   };
 
+  const selectedProposal = reviewRows.find((row) => row.id === selectedProposalId) ?? reviewRows[0];
+  const selectedDocuments = documentChecklist[selectedProposal.id] ?? { "RG/CPF": false, "Comprovante residencial": false, "Contrato digital": false, "Assinatura do cliente": false };
+
+  const toggleDocument = (documentName: string) => {
+    setDocumentChecklist((current) => ({
+      ...current,
+      [selectedProposal.id]: {
+        ...(current[selectedProposal.id] ?? {}),
+        [documentName]: !(current[selectedProposal.id]?.[documentName] ?? false),
+      },
+    }));
+  };
+
+  const completeContract = () => {
+    if (!selectedProposal) return;
+    setReviewRows((current) => current.map((row) => row.id === selectedProposal.id ? { ...row, status: "CONTRACT_EFFECTIVE" } : row));
+    addHistoryForCustomer(selectedProposal.customer, "Contrato assinado digitalmente", `${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date())} • Checklist concluída com assinatura eletrônica`, "purple", "contract");
+  };
+
   const getActionLabel = (status: ReviewStatus) => {
     switch (status) {
       case "PENDING":
@@ -1111,10 +1138,151 @@ function ProposalReviewPage({ onAddCustomerHistory }: { onAddCustomerHistory: (c
       <section className="panel module-table">
         <div className="module-toolbar"><div className="search-box"><Icon name="search" size={17}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar proposta, cliente ou banco..."/></div><button><Icon name="settings" size={16}/>Filtros</button></div>
         <div className="table-wrap"><table><thead><tr><th>PROPOSTA</th><th>CLIENTE</th><th>VENDEDOR</th><th>BANCO SELECIONADO</th><th>FINANCIADO</th><th>SCORE</th><th>STATUS</th><th>AÇÃO</th></tr></thead>
-          <tbody>{visibleRows.map((row) => <tr key={row.id}><td><strong>{row.id}</strong></td><td>{row.customer}</td><td>{row.seller}</td><td>{row.bank}</td><td><strong>{row.amount}</strong></td><td><span className="score-pill">{row.score}</span></td><td><span className={`status ${statusTone[row.status]}`}>{statusLabel[row.status]}</span></td><td><button className={`submit-bank ${submitted.includes(row.id) ? "done" : ""}`} onClick={() => handleSendToBank(row)} disabled={row.status === "CONTRACT_EFFECTIVE"}>{getActionLabel(row.status)}</button></td></tr>)}</tbody>
+          <tbody>{visibleRows.map((row) => <tr key={row.id} className={selectedProposalId === row.id ? "selected-row" : ""} onClick={() => setSelectedProposalId(row.id)}><td><strong>{row.id}</strong></td><td>{row.customer}</td><td>{row.seller}</td><td>{row.bank}</td><td><strong>{row.amount}</strong></td><td><span className="score-pill">{row.score}</span></td><td><span className={`status ${statusTone[row.status]}`}>{statusLabel[row.status]}</span></td><td><button className={`submit-bank ${submitted.includes(row.id) ? "done" : ""}`} onClick={(event) => { event.stopPropagation(); handleSendToBank(row); }} disabled={row.status === "CONTRACT_EFFECTIVE"}>{getActionLabel(row.status)}</button></td></tr>)}</tbody>
         </table></div>
       </section>
+      <section className="panel support-note contract-panel">
+        <div className="panel-header"><div><h3>Checklist de documentos</h3><p>Proposta selecionada: {selectedProposal.id} · {selectedProposal.customer}</p></div><button className="primary-button" onClick={completeContract}>Assinar digitalmente</button></div>
+        <div className="document-list">
+          {Object.entries(selectedDocuments).map(([documentName, checked]) => (
+            <button key={documentName} type="button" className={checked ? "document-item complete" : "document-item"} onClick={() => toggleDocument(documentName)}>
+              <span className="document-check"><Icon name={checked ? "check" : "file"} size={16}/></span>
+              <span>{documentName}</span>
+            </button>
+          ))}
+        </div>
+      </section>
       <div className="support-note"><Icon name="settings" size={18}/><div><strong>Integração com portais bancários</strong><span>O envio está em modo demonstrativo. Em produção, cada banco utilizará seu conector de API ou portal homologado.</span></div></div>
+    </div>
+  );
+}
+
+function ContractManagementPage() {
+  const [selectedContractId, setSelectedContractId] = useState("#CONT-2025-0318");
+  const contracts = [
+    { id: "#CONT-2025-0318", customer: "Pedro Azevedo", vehicle: "Toyota Corolla Cross XRE", value: "R$ 159.800", status: "Em assinatura", completion: 82, nextStep: "Assinatura do cliente", docs: 5, due: "12/07/2025" },
+    { id: "#CONT-2025-0315", customer: "Camila Rocha", vehicle: "Jeep Compass Limited", value: "R$ 168.900", status: "Documentação", completion: 64, nextStep: "Validação de renda", docs: 3, due: "18/07/2025" },
+    { id: "#CONT-2025-0306", customer: "Ricardo Nunes", vehicle: "Hyundai Creta Platinum", value: "R$ 98.500", status: "Aprovado", completion: 100, nextStep: "Agendar entrega", docs: 6, due: "21/07/2025" },
+  ];
+
+  const selectedContract = contracts.find((contract) => contract.id === selectedContractId) ?? contracts[0];
+
+  return (
+    <div className="content module-content">
+      <section className="module-heading"><div><p>GESTÃO DE VENDAS</p><h1>Contratos em execução</h1><span>Controles do ciclo após aprovação e antes da entrega do veículo.</span></div><button className="primary-button"><Icon name="plus" size={18}/>Novo contrato</button></section>
+      <section className="stats-grid">
+        <article className="stat-card"><div className="stat-icon blue"><Icon name="contract" /></div><div className="stat-title"><span>Contratos ativos</span><strong className="up">+12%</strong></div><h2>18</h2><p>em análise ou assinatura</p></article>
+        <article className="stat-card"><div className="stat-icon green"><Icon name="check" /></div><div className="stat-title"><span>Assinaturas concluídas</span><strong className="up">92%</strong></div><h2>14</h2><p>atributos digitais validados</p></article>
+        <article className="stat-card"><div className="stat-icon purple"><Icon name="calendar" /></div><div className="stat-title"><span>Entregas previstas</span><strong>7 dias</strong></div><h2>6</h2><p>veículos para liberação</p></article>
+        <article className="stat-card"><div className="stat-icon orange"><Icon name="file" /></div><div className="stat-title"><span>Documentação pendente</span><strong>3 itens</strong></div><h2>11</h2><p>pendências em revisão</p></article>
+      </section>
+      <div className="contract-stream">
+        <section className="panel module-table">
+          <div className="panel-header"><div><h3>Contratos em andamento</h3><p>Fluxo de pós-aprovação e entrega</p></div></div>
+          <div className="table-wrap"><table><thead><tr><th>CONTRATO</th><th>CLIENTE</th><th>VEÍCULO</th><th>VALOR</th><th>STATUS</th><th>PRÓXIMO PASSO</th></tr></thead>
+            <tbody>{contracts.map((contract) => (
+              <tr key={contract.id} className={selectedContractId === contract.id ? "selected-row" : ""} onClick={() => setSelectedContractId(contract.id)}>
+                <td><strong>{contract.id}</strong></td>
+                <td>{contract.customer}</td>
+                <td>{contract.vehicle}</td>
+                <td><strong>{contract.value}</strong></td>
+                <td><span className={`status ${contract.status === "Aprovado" ? "green" : contract.status === "Documentação" ? "yellow" : "blue"}`}>{contract.status}</span></td>
+                <td>{contract.nextStep}</td>
+              </tr>
+            ))}</tbody></table></div>
+        </section>
+        <aside className="panel contract-summary">
+          <div className="panel-header"><div><h3>Detalhes do contrato</h3><p>{selectedContract.id}</p></div></div>
+          <div className="contract-summary-card">
+            <div className="contract-title"><strong>{selectedContract.customer}</strong><span>{selectedContract.vehicle}</span></div>
+            <div className="contract-metric"><label>Progresso</label><strong>{selectedContract.completion}%</strong><div className="progress-bar"><i style={{ width: `${selectedContract.completion}%` }} /></div></div>
+            <div className="contract-metric"><label>Valor do contrato</label><strong>{selectedContract.value}</strong></div>
+            <div className="contract-metric"><label>Próximo evento</label><strong>{selectedContract.nextStep}</strong></div>
+            <div className="contract-metric"><label>Vencimento da documentação</label><strong>{selectedContract.due}</strong></div>
+            <div className="document-list compact-list">
+              {[
+                "Contrato digital",
+                "Boletim de financiamento",
+                "Comprovante de renda",
+                "Assinatura eletrônica",
+                "Entrega do veículo",
+              ].map((item, index) => (
+                <button key={item} type="button" className={index < selectedContract.docs ? "document-item complete" : "document-item"}>
+                  <span className="document-check"><Icon name={index < selectedContract.docs ? "check" : "file"} size={16} /></span>
+                  <span>{item}</span>
+                </button>
+              ))}
+            </div>
+            <button className="primary-button">Acompanhar entrega</button>
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function DeliveryPage() {
+  const deliveries = [
+    { id: "#ENT-1042", customer: "Pedro Azevedo", vehicle: "Toyota Corolla Cross XRE", date: "12/07/2025", status: "Agendar entrega", progress: 72, seller: "Juliana Castro", plan: "Ajuste final de acessórios" },
+    { id: "#ENT-1041", customer: "Camila Rocha", vehicle: "Jeep Compass Limited", date: "18/07/2025", status: "Liberado", progress: 92, seller: "Rafael Lima", plan: "Entrega com documentação completa" },
+    { id: "#ENT-1039", customer: "Ricardo Nunes", vehicle: "Hyundai Creta Platinum", date: "21/07/2025", status: "Em revisão", progress: 58, seller: "Marcos Costa", plan: "Conferir acessórios e garantia" },
+  ];
+
+  const [selectedDeliveryId, setSelectedDeliveryId] = useState("#ENT-1042");
+  const selectedDelivery = deliveries.find((delivery) => delivery.id === selectedDeliveryId) ?? deliveries[0];
+  const deliveryChecklist = [
+    "Financiamento validado",
+    "Contrato assinado",
+    "Crédito liberado",
+    "Acessórios instalados",
+    "Entrega programada",
+    "Pós-venda confirmado",
+  ];
+
+  return (
+    <div className="content module-content">
+      <section className="module-heading"><div><p>PÓS-VENDA</p><h1>Entrega de veículos</h1><span>Acompanhe o preparo do veículo, a documentação e a data de entrega ao cliente.</span></div><button className="primary-button"><Icon name="plus" size={18}/>Nova entrega</button></section>
+      <section className="stats-grid">
+        <article className="stat-card"><div className="stat-icon blue"><Icon name="car" /></div><div className="stat-title"><span>Entregas no mês</span><strong className="up">+18%</strong></div><h2>21</h2><p>veículos programados</p></article>
+        <article className="stat-card"><div className="stat-icon green"><Icon name="check" /></div><div className="stat-title"><span>Liberações</span><strong className="up">92%</strong></div><h2>19</h2><p>documentação aprovada</p></article>
+        <article className="stat-card"><div className="stat-icon purple"><Icon name="calendar" /></div><div className="stat-title"><span>Próximas entregas</span><strong>7 dias</strong></div><h2>6</h2><p>agendadas para esta semana</p></article>
+        <article className="stat-card"><div className="stat-icon orange"><Icon name="gift" /></div><div className="stat-title"><span>Pós-venda ativo</span><strong>84%</strong></div><h2>17</h2><p>planos ativos no primeiro mês</p></article>
+      </section>
+      <div className="contract-stream">
+        <section className="panel module-table">
+          <div className="panel-header"><div><h3>Agenda de entregas</h3><p>Calendário do pós-venda e liberação do cliente</p></div></div>
+          <div className="table-wrap"><table><thead><tr><th>ENTREGA</th><th>CLIENTE</th><th>VEÍCULO</th><th>VENDEDOR</th><th>DATA</th><th>STATUS</th></tr></thead>
+            <tbody>{deliveries.map((delivery) => (
+              <tr key={delivery.id} className={selectedDeliveryId === delivery.id ? "selected-row" : ""} onClick={() => setSelectedDeliveryId(delivery.id)}>
+                <td><strong>{delivery.id}</strong></td>
+                <td>{delivery.customer}</td>
+                <td>{delivery.vehicle}</td>
+                <td>{delivery.seller}</td>
+                <td>{delivery.date}</td>
+                <td><span className={`status ${delivery.status === "Liberado" ? "green" : delivery.status === "Em revisão" ? "yellow" : "blue"}`}>{delivery.status}</span></td>
+              </tr>
+            ))}</tbody></table></div>
+        </section>
+        <aside className="panel contract-summary">
+          <div className="panel-header"><div><h3>Detalhes da entrega</h3><p>{selectedDelivery.id}</p></div></div>
+          <div className="contract-summary-card">
+            <div className="contract-title"><strong>{selectedDelivery.customer}</strong><span>{selectedDelivery.vehicle}</span></div>
+            <div className="contract-metric"><label>Progresso da entrega</label><strong>{selectedDelivery.progress}%</strong><div className="progress-bar"><i style={{ width: `${selectedDelivery.progress}%` }} /></div></div>
+            <div className="contract-metric"><label>Vendedor responsável</label><strong>{selectedDelivery.seller}</strong></div>
+            <div className="contract-metric"><label>Agenda prevista</label><strong>{selectedDelivery.date}</strong></div>
+            <div className="contract-metric"><label>Observação</label><strong>{selectedDelivery.plan}</strong></div>
+            <div className="document-list compact-list">
+              {deliveryChecklist.map((item, index) => (
+                <button key={item} type="button" className={index < 4 ? "document-item complete" : "document-item"}>
+                  <span className="document-check"><Icon name={index < 4 ? "check" : "file"} size={16} /></span>
+                  <span>{item}</span>
+                </button>
+              ))}
+            </div>
+            <button className="primary-button">Confirmar entrega</button>
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }
@@ -1351,7 +1519,7 @@ export default function App() {
           </div>
         </header>
 
-        {active === "Clientes" ? <CustomersPage customerHistoryMap={customerHistoryMap} onAddCustomerHistory={addCustomerHistory} /> : active === "Classificados" ? <ClassifiedsPage onSimulate={() => setActive("Simulações")}/> : active === "Simulações" ? <SimulationPage onAddCustomerHistory={addCustomerHistory} /> : active === "Usuários e perfis" ? <UsersPage/> : active === "Veículos" ? <VehiclesPage/> : active === "Painel do gerente" ? <ManagerDashboard/> : active === "Minha equipe" ? <MyTeamPage/> : active === "Painel de suporte" ? <SupportDashboard/> : active === "Propostas" ? <ProposalReviewPage onAddCustomerHistory={addCustomerHistory}/> : active === "Equipes e comissões" ? <TeamsCommissionsPage/> : active === "Relatórios" ? <ReportsPage/> : active !== "Dashboard" ? <ModulePage name={active}/> : <div className="content">
+        {active === "Clientes" ? <CustomersPage customerHistoryMap={customerHistoryMap} onAddCustomerHistory={addCustomerHistory} /> : active === "Classificados" ? <ClassifiedsPage onSimulate={() => setActive("Simulações")}/> : active === "Simulações" ? <SimulationPage onAddCustomerHistory={addCustomerHistory} /> : active === "Usuários e perfis" ? <UsersPage/> : active === "Veículos" ? <VehiclesPage/> : active === "Painel do gerente" ? <ManagerDashboard/> : active === "Minha equipe" ? <MyTeamPage/> : active === "Painel de suporte" ? <SupportDashboard/> : active === "Propostas" ? <ProposalReviewPage onAddCustomerHistory={addCustomerHistory}/> : active === "Contratos" ? <ContractManagementPage/> : active === "Entrega e pós-venda" ? <DeliveryPage/> : active === "Equipes e comissões" ? <TeamsCommissionsPage/> : active === "Relatórios" ? <ReportsPage/> : active !== "Dashboard" ? <ModulePage name={active}/> : <div className="content">
           <section className="page-heading">
             <div>
               <p>{currentDateLabel}</p>
