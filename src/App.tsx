@@ -1748,7 +1748,32 @@ function TeamsCommissionsPage() {
   );
 }
 
+function ReportHeader({ title }: { title: string }) {
+  const printedAt = new Date().toLocaleString("pt-BR");
+
+  return (
+    <>
+      <div className="report-print-header">
+        <div className="report-brand">
+          <span className="report-mark">VFC</span>
+          <span className="report-company">{clientCompany}</span>
+        </div>
+        <div className="report-title">{title}</div>
+      </div>
+      <div className="report-print-footer">Data e hora: {printedAt}</div>
+    </>
+  );
+}
+
 function FinanceSystemPage() {
+  const exportPdf = () => {
+    if (typeof window === "undefined") return;
+    const previousTitle = document.title;
+    document.title = "Relatório financeiro VFC Multimarcas";
+    window.print();
+    document.title = previousTitle;
+  };
+
   const revenueSummary = [
     { label: "Disponível em caixa", value: "R$ 1.428.300", tone: "green" },
     { label: "Recebimentos previstos", value: "R$ 486.000", tone: "blue" },
@@ -1843,9 +1868,55 @@ function FinanceSystemPage() {
     { manager: "Rafael Lima", collection: "R$ 508.200", approvals: "8", risk: "Médio", margin: "26,4%" },
   ];
 
+  const monthlyClosing = [
+    { item: "Receitas operacionais", value: "R$ 812.000", status: "Fechado" },
+    { item: "Despesas fixas", value: "R$ 318.600", status: "Fechado" },
+    { item: "Comissões", value: "R$ 74.800", status: "Em revisão" },
+    { item: "Tributos", value: "R$ 94.300", status: "Aguardando" },
+  ];
+
+  const financeChecklist = [
+    "Conciliação bancária validada",
+    "Contratos com pagamento confirmado",
+    "Faturas de fornecedores aprovadas",
+    "Códigos de contabilidade ajustados",
+    "Fechamento do mês enviado a diretoria",
+  ];
+
+  const approvalHierarchy = [
+    { role: "Vendedor", maxValue: "R$ 5.000", owner: "Marcos Costa" },
+    { role: "Gerente", maxValue: "R$ 20.000", owner: "Amanda Silva" },
+    { role: "Diretoria", maxValue: "R$ 100.000", owner: "Comitê financeiro" },
+    { role: "Presidência", maxValue: "> R$ 100.000", owner: "Diretoria executiva" },
+  ];
+
+  const unitResults = [
+    { unit: "São Paulo", revenue: "R$ 1.280.000", margin: "29,7%", roi: "14,8%" },
+    { unit: "Rio de Janeiro", revenue: "R$ 968.400", margin: "27,5%", roi: "12,9%" },
+    { unit: "Belo Horizonte", revenue: "R$ 812.900", margin: "26,1%", roi: "11,7%" },
+    { unit: "Curitiba", revenue: "R$ 740.200", margin: "25,8%", roi: "10,6%" },
+  ];
+
+  const costCenters = [
+    { center: "Vendas", budget: "R$ 420.000", spend: "R$ 311.200", variance: "-26%" },
+    { center: "Operações", budget: "R$ 290.000", spend: "R$ 264.700", variance: "-9%" },
+    { center: "Marketing", budget: "R$ 180.000", spend: "R$ 152.300", variance: "-15%" },
+    { center: "Pós-venda", budget: "R$ 240.000", spend: "R$ 217.500", variance: "-9%" },
+  ];
+
+  const resultByMonth = [
+    { month: "Jan", result: "R$ 324.000" },
+    { month: "Fev", result: "R$ 346.000" },
+    { month: "Mar", result: "R$ 381.000" },
+    { month: "Abr", result: "R$ 408.000" },
+    { month: "Mai", result: "R$ 462.000" },
+    { month: "Jun", result: "R$ 493.400" },
+  ];
+
   return (
     <div className="content module-content report-page">
-      <section className="module-heading"><div><p>SISTEMA FINANCEIRO</p><h1>Fluxo financeiro</h1><span>Controle de caixa, cobrança, recebimentos e operações do negócio.</span></div><button className="primary-button"><Icon name="plus" size={18}/>Nova movimentação</button></section>
+      <ReportHeader title="Fluxo financeiro" />
+      <section className="module-heading"><div><p>SISTEMA FINANCEIRO</p><h1>Fluxo financeiro</h1><span>Controle de caixa, cobrança, recebimentos e operações do negócio.</span></div><div className="heading-actions"><button className="primary-button" onClick={exportPdf}><Icon name="file" size={17}/>Exportar PDF</button><button className="primary-button"><Icon name="plus" size={18}/>Nova movimentação</button></div></section>
 
       <section className="stats-grid">
         {revenueSummary.map((item) => (
@@ -1883,7 +1954,7 @@ function FinanceSystemPage() {
                 {index < bankFlow.length - 1 && <div className="progress-bar"><i style={{ width: index === 0 ? "78%" : index === 1 ? "42%" : index === 2 ? "86%" : "92%" }} /></div>}
               </div>
             ))}
-            <button className="primary-button">Consolidar saldos</button>
+            <button className="primary-button" onClick={exportPdf}>Consolidar saldos</button>
           </div>
         </aside>
       </div>
@@ -1962,7 +2033,7 @@ function FinanceSystemPage() {
             <div className="contract-metric"><label>Receitas x despesas</label><strong>+26,8%</strong></div>
             <div className="contract-metric"><label>Prazo médio de recebimento</label><strong>19 dias</strong></div>
             <div className="contract-metric"><label>Margem operacional</label><strong>31,4%</strong></div>
-            <button className="primary-button">Exportar painel</button>
+            <button className="primary-button" onClick={exportPdf}>Exportar painel</button>
           </div>
         </aside>
       </div>
@@ -2044,7 +2115,7 @@ function FinanceSystemPage() {
             <div className="contract-metric"><label>Taxa de aprovação</label><strong>89%</strong></div>
             <div className="contract-metric"><label>Margem consolidada</label><strong>27,5%</strong></div>
             <div className="contract-metric"><label>Risco financeiro</label><strong>Moderado</strong></div>
-            <button className="primary-button">Enviar relatório</button>
+            <button className="primary-button" onClick={exportPdf}>Enviar relatório</button>
           </div>
         </aside>
       </div>
@@ -2062,6 +2133,90 @@ function FinanceSystemPage() {
             </tr>
           ))}</tbody></table></div>
       </section>
+
+      <div className="contract-stream" style={{ gridTemplateColumns: "1.15fr 0.85fr" }}>
+        <section className="panel module-table">
+          <div className="panel-header"><div><h3>Fechamento mensal</h3><p>Resumo dos indicadores enviados para a gestão</p></div></div>
+          <div className="table-wrap"><table><thead><tr><th>ITEM</th><th>VALOR</th><th>STATUS</th></tr></thead>
+            <tbody>{monthlyClosing.map((row) => (
+              <tr key={row.item}>
+                <td><strong>{row.item}</strong></td>
+                <td>{row.value}</td>
+                <td><span className={`status ${row.status === "Fechado" ? "green" : row.status === "Em revisão" ? "blue" : "yellow"}`}>{row.status}</span></td>
+              </tr>
+            ))}</tbody></table></div>
+        </section>
+
+        <aside className="panel contract-summary">
+          <div className="panel-header"><div><h3>Checklist de gestão</h3><p>Etapas do fechamento financeiro</p></div></div>
+          <div className="contract-summary-card">
+            <div className="document-list compact-list">
+              {financeChecklist.map((item, index) => (
+                <button key={item} type="button" className={index < 4 ? "document-item complete" : "document-item"}>
+                  <span className="document-check"><Icon name={index < 4 ? "check" : "file"} size={16} /></span>
+                  <span>{item}</span>
+                </button>
+              ))}
+            </div>
+            <button className="primary-button">Encerrar mês</button>
+          </div>
+        </aside>
+      </div>
+
+      <div className="contract-stream" style={{ gridTemplateColumns: "1fr 1fr" }}>
+        <section className="panel module-table">
+          <div className="panel-header"><div><h3>Hierarquia de aprovação</h3><p>Limites por cargo para liberação de pagamentos</p></div></div>
+          <div className="table-wrap"><table><thead><tr><th>CARGO</th><th>LIMITE</th><th>RESPONSÁVEL</th></tr></thead>
+            <tbody>{approvalHierarchy.map((row) => (
+              <tr key={row.role}>
+                <td><strong>{row.role}</strong></td>
+                <td>{row.maxValue}</td>
+                <td>{row.owner}</td>
+              </tr>
+            ))}</tbody></table></div>
+        </section>
+
+        <section className="panel module-table">
+          <div className="panel-header"><div><h3>Resultado por unidade</h3><p>Desempenho de cada filial em resultado e eficiência</p></div></div>
+          <div className="table-wrap"><table><thead><tr><th>UNIDADE</th><th>RECEITA</th><th>MARGEM</th><th>ROI</th></tr></thead>
+            <tbody>{unitResults.map((row) => (
+              <tr key={row.unit}>
+                <td><strong>{row.unit}</strong></td>
+                <td>{row.revenue}</td>
+                <td>{row.margin}</td>
+                <td>{row.roi}</td>
+              </tr>
+            ))}</tbody></table></div>
+        </section>
+      </div>
+
+      <div className="contract-stream" style={{ gridTemplateColumns: "1.2fr 1fr" }}>
+        <section className="panel module-table">
+          <div className="panel-header"><div><h3>Centro de custo</h3><p>Orçamento x execução por departamento</p></div></div>
+          <div className="table-wrap"><table><thead><tr><th>DEPARTAMENTO</th><th>ORÇAMENTO</th><th>GASTO</th><th>VARIAÇÃO</th></tr></thead>
+            <tbody>{costCenters.map((row) => (
+              <tr key={row.center}>
+                <td><strong>{row.center}</strong></td>
+                <td>{row.budget}</td>
+                <td>{row.spend}</td>
+                <td>{row.variance}</td>
+              </tr>
+            ))}</tbody></table></div>
+        </section>
+
+        <aside className="panel contract-summary">
+          <div className="panel-header"><div><h3>Resultado por mês</h3><p>Lucro líquido consolidado</p></div></div>
+          <div className="contract-summary-card">
+            {resultByMonth.map((row) => (
+              <div key={row.month} className="contract-metric">
+                <label>{row.month}</label>
+                <strong>{row.result}</strong>
+              </div>
+            ))}
+            <button className="primary-button" onClick={exportPdf}>Exportar indicadores</button>
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }
@@ -2083,6 +2238,7 @@ function ReportsPage() {
   };
   return (
     <div className="content module-content report-page">
+      <ReportHeader title="Relatório de comissões" />
       <section className="module-heading"><div><p>FINANCEIRO</p><h1>Relatório de comissões</h1><span>Pagamentos calculados sobre contratos efetivados no período.</span></div><div className="heading-actions"><label className="period-picker"><Icon name="calendar" size={18}/><select><option>{currentWeekLabel}</option></select></label><button className="primary-button" onClick={exportPdf} disabled={exporting}><Icon name="file" size={17}/>{exporting ? "Gerando no servidor..." : "Exportar PDF"}</button></div></section>
       {exportError && <div className="export-error">{exportError} Verifique se a API de relatórios está disponível.</div>}
       <section className="report-hero"><div><span>Total de comissões</span><strong>R$ 50.740,00</strong><small>4 colaboradores elegíveis</small></div><div><p>Volume vendido<strong>R$ 5.036.000</strong></p><p>Contratos<strong>39</strong></p><p>Ticket médio<strong>R$ 129.128</strong></p></div></section>

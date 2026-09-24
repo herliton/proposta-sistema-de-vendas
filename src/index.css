@@ -446,8 +446,88 @@ td strong { color: #2a3549; font-weight: 600; }
   .report-hero > div:last-child { width: 100%; justify-content: space-between; gap: 12px; }
 }
 
+.report-print-header {
+  display: none;
+}
+
+.report-company {
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #2f5bb5;
+}
+
+.report-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.report-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #173d82, #1f78ff);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.report-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.report-print-footer {
+  display: none;
+}
+
+@page {
+  size: A4;
+  margin: 14mm 12mm 16mm;
+}
+
 @media print {
   .sidebar, .topbar, .module-heading .heading-actions, .report-footnote { display: none !important; }
-  main { margin: 0; }.content { max-width: none; padding: 20px; }.report-page .module-heading { display: block; }
-  .report-page { color: #111; background: #fff; }.panel { box-shadow: none; }
+  .report-print-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex !important;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0 0 0.9rem;
+    margin: 0;
+    border-bottom: 1px solid #dfe7f4;
+    color: #17243e;
+    background: #fff;
+    z-index: 10;
+  }
+
+  .report-print-footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex !important;
+    justify-content: flex-end;
+    padding: 0.8rem 0 0;
+    border-top: 1px solid #dfe7f4;
+    color: #5d6b82;
+    font-size: 0.75rem;
+    background: #fff;
+    z-index: 10;
+  }
+
+  main { margin: 0; }
+  .content { max-width: none; padding: 20px; }
+  .report-page { color: #111; background: #fff; padding-top: 3.8rem; padding-bottom: 2.5rem; }
+  .report-page .module-heading { display: block; }
+  .panel { box-shadow: none; }
 }
