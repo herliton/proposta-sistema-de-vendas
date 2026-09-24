@@ -1,0 +1,11 @@
+{
+  "description": "Otimize as vendas de veículos com uma plataforma abrangente de geração de propostas para administradores, vendedores e equipes de suporte, aprimorando a gestão de contratos e as interações com os clientes.",
+  "language": "pt-BR",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
