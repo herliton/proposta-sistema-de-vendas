@@ -158,6 +158,7 @@ const navGroups = [
     items: [
       { label: "Painel do gerente", icon: "home" as IconName },
       { label: "Minha equipe", icon: "users" as IconName },
+      { label: "Aprovações e documentos", icon: "file" as IconName },
       { label: "Painel de suporte", icon: "trend" as IconName },
       { label: "Entrega e pós-venda", icon: "car" as IconName },
       { label: "Garantia e pós-venda", icon: "gift" as IconName },
@@ -2317,6 +2318,110 @@ function MyTeamPage() {
   );
 }
 
+function ApprovalsAndDocumentsPage() {
+  const approvalQueue = [
+    { id: "APR-1042", customer: "Ricardo Nunes", type: "Contrato de financiamento", amount: "R$ 98.500", owner: "Marcos Costa", status: "Pendente", risk: "Baixa" },
+    { id: "APR-1043", customer: "Camila Rocha", type: "Acordo de consultoria", amount: "R$ 7.000", owner: "Rafael Lima", status: "Em revisão", risk: "Média" },
+    { id: "APR-1044", customer: "Pedro Azevedo", type: "Pedido de garantia estendida", amount: "R$ 3.450", owner: "Juliana Castro", status: "Aprovado", risk: "Baixa" },
+    { id: "APR-1045", customer: "Fernanda Dias", type: "Renegociação de dívida", amount: "R$ 18.900", owner: "Amanda Silva", status: "Pendente", risk: "Alta" },
+  ];
+
+  const documentArchive = [
+    { doc: "Contrato assinado", customer: "Ricardo Nunes", channel: "e-Gov", version: "v3", status: "Arquivado", signed: true },
+    { doc: "Proposta comercial", customer: "Camila Rocha", channel: "WhatsApp", version: "v2", status: "Aceito", signed: true },
+    { doc: "Termo de consultoria", customer: "Pedro Azevedo", channel: "E-mail", version: "v1", status: "Pendente", signed: false },
+    { doc: "Acordo de recuperação", customer: "Henrique Alves", channel: "e-Gov", version: "v1", status: "Em validação", signed: true },
+  ];
+
+  const complianceChecklist = [
+    "Documentação do cliente validada",
+    "Consulta de risco e crédito concluída",
+    "Proposta assinada eletronicamente",
+    "Cópia do PDF arquivada em segurança",
+    "Envio para aprovação do gerente",
+  ];
+
+  return (
+    <div className="content module-content report-page">
+      <section className="module-heading">
+        <div>
+          <p>APROVAÇÕES E DOCUMENTOS</p>
+          <h1>Centro de aprovação e juridico</h1>
+          <span>Analise solicitações, valide documentos e acompanhe o arquivamento digital do cliente.</span>
+        </div>
+        <div className="heading-actions">
+          <button className="primary-button"><Icon name="plus" size={18}/>Nova solicitação</button>
+        </div>
+      </section>
+
+      <section className="stats-grid">
+        <article className="stat-card">
+          <div className="stat-icon blue"><Icon name="file" /></div>
+          <div className="stat-title"><span>Solicitações pendentes</span><strong className="up">+12%</strong></div>
+          <h2>14</h2><p>em fila de aprovação</p>
+        </article>
+        <article className="stat-card">
+          <div className="stat-icon green"><Icon name="check" /></div>
+          <div className="stat-title"><span>Documentos validados</span><strong className="up">92%</strong></div>
+          <h2>31</h2><p>assinaturas e arquivos concluídos</p>
+        </article>
+        <article className="stat-card">
+          <div className="stat-icon purple"><Icon name="contract" /></div>
+          <div className="stat-title"><span>Contratos com cópia</span><strong>100%</strong></div>
+          <h2>27</h2><p>arquivados no sistema jurídico</p>
+        </article>
+      </section>
+
+      <div className="contract-stream" style={{ gridTemplateColumns: "1.2fr 0.8fr" }}>
+        <section className="panel module-table">
+          <div className="panel-header"><div><h3>Fila de aprovação</h3><p>Pedidos que exigem validação antes da continuidade do fluxo</p></div></div>
+          <div className="table-wrap"><table><thead><tr><th>ID</th><th>CLIENTE</th><th>DOCUMENTO</th><th>VALOR</th><th>STATUS</th><th>RISCO</th></tr></thead>
+            <tbody>{approvalQueue.map((row) => (
+              <tr key={row.id}>
+                <td><strong>{row.id}</strong></td>
+                <td>{row.customer}</td>
+                <td>{row.type}</td>
+                <td>{row.amount}</td>
+                <td><span className={`status ${row.status === "Aprovado" ? "green" : row.status === "Em revisão" ? "blue" : "yellow"}`}>{row.status}</span></td>
+                <td><span className={`status ${row.risk === "Alta" ? "red" : row.risk === "Média" ? "yellow" : "green"}`}>{row.risk}</span></td>
+              </tr>
+            ))}</tbody></table></div>
+        </section>
+
+        <aside className="panel contract-summary">
+          <div className="panel-header"><div><h3>Checklist jurídico</h3><p>Validado antes do envio final</p></div></div>
+          <div className="contract-summary-card">
+            <div className="document-list compact-list">
+              {complianceChecklist.map((item, index) => (
+                <button key={item} type="button" className={index < 4 ? "document-item complete" : "document-item"}>
+                  <span className="document-check"><Icon name={index < 4 ? "check" : "file"} size={16} /></span>
+                  <span>{item}</span>
+                </button>
+              ))}
+            </div>
+            <button className="primary-button">Enviar para aprovação</button>
+          </div>
+        </aside>
+      </div>
+
+      <section className="panel module-table">
+        <div className="panel-header"><div><h3>Arquivo digital e assinatura</h3><p>Versões armazenadas, canais de envio e status de aceite</p></div></div>
+        <div className="table-wrap"><table><thead><tr><th>DOCUMENTO</th><th>CLIENTE</th><th>CANAL</th><th>VERSÃO</th><th>STATUS</th><th>ASSINATURA</th></tr></thead>
+          <tbody>{documentArchive.map((row) => (
+            <tr key={`${row.doc}-${row.customer}`}>
+              <td><strong>{row.doc}</strong></td>
+              <td>{row.customer}</td>
+              <td>{row.channel}</td>
+              <td>{row.version}</td>
+              <td><span className={`status ${row.status === "Arquivado" ? "green" : row.status === "Aceito" ? "green" : row.status === "Em validação" ? "blue" : "yellow"}`}>{row.status}</span></td>
+              <td><span className={`status ${row.signed ? "green" : "red"}`}>{row.signed ? "Registrada" : "Pendente"}</span></td>
+            </tr>
+          ))}</tbody></table></div>
+      </section>
+    </div>
+  );
+}
+
 export default function App() {
   const [authenticated, setAuthenticated] = useState(false);
   const [active, setActive] = useState("Dashboard");
@@ -2428,7 +2533,7 @@ export default function App() {
           </div>
         </header>
 
-        {active === "Clientes" ? <CustomersPage customerHistoryMap={customerHistoryMap} onAddCustomerHistory={addCustomerHistory} /> : active === "Classificados" ? <ClassifiedsPage onSimulate={() => setActive("Simulações")}/> : active === "Simulações" ? <SimulationPage onAddCustomerHistory={addCustomerHistory} /> : active === "Usuários e perfis" ? <UsersPage/> : active === "Veículos" ? <VehiclesPage/> : active === "Painel do gerente" ? <ManagerDashboard/> : active === "Minha equipe" ? <MyTeamPage/> : active === "Painel de suporte" ? <SupportDashboard/> : active === "Propostas" ? <ProposalReviewPage onAddCustomerHistory={addCustomerHistory}/> : active === "Contratos" ? <ContractManagementPage/> : active === "Entrega e pós-venda" ? <DeliveryPage/> : active === "Garantia e pós-venda" ? <AfterSalesPage/> : active === "CRM pós-venda" ? <CustomerFollowUpPage/> : active === "Equipes e comissões" ? <TeamsCommissionsPage/> : active === "Sistema financeiro" ? <FinanceSystemPage/> : active === "Relatórios" ? <ReportsPage/> : active !== "Dashboard" ? <ModulePage name={active}/> : <div className="content">
+        {active === "Clientes" ? <CustomersPage customerHistoryMap={customerHistoryMap} onAddCustomerHistory={addCustomerHistory} /> : active === "Classificados" ? <ClassifiedsPage onSimulate={() => setActive("Simulações")}/> : active === "Simulações" ? <SimulationPage onAddCustomerHistory={addCustomerHistory} /> : active === "Usuários e perfis" ? <UsersPage/> : active === "Veículos" ? <VehiclesPage/> : active === "Painel do gerente" ? <ManagerDashboard/> : active === "Minha equipe" ? <MyTeamPage/> : active === "Aprovações e documentos" ? <ApprovalsAndDocumentsPage/> : active === "Painel de suporte" ? <SupportDashboard/> : active === "Propostas" ? <ProposalReviewPage onAddCustomerHistory={addCustomerHistory}/> : active === "Contratos" ? <ContractManagementPage/> : active === "Entrega e pós-venda" ? <DeliveryPage/> : active === "Garantia e pós-venda" ? <AfterSalesPage/> : active === "CRM pós-venda" ? <CustomerFollowUpPage/> : active === "Equipes e comissões" ? <TeamsCommissionsPage/> : active === "Sistema financeiro" ? <FinanceSystemPage/> : active === "Relatórios" ? <ReportsPage/> : active !== "Dashboard" ? <ModulePage name={active}/> : <div className="content">
           <section className="page-heading">
             <div>
               <p>{currentDateLabel}</p>
