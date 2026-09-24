@@ -163,6 +163,7 @@ const navGroups = [
       { label: "Garantia e pós-venda", icon: "gift" as IconName },
       { label: "CRM pós-venda", icon: "users" as IconName },
       { label: "Equipes e comissões", icon: "chart" as IconName },
+      { label: "Sistema financeiro", icon: "percent" as IconName },
       { label: "Relatórios", icon: "file" as IconName },
       { label: "Configurações", icon: "settings" as IconName },
     ],
@@ -1747,6 +1748,324 @@ function TeamsCommissionsPage() {
   );
 }
 
+function FinanceSystemPage() {
+  const revenueSummary = [
+    { label: "Disponível em caixa", value: "R$ 1.428.300", tone: "green" },
+    { label: "Recebimentos previstos", value: "R$ 486.000", tone: "blue" },
+    { label: "Pagamentos pendentes", value: "R$ 198.500", tone: "yellow" },
+    { label: "Inadimplência ativa", value: "4,3%", tone: "red" },
+  ];
+
+  const movements = [
+    { id: "FIN-2301", client: "Camila Rocha", type: "Honorários consultoria", value: "R$ 7.000", status: "Pendente", due: "30/09/2026" },
+    { id: "FIN-2302", client: "Ricardo Nunes", type: "Entrada de contrato", value: "R$ 18.400", status: "Recebido", due: "25/09/2026" },
+    { id: "FIN-2303", client: "Pedro Azevedo", type: "Complemento de veículo", value: "R$ 6.200", status: "Em revisão", due: "28/09/2026" },
+    { id: "FIN-2304", client: "Fernanda Dias", type: "Taxa de análise", value: "R$ 2.400", status: "Pendente", due: "02/10/2026" },
+  ];
+
+  const bankFlow = [
+    { label: "Receitas do mês", value: "R$ 812.000" },
+    { label: "Despesas operacionais", value: "R$ 318.600" },
+    { label: "Fluxo líquido", value: "R$ 493.400" },
+    { label: "Conciliação bancária", value: "92%" },
+  ];
+
+  const sellerFinance = [
+    { seller: "Marcos Costa", volume: "R$ 186.500", comission: "R$ 12.400", balance: "R$ 42.800" },
+    { seller: "Juliana Castro", volume: "R$ 163.200", comission: "R$ 10.620", balance: "R$ 38.700" },
+    { seller: "Rafael Lima", volume: "R$ 142.900", comission: "R$ 9.100", balance: "R$ 31.200" },
+    { seller: "Amanda Silva", volume: "R$ 121.300", comission: "R$ 8.200", balance: "R$ 27.900" },
+  ];
+
+  const overdueReceivables = [
+    { customer: "Lívia Mendes", amount: "R$ 14.600", due: "10/09/2026", risk: "Alta" },
+    { customer: "Rogério Souza", amount: "R$ 11.300", due: "12/09/2026", risk: "Média" },
+    { customer: "Ana Cavalcanti", amount: "R$ 8.900", due: "15/09/2026", risk: "Alta" },
+    { customer: "Daniel Martins", amount: "R$ 5.700", due: "18/09/2026", risk: "Baixa" },
+  ];
+
+  const payableAccounts = [
+    { provider: "Seguradora VFC", value: "R$ 36.400", due: "27/09/2026", status: "Pendente" },
+    { provider: "Oficina Premium", value: "R$ 18.200", due: "28/09/2026", status: "Em revisão" },
+    { provider: "Logística e entrega", value: "R$ 12.750", due: "30/09/2026", status: "Agendado" },
+    { provider: "Imposto e contabilidade", value: "R$ 23.600", due: "04/10/2026", status: "Pendente" },
+  ];
+
+  const cashFlowTrend = [
+    { month: "Jan", value: 58 },
+    { month: "Fev", value: 62 },
+    { month: "Mar", value: 71 },
+    { month: "Abr", value: 68 },
+    { month: "Mai", value: 81 },
+    { month: "Jun", value: 94 },
+  ];
+
+  const approvalQueue = [
+    { label: "Pagamento de comissão", type: "Vendedor", amount: "R$ 42.800", owner: "Marcos Costa", status: "Aguardando", risk: "Baixa" },
+    { label: "Rescisão de contrato", type: "Operação", amount: "R$ 18.650", owner: "Financeiro", status: "Em revisão", risk: "Média" },
+    { label: "Fatura de logística", type: "Fornecedor", amount: "R$ 12.750", owner: "Compras", status: "Aprovado", risk: "Baixa" },
+    { label: "Multa tributária", type: "Tributos", amount: "R$ 23.600", owner: "Contábil", status: "Pendente", risk: "Alta" },
+  ];
+
+  const payablesByCategory = [
+    { category: "Tributos", amount: "R$ 96.400", share: "32%" },
+    { category: "Logística", amount: "R$ 74.200", share: "24%" },
+    { category: "Seguros", amount: "R$ 58.600", share: "19%" },
+    { category: "Comissões", amount: "R$ 48.300", share: "16%" },
+    { category: "Outros", amount: "R$ 27.500", share: "9%" },
+  ];
+
+  const activeCollection = [
+    { client: "Carla Moreira", amount: "R$ 21.800", stage: "Contato 2/3", owner: "Cecília", status: "Negociação" },
+    { client: "Paulo Rocha", amount: "R$ 15.600", stage: "Acordo firmado", owner: "Thiago", status: "Em dia" },
+    { client: "Nina Costa", amount: "R$ 13.250", stage: "Cobrança ativa", owner: "Luan", status: "Em atraso" },
+    { client: "Lucas Mendes", amount: "R$ 9.400", stage: "Documentação", owner: "Beatriz", status: "Em revisão" },
+  ];
+
+  const profitability = [
+    { line: "Vendas de veículos", margin: "31,6%", revenue: "R$ 2.480.000", cost: "R$ 1.700.000" },
+    { line: "Consultoria crédito", margin: "28,9%", revenue: "R$ 360.000", cost: "R$ 256.000" },
+    { line: "Pós-venda e serviços", margin: "22,4%", revenue: "R$ 540.000", cost: "R$ 419.000" },
+    { line: "Financiamento", margin: "18,7%", revenue: "R$ 210.000", cost: "R$ 171.000" },
+  ];
+
+  const approvalCenter = [
+    { id: "AP-9041", title: "Comissão de vendedores", amount: "R$ 42.800", department: "Vendas", approver: "Amanda Silva", status: "Pendência" },
+    { id: "AP-9042", title: "Pagamento de fornecedores", amount: "R$ 18.650", department: "Operações", approver: "Financeiro", status: "Em revisão" },
+    { id: "AP-9043", title: "Tributos do mês", amount: "R$ 23.600", department: "Contábil", approver: "Diretoria", status: "Aprovado" },
+    { id: "AP-9044", title: "Seguro de frota", amount: "R$ 36.400", department: "Seguros", approver: "Compras", status: "Agendado" },
+  ];
+
+  const managerView = [
+    { manager: "Amanda Silva", collection: "R$ 742.000", approvals: "14", risk: "Baixo", margin: "31,2%" },
+    { manager: "Marcos Costa", collection: "R$ 621.300", approvals: "11", risk: "Médio", margin: "28,7%" },
+    { manager: "Juliana Castro", collection: "R$ 594.500", approvals: "9", risk: "Baixo", margin: "30,8%" },
+    { manager: "Rafael Lima", collection: "R$ 508.200", approvals: "8", risk: "Médio", margin: "26,4%" },
+  ];
+
+  return (
+    <div className="content module-content report-page">
+      <section className="module-heading"><div><p>SISTEMA FINANCEIRO</p><h1>Fluxo financeiro</h1><span>Controle de caixa, cobrança, recebimentos e operações do negócio.</span></div><button className="primary-button"><Icon name="plus" size={18}/>Nova movimentação</button></section>
+
+      <section className="stats-grid">
+        {revenueSummary.map((item) => (
+          <article className="stat-card" key={item.label}>
+            <div className={`stat-icon ${item.tone}`}><Icon name={item.tone === "green" ? "check" : item.tone === "blue" ? "file" : item.tone === "yellow" ? "calendar" : "close"} /></div>
+            <div className="stat-title"><span>{item.label}</span><strong className={item.tone === "green" ? "up" : item.tone === "red" ? "down" : "up"}>{item.tone === "red" ? "-0,4%" : "+8,2%"}</strong></div>
+            <h2>{item.value}</h2><p>{item.tone === "red" ? "em comparação ao mês anterior" : "em alta no período"}</p>
+          </article>
+        ))}
+      </section>
+
+      <div className="contract-stream">
+        <section className="panel module-table">
+          <div className="panel-header"><div><h3>Movimentações financeiras</h3><p>Fluxo de recebimentos, pagamentos e pendências</p></div></div>
+          <div className="table-wrap"><table><thead><tr><th>ID</th><th>CLIENTE</th><th>TIPO</th><th>VALOR</th><th>STATUS</th><th>VENCIMENTO</th></tr></thead>
+            <tbody>{movements.map((row) => (
+              <tr key={row.id}>
+                <td><strong>{row.id}</strong></td>
+                <td>{row.client}</td>
+                <td>{row.type}</td>
+                <td><strong>{row.value}</strong></td>
+                <td><span className={`status ${row.status === "Recebido" ? "green" : row.status === "Pendente" ? "yellow" : "blue"}`}>{row.status}</span></td>
+                <td>{row.due}</td>
+              </tr>
+            ))}</tbody></table></div>
+        </section>
+
+        <aside className="panel contract-summary">
+          <div className="panel-header"><div><h3>Resumo bancário</h3><p>Fluxo e conciliação</p></div></div>
+          <div className="contract-summary-card">
+            {bankFlow.map((row, index) => (
+              <div key={row.label} className="contract-metric">
+                <label>{row.label}</label>
+                <strong>{row.value}</strong>
+                {index < bankFlow.length - 1 && <div className="progress-bar"><i style={{ width: index === 0 ? "78%" : index === 1 ? "42%" : index === 2 ? "86%" : "92%" }} /></div>}
+              </div>
+            ))}
+            <button className="primary-button">Consolidar saldos</button>
+          </div>
+        </aside>
+      </div>
+
+      <section className="panel module-table">
+        <div className="panel-header"><div><h3>Financeiro por vendedor</h3><p>Volume, comissões e saldo líquido</p></div></div>
+        <div className="table-wrap"><table><thead><tr><th>VENDEDOR</th><th>VOLUME</th><th>COMISSÃO</th><th>SALDO</th></tr></thead>
+          <tbody>{sellerFinance.map((row) => (
+            <tr key={row.seller}>
+              <td><strong>{row.seller}</strong></td>
+              <td>{row.volume}</td>
+              <td>{row.comission}</td>
+              <td>{row.balance}</td>
+            </tr>
+          ))}</tbody></table></div>
+      </section>
+
+      <div className="contract-stream" style={{ gridTemplateColumns: "1.2fr 1fr" }}>
+        <section className="panel module-table">
+          <div className="panel-header"><div><h3>Cobrança e inadimplência</h3><p>Recebíveis em atraso e risco de carteira</p></div></div>
+          <div className="table-wrap"><table><thead><tr><th>CLIENTE</th><th>VALOR</th><th>VENCIMENTO</th><th>RISCO</th></tr></thead>
+            <tbody>{overdueReceivables.map((row) => (
+              <tr key={row.customer}>
+                <td><strong>{row.customer}</strong></td>
+                <td>{row.amount}</td>
+                <td>{row.due}</td>
+                <td><span className={`status ${row.risk === "Alta" ? "red" : row.risk === "Média" ? "yellow" : "green"}`}>{row.risk}</span></td>
+              </tr>
+            ))}</tbody></table></div>
+        </section>
+
+        <aside className="panel contract-summary">
+          <div className="panel-header"><div><h3>Alerta financeiro</h3><p>Monitoramento da carteira</p></div></div>
+          <div className="contract-summary-card">
+            <div className="contract-metric"><label>Dias em atraso</label><strong>19 dias</strong></div>
+            <div className="contract-metric"><label>Valores em risco</label><strong>R$ 68.300</strong></div>
+            <div className="contract-metric"><label>Taxa de recuperação</label><strong>61%</strong></div>
+            <div className="contract-metric"><label>Última ação</label><strong>Contato com gerente</strong></div>
+            <button className="primary-button">Acompanhar cobrança</button>
+          </div>
+        </aside>
+      </div>
+
+      <section className="panel module-table">
+        <div className="panel-header"><div><h3>Contas a pagar</h3><p>Pagamentos programados e envio para aprovação</p></div></div>
+        <div className="table-wrap"><table><thead><tr><th>FORNECEDOR</th><th>VALOR</th><th>VENCIMENTO</th><th>STATUS</th></tr></thead>
+          <tbody>{payableAccounts.map((row) => (
+            <tr key={row.provider}>
+              <td><strong>{row.provider}</strong></td>
+              <td>{row.value}</td>
+              <td>{row.due}</td>
+              <td><span className={`status ${row.status === "Pendente" ? "yellow" : row.status === "Em revisão" ? "blue" : "green"}`}>{row.status}</span></td>
+            </tr>
+          ))}</tbody></table></div>
+      </section>
+
+      <div className="contract-stream" style={{ gridTemplateColumns: "1.2fr 1fr" }}>
+        <section className="panel support-note contract-panel" style={{ display: "grid", gap: "1rem" }}>
+          <div className="panel-header"><div><h3>Fluxo de caixa por mês</h3><p>Evolução do saldo líquido em comparação ao período anterior</p></div></div>
+          <div style={{ display: "flex", alignItems: "end", gap: "0.9rem", height: "170px", padding: "0.5rem 0.2rem 0" }}>
+            {cashFlowTrend.map((bar) => (
+              <div key={bar.month} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "0.6rem" }}>
+                <div style={{ width: "100%", maxWidth: "52px", height: "110px", display: "flex", alignItems: "end", justifyContent: "center" }}>
+                  <div style={{ width: "100%", height: `${bar.value}%`, background: "linear-gradient(180deg, #9bc0ff, #1d78ff)", borderRadius: "10px 10px 4px 4px", boxShadow: "inset 0 -10px 15px rgba(0,0,0,0.08)" }} />
+                </div>
+                <small style={{ color: "#53627a", fontWeight: 600 }}>{bar.month}</small>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <aside className="panel contract-summary">
+          <div className="panel-header"><div><h3>Dashboard executivo</h3><p>Visão consolidada do financeiro</p></div></div>
+          <div className="contract-summary-card">
+            <div className="contract-metric"><label>Saldo em caixa</label><strong>R$ 1.428.300</strong></div>
+            <div className="contract-metric"><label>Receitas x despesas</label><strong>+26,8%</strong></div>
+            <div className="contract-metric"><label>Prazo médio de recebimento</label><strong>19 dias</strong></div>
+            <div className="contract-metric"><label>Margem operacional</label><strong>31,4%</strong></div>
+            <button className="primary-button">Exportar painel</button>
+          </div>
+        </aside>
+      </div>
+
+      <section className="panel module-table">
+        <div className="panel-header"><div><h3>Fila de aprovação financeira</h3><p>Pagamentos e pendências com risco de operação</p></div></div>
+        <div className="table-wrap"><table><thead><tr><th>ITEM</th><th>TIPO</th><th>VALOR</th><th>RESPONSÁVEL</th><th>STATUS</th><th>RISCO</th></tr></thead>
+          <tbody>{approvalQueue.map((row) => (
+            <tr key={row.label}>
+              <td><strong>{row.label}</strong></td>
+              <td>{row.type}</td>
+              <td>{row.amount}</td>
+              <td>{row.owner}</td>
+              <td><span className={`status ${row.status === "Aprovado" ? "green" : row.status === "Em revisão" ? "blue" : "yellow"}`}>{row.status}</span></td>
+              <td><span className={`status ${row.risk === "Alta" ? "red" : row.risk === "Média" ? "yellow" : "green"}`}>{row.risk}</span></td>
+            </tr>
+          ))}</tbody></table></div>
+      </section>
+
+      <div className="contract-stream" style={{ gridTemplateColumns: "1.1fr 1.1fr" }}>
+        <section className="panel module-table">
+          <div className="panel-header"><div><h3>Despesas por categoria</h3><p>Distribuição dos desembolsos por tipo de gasto</p></div></div>
+          <div className="table-wrap"><table><thead><tr><th>CATEGORIA</th><th>VALOR</th><th>PARTICIPAÇÃO</th></tr></thead>
+            <tbody>{payablesByCategory.map((row) => (
+              <tr key={row.category}>
+                <td><strong>{row.category}</strong></td>
+                <td>{row.amount}</td>
+                <td>{row.share}</td>
+              </tr>
+            ))}</tbody></table></div>
+        </section>
+
+        <section className="panel module-table">
+          <div className="panel-header"><div><h3>Cobrança ativa</h3><p>Clientes com acompanhamento financeiro em andamento</p></div></div>
+          <div className="table-wrap"><table><thead><tr><th>CLIENTE</th><th>VALOR</th><th>ETAPA</th><th>STATUS</th></tr></thead>
+            <tbody>{activeCollection.map((row) => (
+              <tr key={row.client}>
+                <td><strong>{row.client}</strong></td>
+                <td>{row.amount}</td>
+                <td>{row.stage}</td>
+                <td><span className={`status ${row.status === "Em atraso" ? "red" : row.status === "Negociação" ? "yellow" : row.status === "Em revisão" ? "blue" : "green"}`}>{row.status}</span></td>
+              </tr>
+            ))}</tbody></table></div>
+        </section>
+      </div>
+
+      <section className="panel module-table">
+        <div className="panel-header"><div><h3>Rentabilidade por linha de negócio</h3><p>Receita, custo e margem dos segmentos principais</p></div></div>
+        <div className="table-wrap"><table><thead><tr><th>LINHA</th><th>MARGEM</th><th>RECEITA</th><th>CUSTO</th></tr></thead>
+          <tbody>{profitability.map((row) => (
+            <tr key={row.line}>
+              <td><strong>{row.line}</strong></td>
+              <td>{row.margin}</td>
+              <td>{row.revenue}</td>
+              <td>{row.cost}</td>
+            </tr>
+          ))}</tbody></table></div>
+      </section>
+
+      <div className="contract-stream" style={{ gridTemplateColumns: "1.2fr 1fr" }}>
+        <section className="panel module-table">
+          <div className="panel-header"><div><h3>Centro de aprovação</h3><p>Pagamentos e solicitações aguardando liberação</p></div></div>
+          <div className="table-wrap"><table><thead><tr><th>ID</th><th>DESCRICAO</th><th>VALOR</th><th>DEPARTAMENTO</th><th>STATUS</th></tr></thead>
+            <tbody>{approvalCenter.map((row) => (
+              <tr key={row.id}>
+                <td><strong>{row.id}</strong></td>
+                <td>{row.title}</td>
+                <td>{row.amount}</td>
+                <td>{row.department}</td>
+                <td><span className={`status ${row.status === "Aprovado" ? "green" : row.status === "Pendência" ? "yellow" : row.status === "Em revisão" ? "blue" : "green"}`}>{row.status}</span></td>
+              </tr>
+            ))}</tbody></table></div>
+        </section>
+
+        <aside className="panel contract-summary">
+          <div className="panel-header"><div><h3>Indicadores da diretoria</h3><p>Visão executiva consolidada</p></div></div>
+          <div className="contract-summary-card">
+            <div className="contract-metric"><label>Capital disponível</label><strong>R$ 1.428.300</strong></div>
+            <div className="contract-metric"><label>Taxa de aprovação</label><strong>89%</strong></div>
+            <div className="contract-metric"><label>Margem consolidada</label><strong>27,5%</strong></div>
+            <div className="contract-metric"><label>Risco financeiro</label><strong>Moderado</strong></div>
+            <button className="primary-button">Enviar relatório</button>
+          </div>
+        </aside>
+      </div>
+
+      <section className="panel module-table">
+        <div className="panel-header"><div><h3>Dashboard por gerente</h3><p>Receita captada, aprovações e desempenho do time</p></div></div>
+        <div className="table-wrap"><table><thead><tr><th>GERENTE</th><th>COBRANÇA</th><th>APROVAÇÕES</th><th>RISCO</th><th>MARGEM</th></tr></thead>
+          <tbody>{managerView.map((row) => (
+            <tr key={row.manager}>
+              <td><strong>{row.manager}</strong></td>
+              <td>{row.collection}</td>
+              <td>{row.approvals}</td>
+              <td><span className={`status ${row.risk === "Baixo" ? "green" : "yellow"}`}>{row.risk}</span></td>
+              <td>{row.margin}</td>
+            </tr>
+          ))}</tbody></table></div>
+      </section>
+    </div>
+  );
+}
+
 function ReportsPage() {
   const payouts = [["Marcos Costa", "Vendedor", "8", "R$ 986.000", "R$ 14.790"], ["Juliana Castro", "Vendedor", "7", "R$ 842.000", "R$ 12.630"], ["Amanda Silva", "Gerente", "18", "R$ 2.480.000", "R$ 12.400"], ["Rafael Lima", "Vendedor", "6", "R$ 728.000", "R$ 10.920"]];
   const [exporting, setExporting] = useState(false);
@@ -1953,7 +2272,7 @@ export default function App() {
           </div>
         </header>
 
-        {active === "Clientes" ? <CustomersPage customerHistoryMap={customerHistoryMap} onAddCustomerHistory={addCustomerHistory} /> : active === "Classificados" ? <ClassifiedsPage onSimulate={() => setActive("Simulações")}/> : active === "Simulações" ? <SimulationPage onAddCustomerHistory={addCustomerHistory} /> : active === "Usuários e perfis" ? <UsersPage/> : active === "Veículos" ? <VehiclesPage/> : active === "Painel do gerente" ? <ManagerDashboard/> : active === "Minha equipe" ? <MyTeamPage/> : active === "Painel de suporte" ? <SupportDashboard/> : active === "Propostas" ? <ProposalReviewPage onAddCustomerHistory={addCustomerHistory}/> : active === "Contratos" ? <ContractManagementPage/> : active === "Entrega e pós-venda" ? <DeliveryPage/> : active === "Garantia e pós-venda" ? <AfterSalesPage/> : active === "CRM pós-venda" ? <CustomerFollowUpPage/> : active === "Equipes e comissões" ? <TeamsCommissionsPage/> : active === "Relatórios" ? <ReportsPage/> : active !== "Dashboard" ? <ModulePage name={active}/> : <div className="content">
+        {active === "Clientes" ? <CustomersPage customerHistoryMap={customerHistoryMap} onAddCustomerHistory={addCustomerHistory} /> : active === "Classificados" ? <ClassifiedsPage onSimulate={() => setActive("Simulações")}/> : active === "Simulações" ? <SimulationPage onAddCustomerHistory={addCustomerHistory} /> : active === "Usuários e perfis" ? <UsersPage/> : active === "Veículos" ? <VehiclesPage/> : active === "Painel do gerente" ? <ManagerDashboard/> : active === "Minha equipe" ? <MyTeamPage/> : active === "Painel de suporte" ? <SupportDashboard/> : active === "Propostas" ? <ProposalReviewPage onAddCustomerHistory={addCustomerHistory}/> : active === "Contratos" ? <ContractManagementPage/> : active === "Entrega e pós-venda" ? <DeliveryPage/> : active === "Garantia e pós-venda" ? <AfterSalesPage/> : active === "CRM pós-venda" ? <CustomerFollowUpPage/> : active === "Equipes e comissões" ? <TeamsCommissionsPage/> : active === "Sistema financeiro" ? <FinanceSystemPage/> : active === "Relatórios" ? <ReportsPage/> : active !== "Dashboard" ? <ModulePage name={active}/> : <div className="content">
           <section className="page-heading">
             <div>
               <p>{currentDateLabel}</p>
