@@ -2422,6 +2422,92 @@ function ApprovalsAndDocumentsPage() {
   );
 }
 
+function SettingsPage() {
+  const configRows = [
+    { setting: "Validação automática de proposta", owner: "Operações", status: "Ativa" },
+    { setting: "Notificação de aprovação financeira", owner: "Financeiro", status: "Ativa" },
+    { setting: "Arquivamento eletrônico de contrato", owner: "Jurídico", status: "Ativa" },
+    { setting: "Envio de lembrete via WhatsApp", owner: "CRM", status: "Ativa" },
+  ];
+
+  const integrationRows = [
+    { name: "e-Gov", owner: "Jurídico", status: "Conectado" },
+    { name: "WhatsApp Business", owner: "Marketing", status: "Conectado" },
+    { name: "ERP Financeiro", owner: "Financeiro", status: "Simulado" },
+    { name: "SAC / atendimento", owner: "Suporte", status: "Conectado" },
+  ];
+
+  return (
+    <div className="content module-content report-page">
+      <section className="module-heading">
+        <div>
+          <p>CONFIGURAÇÕES</p>
+          <h1>Operações e permissões</h1>
+          <span>Defina regras comerciais, automações e integrações que apoiam o dia a dia da operação.</span>
+        </div>
+        <div className="heading-actions">
+          <button className="primary-button"><Icon name="plus" size={18}/>Nova regra</button>
+        </div>
+      </section>
+
+      <section className="stats-grid">
+        <article className="stat-card">
+          <div className="stat-icon blue"><Icon name="settings" /></div>
+          <div className="stat-title"><span>Configurações ativas</span><strong className="up">82%</strong></div>
+          <h2>14</h2><p>regras em operação</p>
+        </article>
+        <article className="stat-card">
+          <div className="stat-icon green"><Icon name="check" /></div>
+          <div className="stat-title"><span>Permissões válidas</span><strong className="up">96%</strong></div>
+          <h2>26</h2><p>acessos sincronizados</p>
+        </article>
+        <article className="stat-card">
+          <div className="stat-icon purple"><Icon name="bell" /></div>
+          <div className="stat-title"><span>Alertas automatizados</span><strong>11</strong></div>
+          <h2>11</h2><p>notificações em execução</p>
+        </article>
+      </section>
+
+      <div className="contract-stream" style={{ gridTemplateColumns: "1.15fr 0.85fr" }}>
+        <section className="panel module-table">
+          <div className="panel-header"><div><h3>Preferências operacionais</h3><p>Parâmetros e regras que definem o comportamento do sistema</p></div></div>
+          <div className="table-wrap"><table><thead><tr><th>REGRA</th><th>RESPONSÁVEL</th><th>STATUS</th></tr></thead>
+            <tbody>{configRows.map((row) => (
+              <tr key={row.setting}>
+                <td><strong>{row.setting}</strong></td>
+                <td>{row.owner}</td>
+                <td><span className="status green">{row.status}</span></td>
+              </tr>
+            ))}</tbody></table></div>
+        </section>
+
+        <aside className="panel contract-summary">
+          <div className="panel-header"><div><h3>Permissões por perfil</h3><p>Controle de acesso ao sistema</p></div></div>
+          <div className="contract-summary-card">
+            <div className="contract-metric"><label>Admin</label><strong>Todos os acessos</strong></div>
+            <div className="contract-metric"><label>Gerente</label><strong>Financeiro + equipe</strong></div>
+            <div className="contract-metric"><label>Vendedor</label><strong>Cadastro e propostas</strong></div>
+            <div className="contract-metric"><label>Suporte</label><strong>CRM e atendimento</strong></div>
+            <button className="primary-button">Gerenciar perfis</button>
+          </div>
+        </aside>
+      </div>
+
+      <section className="panel module-table">
+        <div className="panel-header"><div><h3>Integrações ativas</h3><p>Conectores e integrações vinculadas à operação</p></div></div>
+        <div className="table-wrap"><table><thead><tr><th>PLATAFORMA</th><th>PROPRIETÁRIO</th><th>STATUS</th></tr></thead>
+          <tbody>{integrationRows.map((row) => (
+            <tr key={row.name}>
+              <td><strong>{row.name}</strong></td>
+              <td>{row.owner}</td>
+              <td><span className={`status ${row.status === "Simulado" ? "yellow" : "green"}`}>{row.status}</span></td>
+            </tr>
+          ))}</tbody></table></div>
+      </section>
+    </div>
+  );
+}
+
 export default function App() {
   const [authenticated, setAuthenticated] = useState(false);
   const [active, setActive] = useState("Dashboard");
@@ -2533,7 +2619,7 @@ export default function App() {
           </div>
         </header>
 
-        {active === "Clientes" ? <CustomersPage customerHistoryMap={customerHistoryMap} onAddCustomerHistory={addCustomerHistory} /> : active === "Classificados" ? <ClassifiedsPage onSimulate={() => setActive("Simulações")}/> : active === "Simulações" ? <SimulationPage onAddCustomerHistory={addCustomerHistory} /> : active === "Usuários e perfis" ? <UsersPage/> : active === "Veículos" ? <VehiclesPage/> : active === "Painel do gerente" ? <ManagerDashboard/> : active === "Minha equipe" ? <MyTeamPage/> : active === "Aprovações e documentos" ? <ApprovalsAndDocumentsPage/> : active === "Painel de suporte" ? <SupportDashboard/> : active === "Propostas" ? <ProposalReviewPage onAddCustomerHistory={addCustomerHistory}/> : active === "Contratos" ? <ContractManagementPage/> : active === "Entrega e pós-venda" ? <DeliveryPage/> : active === "Garantia e pós-venda" ? <AfterSalesPage/> : active === "CRM pós-venda" ? <CustomerFollowUpPage/> : active === "Equipes e comissões" ? <TeamsCommissionsPage/> : active === "Sistema financeiro" ? <FinanceSystemPage/> : active === "Relatórios" ? <ReportsPage/> : active !== "Dashboard" ? <ModulePage name={active}/> : <div className="content">
+        {active === "Clientes" ? <CustomersPage customerHistoryMap={customerHistoryMap} onAddCustomerHistory={addCustomerHistory} /> : active === "Classificados" ? <ClassifiedsPage onSimulate={() => setActive("Simulações")}/> : active === "Simulações" ? <SimulationPage onAddCustomerHistory={addCustomerHistory} /> : active === "Usuários e perfis" ? <UsersPage/> : active === "Veículos" ? <VehiclesPage/> : active === "Painel do gerente" ? <ManagerDashboard/> : active === "Minha equipe" ? <MyTeamPage/> : active === "Aprovações e documentos" ? <ApprovalsAndDocumentsPage/> : active === "Painel de suporte" ? <SupportDashboard/> : active === "Propostas" ? <ProposalReviewPage onAddCustomerHistory={addCustomerHistory}/> : active === "Contratos" ? <ContractManagementPage/> : active === "Entrega e pós-venda" ? <DeliveryPage/> : active === "Garantia e pós-venda" ? <AfterSalesPage/> : active === "CRM pós-venda" ? <CustomerFollowUpPage/> : active === "Equipes e comissões" ? <TeamsCommissionsPage/> : active === "Sistema financeiro" ? <FinanceSystemPage/> : active === "Relatórios" ? <ReportsPage/> : active === "Configurações" ? <SettingsPage/> : active !== "Dashboard" ? <ModulePage name={active}/> : <div className="content">
           <section className="page-heading">
             <div>
               <p>{currentDateLabel}</p>
