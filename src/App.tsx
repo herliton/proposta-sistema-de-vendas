@@ -157,6 +157,7 @@ const navGroups = [
     label: "GESTÃO",
     items: [
       { label: "Painel do gerente", icon: "home" as IconName },
+      { label: "Painel executivo", icon: "chart" as IconName },
       { label: "Minha equipe", icon: "users" as IconName },
       { label: "Aprovações e documentos", icon: "file" as IconName },
       { label: "Painel de suporte", icon: "trend" as IconName },
@@ -2508,6 +2509,126 @@ function SettingsPage() {
   );
 }
 
+function ExecutiveBoardPage() {
+  const boardSummary = [
+    { label: "Receita líquida", value: "R$ 6,4 mi", delta: "+18,4%", tone: "green" },
+    { label: "Conversão de propostas", value: "41,6%", delta: "+6,1 pts", tone: "blue" },
+    { label: "Carteira em risco", value: "4,3%", delta: "-1,2 pts", tone: "purple" },
+    { label: "Margem operacional", value: "31,8%", delta: "+3,4 pts", tone: "green" },
+  ];
+
+  const focusCards = [
+    { label: "Meta do mês", current: "R$ 7,2 mi", target: "R$ 8,0 mi", progress: 90 },
+    { label: "Contratos ativos", current: "184", target: "220", progress: 84 },
+    { label: "Entrega programada", current: "31", target: "42", progress: 74 },
+    { label: "Satisfação do cliente", current: "96%", target: "95%", progress: 96 },
+  ];
+
+  const scorecards = [
+    { area: "Vendas", result: "R$ 4,9 mi", variance: "+12,7%" },
+    { area: "Financeiro", result: "R$ 1,4 mi", variance: "+8,3%" },
+    { area: "Pós-venda", result: "R$ 760 mil", variance: "+14,9%" },
+    { area: "Consultoria", result: "R$ 510 mil", variance: "+19,6%" },
+  ];
+
+  const topSellers = [
+    { name: "Marcos Costa", sales: "R$ 986 mil", contracts: 8, conversion: "52%" },
+    { name: "Juliana Castro", sales: "R$ 812 mil", contracts: 7, conversion: "48%" },
+    { name: "Rafael Lima", sales: "R$ 728 mil", contracts: 6, conversion: "45%" },
+    { name: "Amanda Silva", sales: "R$ 683 mil", contracts: 5, conversion: "51%" },
+  ];
+
+  const riskWatch = [
+    { label: "Inadimplência em carteira", status: "Baixa", value: "4,3%" },
+    { label: "Reembolsos pendentes", status: "Média", value: "R$ 198,5 mil" },
+    { label: "Aprovações finais", status: "Alta", value: "89%" },
+  ];
+
+  return (
+    <div className="content module-content report-page">
+      <section className="module-heading">
+        <div>
+          <p>GESTÃO EXECUTIVA</p>
+          <h1>Painel executivo</h1>
+          <span>Visão estratégica da operação: performance, risco, metas e resultados por área.</span>
+        </div>
+        <div className="heading-actions">
+          <button className="primary-button"><Icon name="file" size={17}/>Exportar overview</button>
+        </div>
+      </section>
+
+      <section className="stats-grid">
+        {boardSummary.map((item) => (
+          <article className="stat-card" key={item.label}>
+            <div className={`stat-icon ${item.tone}`}><Icon name={item.tone === "green" ? "trend" : item.tone === "blue" ? "chart" : "percent"} /></div>
+            <div className="stat-title"><span>{item.label}</span><strong className={item.tone === "purple" ? "up" : "up"}>{item.delta}</strong></div>
+            <h2>{item.value}</h2>
+            <p>comparado ao ciclo anterior</p>
+          </article>
+        ))}
+      </section>
+
+      <div className="contract-stream" style={{ gridTemplateColumns: "1.2fr 0.8fr" }}>
+        <section className="panel support-note contract-panel">
+          <div className="panel-header"><div><h3>Meta de negócio</h3><p>Progresso geral do mês</p></div></div>
+          <div className="goal-ring" style={{ marginTop: "0.5rem" }}>
+            <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="49"/><circle className="goal-progress" cx="60" cy="60" r="49" /></svg>
+            <div><strong>90%</strong><span>da meta</span></div>
+          </div>
+          <div className="goal-values">
+            <span><em>Realizado</em><strong>R$ 7,2 mi</strong></span>
+            <span><em>Meta</em><strong>R$ 8,0 mi</strong></span>
+            <span><em>Faltam</em><strong>R$ 800 mil</strong></span>
+          </div>
+        </section>
+
+        <aside className="panel contract-summary">
+          <div className="panel-header"><div><h3>Risco e monitoramento</h3><p>Indicadores críticos</p></div></div>
+          <div className="contract-summary-card">
+            {riskWatch.map((item) => (
+              <div key={item.label} className="contract-metric">
+                <label>{item.label}</label>
+                <strong>{item.value}</strong>
+                <span className={`status ${item.status === "Baixa" ? "green" : item.status === "Média" ? "yellow" : "blue"}`}>{item.status}</span>
+              </div>
+            ))}
+          </div>
+        </aside>
+      </div>
+
+      <div className="contract-stream" style={{ gridTemplateColumns: "1fr 1fr" }}>
+        {focusCards.map((card) => (
+          <section className="panel module-table" key={card.label}>
+            <div className="panel-header"><div><h3>{card.label}</h3><p>{card.current} de {card.target}</p></div></div>
+            <div className="goal-row">
+              <div className="goal-progress-line"><i style={{ width: `${card.progress}%` }} /></div>
+              <strong>{card.progress}%</strong>
+            </div>
+          </section>
+        ))}
+      </div>
+
+      <div className="contract-stream" style={{ gridTemplateColumns: "1fr 1fr" }}>
+        <section className="panel module-table">
+          <div className="panel-header"><div><h3>Resultado por área</h3><p>Desempenho em comparação ao período anterior</p></div></div>
+          <div className="table-wrap"><table><thead><tr><th>ÁREA</th><th>RESULTADO</th><th>VARIAÇÃO</th></tr></thead>
+            <tbody>{scorecards.map((row) => (
+              <tr key={row.area}><td><strong>{row.area}</strong></td><td>{row.result}</td><td><span className="status green">{row.variance}</span></td></tr>
+            ))}</tbody></table></div>
+        </section>
+
+        <section className="panel module-table">
+          <div className="panel-header"><div><h3>Top vendedores</h3><p>Produção e conversão do mês</p></div></div>
+          <div className="table-wrap"><table><thead><tr><th>VENDEDOR</th><th>VOLUME</th><th>CONTRATOS</th><th>CONVERSÃO</th></tr></thead>
+            <tbody>{topSellers.map((row) => (
+              <tr key={row.name}><td><strong>{row.name}</strong></td><td>{row.sales}</td><td>{row.contracts}</td><td>{row.conversion}</td></tr>
+            ))}</tbody></table></div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [authenticated, setAuthenticated] = useState(false);
   const [active, setActive] = useState("Dashboard");
@@ -2619,7 +2740,7 @@ export default function App() {
           </div>
         </header>
 
-        {active === "Clientes" ? <CustomersPage customerHistoryMap={customerHistoryMap} onAddCustomerHistory={addCustomerHistory} /> : active === "Classificados" ? <ClassifiedsPage onSimulate={() => setActive("Simulações")}/> : active === "Simulações" ? <SimulationPage onAddCustomerHistory={addCustomerHistory} /> : active === "Usuários e perfis" ? <UsersPage/> : active === "Veículos" ? <VehiclesPage/> : active === "Painel do gerente" ? <ManagerDashboard/> : active === "Minha equipe" ? <MyTeamPage/> : active === "Aprovações e documentos" ? <ApprovalsAndDocumentsPage/> : active === "Painel de suporte" ? <SupportDashboard/> : active === "Propostas" ? <ProposalReviewPage onAddCustomerHistory={addCustomerHistory}/> : active === "Contratos" ? <ContractManagementPage/> : active === "Entrega e pós-venda" ? <DeliveryPage/> : active === "Garantia e pós-venda" ? <AfterSalesPage/> : active === "CRM pós-venda" ? <CustomerFollowUpPage/> : active === "Equipes e comissões" ? <TeamsCommissionsPage/> : active === "Sistema financeiro" ? <FinanceSystemPage/> : active === "Relatórios" ? <ReportsPage/> : active === "Configurações" ? <SettingsPage/> : active !== "Dashboard" ? <ModulePage name={active}/> : <div className="content">
+        {active === "Clientes" ? <CustomersPage customerHistoryMap={customerHistoryMap} onAddCustomerHistory={addCustomerHistory} /> : active === "Classificados" ? <ClassifiedsPage onSimulate={() => setActive("Simulações")}/> : active === "Simulações" ? <SimulationPage onAddCustomerHistory={addCustomerHistory} /> : active === "Usuários e perfis" ? <UsersPage/> : active === "Veículos" ? <VehiclesPage/> : active === "Painel do gerente" ? <ManagerDashboard/> : active === "Painel executivo" ? <ExecutiveBoardPage/> : active === "Minha equipe" ? <MyTeamPage/> : active === "Aprovações e documentos" ? <ApprovalsAndDocumentsPage/> : active === "Painel de suporte" ? <SupportDashboard/> : active === "Propostas" ? <ProposalReviewPage onAddCustomerHistory={addCustomerHistory}/> : active === "Contratos" ? <ContractManagementPage/> : active === "Entrega e pós-venda" ? <DeliveryPage/> : active === "Garantia e pós-venda" ? <AfterSalesPage/> : active === "CRM pós-venda" ? <CustomerFollowUpPage/> : active === "Equipes e comissões" ? <TeamsCommissionsPage/> : active === "Sistema financeiro" ? <FinanceSystemPage/> : active === "Relatórios" ? <ReportsPage/> : active === "Configurações" ? <SettingsPage/> : active !== "Dashboard" ? <ModulePage name={active}/> : <div className="content">
           <section className="page-heading">
             <div>
               <p>{currentDateLabel}</p>
