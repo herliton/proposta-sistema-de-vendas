@@ -160,6 +160,8 @@ const navGroups = [
       { label: "Minha equipe", icon: "users" as IconName },
       { label: "Painel de suporte", icon: "trend" as IconName },
       { label: "Entrega e pós-venda", icon: "car" as IconName },
+      { label: "Garantia e pós-venda", icon: "gift" as IconName },
+      { label: "CRM pós-venda", icon: "users" as IconName },
       { label: "Equipes e comissões", icon: "chart" as IconName },
       { label: "Relatórios", icon: "file" as IconName },
       { label: "Configurações", icon: "settings" as IconName },
@@ -1159,13 +1161,111 @@ function ProposalReviewPage({ onAddCustomerHistory }: { onAddCustomerHistory: (c
 
 function ContractManagementPage() {
   const [selectedContractId, setSelectedContractId] = useState("#CONT-2025-0318");
+  const [selectedRecoveryContractId, setSelectedRecoveryContractId] = useState("#REC-2025-0101");
+  const [proposalSent, setProposalSent] = useState(false);
+  const [proposalAccepted, setProposalAccepted] = useState(false);
+  const [observation, setObservation] = useState("Cliente possui análise documental concluída e perfil adequado para acompanhamento financeiro. Encaminhar proposta com foco em melhores condições de enquadramento bancário.");
+  const [signedDocuments, setSignedDocuments] = useState<Record<string, { fileName: string; signedAt: string; eGovSignature: string; status: string; stored: boolean }>>({
+    "#REC-2025-0101": { fileName: "consultoria-recuperacao-camila-rocha.pdf", signedAt: "24/09/2026 · 14:20", eGovSignature: "e-Gov • Assinatura válida", status: "Arquivo armazenado com validade jurídica", stored: true },
+    "#REC-2025-0104": { fileName: "consultoria-recuperacao-ricardo-nunes.pdf", signedAt: "24/09/2026 · 09:45", eGovSignature: "e-Gov • Assinatura válida", status: "Arquivo armazenado com validade jurídica", stored: true },
+  });
+
   const contracts = [
     { id: "#CONT-2025-0318", customer: "Pedro Azevedo", vehicle: "Toyota Corolla Cross XRE", value: "R$ 159.800", status: "Em assinatura", completion: 82, nextStep: "Assinatura do cliente", docs: 5, due: "12/07/2025" },
     { id: "#CONT-2025-0315", customer: "Camila Rocha", vehicle: "Jeep Compass Limited", value: "R$ 168.900", status: "Documentação", completion: 64, nextStep: "Validação de renda", docs: 3, due: "18/07/2025" },
     { id: "#CONT-2025-0306", customer: "Ricardo Nunes", vehicle: "Hyundai Creta Platinum", value: "R$ 98.500", status: "Aprovado", completion: 100, nextStep: "Agendar entrega", docs: 6, due: "21/07/2025" },
   ];
+  const creditRecoveryContracts = [
+    { id: "#REC-2025-0101", customer: "Camila Rocha", vehicle: "Jeep Compass Limited", financingStatus: "Não recusado", value: "R$ 2.400", status: "Elegível", nextStep: "Emitir contrato de consultoria" },
+    { id: "#REC-2025-0104", customer: "Ricardo Nunes", vehicle: "Hyundai Creta Platinum", financingStatus: "Aprovado", value: "R$ 2.400", status: "Elegível", nextStep: "Enviar proposta de consultoria" },
+    { id: "#REC-2025-0107", customer: "Fernanda Dias", vehicle: "Honda HR-V Touring", financingStatus: "Recusado", value: "R$ 0", status: "Não elegível", nextStep: "Financiamento recusado - sem contratação" },
+  ].filter((entry) => entry.financingStatus !== "Recusado");
 
   const selectedContract = contracts.find((contract) => contract.id === selectedContractId) ?? contracts[0];
+  const selectedRecoveryContract = creditRecoveryContracts.find((entry) => entry.id === selectedRecoveryContractId) ?? creditRecoveryContracts[0];
+  const selectedSignedDocument = signedDocuments[selectedRecoveryContract.id] ?? {
+    fileName: `consultoria-recuperacao-${selectedRecoveryContract.customer.toLowerCase().replace(/\s+/g, "-")}.pdf`,
+    signedAt: "Aguardando assinatura",
+    eGovSignature: "e-Gov • pendente",
+    status: "Arquivo ainda não armazenado",
+    stored: false,
+  };
+
+  const archiveEntries = [
+    { id: "#DOC-3021", client: "Camila Rocha", document: "Proposta de consultoria", file: "consultoria-recuperacao-camila-rocha.pdf", status: "Arquivado", channel: "e-Gov", date: "24/09/2026" },
+    { id: "#DOC-3022", client: "Ricardo Nunes", document: "Contratação de acompanhamento financeiro", file: "consultoria-recuperacao-ricardo-nunes.pdf", status: "Arquivado", channel: "e-Gov", date: "24/09/2026" },
+    { id: "#DOC-3023", client: "Fernanda Dias", document: "Análise documental inicial", file: "documentacao-fernanda-dias.pdf", status: "Rascunho", channel: "Manual", date: "Em revisão" },
+  ];
+
+  const legalHistory = [
+    { date: "24/09/2026 · 14:20", title: "PDF assinado armazenado", detail: "Arquivo legal registrado para Camila Rocha com assinatura válida do e-Gov.", tone: "green", icon: "check" as IconName },
+    { date: "24/09/2026 · 09:45", title: "Proposta aceita", detail: "Ricardo Nunes confirmou ciência e aceite da proposta de consultoria.", tone: "blue", icon: "file" as IconName },
+    { date: "23/09/2026 · 16:35", title: "Análise documental concluída", detail: "Checklist de renda e histórico cadastral validada para revisão jurídica.", tone: "purple", icon: "contract" as IconName },
+  ];
+
+  const registerSignedProposal = () => {
+    const signedAt = new Intl.DateTimeFormat("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date());
+
+    setSignedDocuments((current) => ({
+      ...current,
+      [selectedRecoveryContract.id]: {
+        fileName: `consultoria-recuperacao-${selectedRecoveryContract.customer.toLowerCase().replace(/\s+/g, "-")}.pdf`,
+        signedAt,
+        eGovSignature: "e-Gov • assinatura validada",
+        status: "Arquivo arquivado em cópia jurídica",
+        stored: true,
+      },
+    }));
+    setProposalSent(true);
+    setProposalAccepted(true);
+  };
+
+  const recoveryProposalText = `COMO VAMOS CONDUZIR SUA LIBERAÇÃO
+
+Um passo a passo técnico e transparente, pensado para elevar suas chances reais de aprovação.
+
+A ESPECIALIZA PRO assume por você todo o trabalho técnico de aprovação de crédito, com agilidade, transparência e acompanhamento personalizado do início ao fim.
+
+Analisamos seu histórico cadastral dos últimos dois anos, identificamos os pontos de atenção e aplicamos estratégias comprovadas para fortalecer seu perfil junto às instituições financeiras.
+
+Cuidamos da atualização de renda junto à Receita Federal, oferecemos consultoria financeira estratégica e negociamos diretamente com os bancos as melhores taxas e condições do mercado.
+
+O resultado: mais segurança, mais agilidade e mais chances reais de aprovação, com suporte contínuo até a conclusão da sua aquisição.
+
+FLUXO DE ATENDIMENTO
+1. Análise documental
+Levantamento e conferência da documentação e do histórico de crédito.
+
+2. Simulações
+Simulações personalizadas com as condições mais vantajosas para o seu perfil.
+
+3. Estratégia Financeira Personalizada
+Orientações sob medida para fortalecer seu cadastro e elevar suas chances.
+
+4. Enquadramento bancário
+Direcionamento do seu perfil ao banco e às condições mais favoráveis ao seu caso.
+
+5. Suporte com setor especializado
+Equipe especializada te acompanha em todas as etapas, com segurança e agilidade.
+
+Pagamento pelos serviços prestados
+Para a execução da prestação de serviço constante nesta proposta comercial, o contratante pagará à empresa os honorários profissionais correspondentes a R$ 7.000,00, a serem pagos via boleto, após o envio da presente proposta.
+
+CONFIRMAÇÃO DE ACEITE
+Ao validar o aceite pelo link enviado, o contratante confirma ciência das condições apresentadas e autoriza a continuidade do atendimento.
+
+_______________________________
+CONTRATANTE ${selectedRecoveryContract.customer.toUpperCase()}
+_______________________________
+CONTRATADA ESPECIALIZA PRO
+
+CONDIÇÃO ESPECIAL: Proposta estruturada com condições diferenciadas de negociação, e acompanhamento especializado para busca das melhores condições bancárias disponíveis, conforme perfil e análise de crédito do contratante.`;
 
   return (
     <div className="content module-content">
@@ -1217,6 +1317,85 @@ function ContractManagementPage() {
           </div>
         </aside>
       </div>
+      <section className="panel module-table">
+        <div className="panel-header"><div><h3>Consultoria de recuperação de crédito</h3><p>Oferecida somente para clientes cujo financiamento não foi recusado.</p></div></div>
+        <div className="table-wrap"><table><thead><tr><th>CONTRATO</th><th>CLIENTE</th><th>VEÍCULO</th><th>FINANCIAMENTO</th><th>VALOR</th><th>STATUS</th><th>PRÓXIMO PASSO</th></tr></thead>
+          <tbody>{creditRecoveryContracts.map((entry) => (
+            <tr key={entry.id} className={selectedRecoveryContractId === entry.id ? "selected-row" : ""} onClick={() => setSelectedRecoveryContractId(entry.id)}>
+              <td><strong>{entry.id}</strong></td>
+              <td>{entry.customer}</td>
+              <td>{entry.vehicle}</td>
+              <td><span className="status green">{entry.financingStatus}</span></td>
+              <td><strong>{entry.value}</strong></td>
+              <td><span className={`status ${entry.status === "Elegível" ? "blue" : "green"}`}>{entry.status}</span></td>
+              <td>{entry.nextStep}</td>
+            </tr>
+          ))}</tbody></table></div>
+      </section>
+
+      <section className="panel support-note contract-panel" style={{ display: "grid", gap: "1rem" }}>
+        <div className="panel-header"><div><h3>Proposta comercial simulada</h3><p>Cliente selecionado: {selectedRecoveryContract.customer} · {selectedRecoveryContract.id}</p></div></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1.6fr 0.9fr", gap: "1rem" }}>
+          <div style={{ background: "#f6f8fc", border: "1px solid #dfe7f4", borderRadius: "16px", padding: "1rem 1.1rem", lineHeight: "1.7", whiteSpace: "pre-line", fontSize: "0.9rem", color: "#1f2a37" }}>
+            {recoveryProposalText}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: "0.4rem", fontWeight: 600, color: "#1f2a37" }}>
+              Observação do atendimento
+              <textarea value={observation} onChange={(event) => setObservation(event.target.value)} rows={8} style={{ border: "1px solid #dfe7f4", borderRadius: "12px", padding: "0.8rem", resize: "vertical", fontFamily: "inherit" }} />
+            </label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
+              <button className="primary-button" type="button" onClick={() => setProposalSent(true)}>{proposalSent ? "Proposta enviada" : "Simular envio"}</button>
+              <button className="secondary-button" type="button" onClick={registerSignedProposal}>{proposalAccepted ? "Arquivo arquivado" : "Salvar PDF assinado"}</button>
+            </div>
+            <div className="support-note" style={{ margin: 0 }}>
+              <Icon name="check" size={18}/>
+              <div>
+                <strong>Status</strong>
+                <span>{proposalAccepted ? `${selectedSignedDocument.status} · ${selectedSignedDocument.eGovSignature}` : proposalSent ? "Proposta enviada para análise e aceite do cliente." : "Aguardando envio da proposta para o cliente."}</span>
+              </div>
+            </div>
+            <div style={{ border: "1px solid #dfe7f4", borderRadius: "12px", padding: "0.8rem 0.9rem", background: "#f9fbff", display: "grid", gap: "0.35rem" }}>
+              <strong style={{ fontSize: "0.85rem", color: "#1f2a37" }}>Arquivo jurídico</strong>
+              <span style={{ fontSize: "0.8rem", color: "#53627a" }}>{selectedSignedDocument.fileName}</span>
+              <span style={{ fontSize: "0.8rem", color: "#53627a" }}>{selectedSignedDocument.signedAt}</span>
+              <span style={{ fontSize: "0.8rem", color: selectedSignedDocument.stored ? "#0d7a62" : "#8d5b00", fontWeight: 600 }}>{selectedSignedDocument.eGovSignature}</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="panel module-table">
+        <div className="panel-header"><div><h3>Caixa documental</h3><p>Arquivos jurídicos e históricos de assinatura digital</p></div></div>
+        <div className="table-wrap"><table><thead><tr><th>ID</th><th>CLIENTE</th><th>DOCUMENTO</th><th>ARQUIVO</th><th>CANAL</th><th>STATUS</th><th>DATA</th></tr></thead>
+          <tbody>{archiveEntries.map((entry) => (
+            <tr key={entry.id}>
+              <td><strong>{entry.id}</strong></td>
+              <td>{entry.client}</td>
+              <td>{entry.document}</td>
+              <td>{entry.file}</td>
+              <td>{entry.channel}</td>
+              <td><span className={`status ${entry.status === "Arquivado" ? "green" : "yellow"}`}>{entry.status}</span></td>
+              <td>{entry.date}</td>
+            </tr>
+          ))}</tbody></table></div>
+      </section>
+
+      <section className="panel support-note contract-panel">
+        <div className="panel-header"><div><h3>Histórico jurídico</h3><p>Eventos vinculados ao aceite e entrega da proposta</p></div></div>
+        <div className="timeline">
+          {legalHistory.map((event) => (
+            <div className="timeline-event" key={`${event.date}-${event.title}`}>
+              <div className={`timeline-icon ${event.tone}`}><Icon name={event.icon} size={16}/></div>
+              <div>
+                <span>{event.date}</span>
+                <strong>{event.title}</strong>
+                <p>{event.detail}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
@@ -1280,6 +1459,135 @@ function DeliveryPage() {
               ))}
             </div>
             <button className="primary-button">Confirmar entrega</button>
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function AfterSalesPage() {
+  const jobs = [
+    { id: "#OS-2214", customer: "Pedro Azevedo", vehicle: "Toyota Corolla Cross XRE", type: "Revisão 1.000 km", status: "Agendada", progress: 74, date: "14/07/2025", technician: "Oficina VFC", warranty: "Garantia de fábrica" },
+    { id: "#OS-2211", customer: "Camila Rocha", vehicle: "Jeep Compass Limited", type: "Inspeção preventiva", status: "Em andamento", progress: 58, date: "16/07/2025", technician: "Check-up Premium", warranty: "Cobertura 24 meses" },
+    { id: "#OS-2208", customer: "Ricardo Nunes", vehicle: "Hyundai Creta Platinum", type: "Troca de óleo e filtros", status: "Concluída", progress: 100, date: "09/07/2025", technician: "Manutenção Rápida", warranty: "Serviço contratado" },
+  ];
+
+  const [selectedJobId, setSelectedJobId] = useState("#OS-2214");
+  const selectedJob = jobs.find((job) => job.id === selectedJobId) ?? jobs[0];
+
+  return (
+    <div className="content module-content">
+      <section className="module-heading"><div><p>ATENDIMENTO PÓS-VENDA</p><h1>Garantia e manutenção</h1><span>Gerencie revisões, garantias e inspeções após a entrega do veículo.</span></div><button className="primary-button"><Icon name="plus" size={18}/>Nova ordem</button></section>
+      <section className="stats-grid">
+        <article className="stat-card"><div className="stat-icon blue"><Icon name="gift" /></div><div className="stat-title"><span>Ordens ativas</span><strong className="up">+9%</strong></div><h2>34</h2><p>serviços em manutenção</p></article>
+        <article className="stat-card"><div className="stat-icon green"><Icon name="check" /></div><div className="stat-title"><span>Concluídas</span><strong className="up">88%</strong></div><h2>30</h2><p>em garantia ou revisões</p></article>
+        <article className="stat-card"><div className="stat-icon purple"><Icon name="calendar" /></div><div className="stat-title"><span>Próximos atendimentos</span><strong>5 dias</strong></div><h2>9</h2><p>agendados para a semana</p></article>
+        <article className="stat-card"><div className="stat-icon orange"><Icon name="settings" /></div><div className="stat-title"><span>Garantia em vigência</span><strong>24 meses</strong></div><h2>18</h2><p>veículos com cobertura ativa</p></article>
+      </section>
+      <div className="contract-stream">
+        <section className="panel module-table">
+          <div className="panel-header"><div><h3>Ordens de serviço</h3><p>Atendimentos e vigência de garantia</p></div></div>
+          <div className="table-wrap"><table><thead><tr><th>OS</th><th>CLIENTE</th><th>VEÍCULO</th><th>TIPO</th><th>DATA</th><th>STATUS</th></tr></thead>
+            <tbody>{jobs.map((job) => (
+              <tr key={job.id} className={selectedJobId === job.id ? "selected-row" : ""} onClick={() => setSelectedJobId(job.id)}>
+                <td><strong>{job.id}</strong></td>
+                <td>{job.customer}</td>
+                <td>{job.vehicle}</td>
+                <td>{job.type}</td>
+                <td>{job.date}</td>
+                <td><span className={`status ${job.status === "Concluída" ? "green" : job.status === "Em andamento" ? "yellow" : "blue"}`}>{job.status}</span></td>
+              </tr>
+            ))}</tbody></table></div>
+        </section>
+        <aside className="panel contract-summary">
+          <div className="panel-header"><div><h3>Detalhes da ordem</h3><p>{selectedJob.id}</p></div></div>
+          <div className="contract-summary-card">
+            <div className="contract-title"><strong>{selectedJob.customer}</strong><span>{selectedJob.vehicle}</span></div>
+            <div className="contract-metric"><label>Progresso</label><strong>{selectedJob.progress}%</strong><div className="progress-bar"><i style={{ width: `${selectedJob.progress}%` }} /></div></div>
+            <div className="contract-metric"><label>Tipo de serviço</label><strong>{selectedJob.type}</strong></div>
+            <div className="contract-metric"><label>Responsável</label><strong>{selectedJob.technician}</strong></div>
+            <div className="contract-metric"><label>Garantia</label><strong>{selectedJob.warranty}</strong></div>
+            <div className="document-list compact-list">
+              {[
+                "Checklist de inspeção",
+                "Acessórios revisados",
+                "Status de garantia",
+                "Feedback do cliente",
+                "Encerramento",
+              ].map((item, index) => (
+                <button key={item} type="button" className={index < 3 ? "document-item complete" : "document-item"}>
+                  <span className="document-check"><Icon name={index < 3 ? "check" : "file"} size={16} /></span>
+                  <span>{item}</span>
+                </button>
+              ))}
+            </div>
+            <button className="primary-button">Encerrar atendimento</button>
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function CustomerFollowUpPage() {
+  const followUps = [
+    { id: "#CRM-410", customer: "Pedro Azevedo", channel: "WhatsApp", status: "Agendado", nextAction: "Oferta de revisão 1.000 km", priority: "Alta", lastContact: "12/07/2025" },
+    { id: "#CRM-409", customer: "Camila Rocha", channel: "Telefone", status: "Pendente", nextAction: "Confirmar satisfação da entrega", priority: "Média", lastContact: "10/07/2025" },
+    { id: "#CRM-408", customer: "Ricardo Nunes", channel: "E-mail", status: "Concluído", nextAction: "Cliente passou em nova cotação", priority: "Baixa", lastContact: "08/07/2025" },
+    { id: "#CRM-407", customer: "Henrique Alves", channel: "SMS", status: "Agendado", nextAction: "Lembrete de revisão anual", priority: "Média", lastContact: "11/07/2025" },
+  ];
+
+  const [selectedFollowUpId, setSelectedFollowUpId] = useState("#CRM-410");
+  const selectedFollowUp = followUps.find((entry) => entry.id === selectedFollowUpId) ?? followUps[0];
+
+  return (
+    <div className="content module-content">
+      <section className="module-heading"><div><p>RELACIONAMENTO PÓS-VENDA</p><h1>CRM de clientes</h1><span>Acompanhe o relacionamento, lembretes e ações de retenção após a venda.</span></div><button className="primary-button"><Icon name="plus" size={18}/>Novo follow-up</button></section>
+      <section className="stats-grid">
+        <article className="stat-card"><div className="stat-icon blue"><Icon name="users" /></div><div className="stat-title"><span>Clientes ativos</span><strong className="up">96%</strong></div><h2>184</h2><p>em acompanhamento comercial</p></article>
+        <article className="stat-card"><div className="stat-icon green"><Icon name="check" /></div><div className="stat-title"><span>Follow-up concluído</span><strong className="up">72%</strong></div><h2>133</h2><p>ações de pós-venda concluídas</p></article>
+        <article className="stat-card"><div className="stat-icon purple"><Icon name="bell" /></div><div className="stat-title"><span>Próximos lembretes</span><strong>9 hoje</strong></div><h2>14</h2><p>ações agendadas esta semana</p></article>
+        <article className="stat-card"><div className="stat-icon orange"><Icon name="trend" /></div><div className="stat-title"><span>Retenção</span><strong>81%</strong></div><h2>149</h2><p>clientes com intenção de renovar</p></article>
+      </section>
+      <div className="contract-stream">
+        <section className="panel module-table">
+          <div className="panel-header"><div><h3>Follow-up de clientes</h3><p>Retenção, lembretes e ações pós-venda</p></div></div>
+          <div className="table-wrap"><table><thead><tr><th>ID</th><th>CLIENTE</th><th>CANAL</th><th>STATUS</th><th>PRÓXIMA AÇÃO</th><th>PRIORIDADE</th></tr></thead>
+            <tbody>{followUps.map((entry) => (
+              <tr key={entry.id} className={selectedFollowUpId === entry.id ? "selected-row" : ""} onClick={() => setSelectedFollowUpId(entry.id)}>
+                <td><strong>{entry.id}</strong></td>
+                <td>{entry.customer}</td>
+                <td>{entry.channel}</td>
+                <td><span className={`status ${entry.status === "Concluído" ? "green" : entry.status === "Pendente" ? "yellow" : "blue"}`}>{entry.status}</span></td>
+                <td>{entry.nextAction}</td>
+                <td><span className={`status ${entry.priority === "Alta" ? "red" : entry.priority === "Média" ? "yellow" : "green"}`}>{entry.priority}</span></td>
+              </tr>
+            ))}</tbody></table></div>
+        </section>
+        <aside className="panel contract-summary">
+          <div className="panel-header"><div><h3>Resumo do cliente</h3><p>{selectedFollowUp.id}</p></div></div>
+          <div className="contract-summary-card">
+            <div className="contract-title"><strong>{selectedFollowUp.customer}</strong><span>{selectedFollowUp.channel}</span></div>
+            <div className="contract-metric"><label>Status da atividade</label><strong>{selectedFollowUp.status}</strong></div>
+            <div className="contract-metric"><label>Próxima ação</label><strong>{selectedFollowUp.nextAction}</strong></div>
+            <div className="contract-metric"><label>Último contato</label><strong>{selectedFollowUp.lastContact}</strong></div>
+            <div className="contract-metric"><label>Prioridade</label><strong>{selectedFollowUp.priority}</strong></div>
+            <div className="document-list compact-list">
+              {[
+                "Lembrete de revisão",
+                "Pesquisa de satisfação",
+                "Oferta de acessórios",
+                "Retenção de cliente",
+                "Checklist de pós-venda",
+              ].map((item, index) => (
+                <button key={item} type="button" className={index < 2 ? "document-item complete" : "document-item"}>
+                  <span className="document-check"><Icon name={index < 2 ? "check" : "file"} size={16} /></span>
+                  <span>{item}</span>
+                </button>
+              ))}
+            </div>
+            <button className="primary-button">Enviar lembrete</button>
           </div>
         </aside>
       </div>
@@ -1519,7 +1827,7 @@ export default function App() {
           </div>
         </header>
 
-        {active === "Clientes" ? <CustomersPage customerHistoryMap={customerHistoryMap} onAddCustomerHistory={addCustomerHistory} /> : active === "Classificados" ? <ClassifiedsPage onSimulate={() => setActive("Simulações")}/> : active === "Simulações" ? <SimulationPage onAddCustomerHistory={addCustomerHistory} /> : active === "Usuários e perfis" ? <UsersPage/> : active === "Veículos" ? <VehiclesPage/> : active === "Painel do gerente" ? <ManagerDashboard/> : active === "Minha equipe" ? <MyTeamPage/> : active === "Painel de suporte" ? <SupportDashboard/> : active === "Propostas" ? <ProposalReviewPage onAddCustomerHistory={addCustomerHistory}/> : active === "Contratos" ? <ContractManagementPage/> : active === "Entrega e pós-venda" ? <DeliveryPage/> : active === "Equipes e comissões" ? <TeamsCommissionsPage/> : active === "Relatórios" ? <ReportsPage/> : active !== "Dashboard" ? <ModulePage name={active}/> : <div className="content">
+        {active === "Clientes" ? <CustomersPage customerHistoryMap={customerHistoryMap} onAddCustomerHistory={addCustomerHistory} /> : active === "Classificados" ? <ClassifiedsPage onSimulate={() => setActive("Simulações")}/> : active === "Simulações" ? <SimulationPage onAddCustomerHistory={addCustomerHistory} /> : active === "Usuários e perfis" ? <UsersPage/> : active === "Veículos" ? <VehiclesPage/> : active === "Painel do gerente" ? <ManagerDashboard/> : active === "Minha equipe" ? <MyTeamPage/> : active === "Painel de suporte" ? <SupportDashboard/> : active === "Propostas" ? <ProposalReviewPage onAddCustomerHistory={addCustomerHistory}/> : active === "Contratos" ? <ContractManagementPage/> : active === "Entrega e pós-venda" ? <DeliveryPage/> : active === "Garantia e pós-venda" ? <AfterSalesPage/> : active === "CRM pós-venda" ? <CustomerFollowUpPage/> : active === "Equipes e comissões" ? <TeamsCommissionsPage/> : active === "Relatórios" ? <ReportsPage/> : active !== "Dashboard" ? <ModulePage name={active}/> : <div className="content">
           <section className="page-heading">
             <div>
               <p>{currentDateLabel}</p>
