@@ -1,10 +1,12 @@
 import { useState } from "react";
+import vfcLogo from "./assets/vfc-logo.png";
 import { downloadCommissionReport } from "./api/reports";
 import { formatWeekRange, getCurrentWeekRange } from "./utils/dateRange";
 import { transitionSalesStage, type SalesStage } from "./utils/salesLifecycle";
 
 const currentWeek = getCurrentWeekRange();
 const currentWeekLabel = formatWeekRange(currentWeek);
+const clientCompany = "VFC Multimarcas";
 const currentDateLabel = new Intl.DateTimeFormat("pt-BR", {
   weekday: "long",
   day: "2-digit",
@@ -147,17 +149,16 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
   return (
     <div className="auth-page">
       <div className="auth-brand">
-        <div className="brand-mark"><span></span><span></span><span></span></div>
-        <div><strong>Proposta</strong><small>GESTÃO COMERCIAL</small></div>
+        <img src={vfcLogo} alt={clientCompany} className="brand-logo" />
       </div>
       <div className="auth-visual">
         <div className="auth-visual-copy">
           <span className="eyebrow">GESTÃO DE VENDAS AUTOMOTIVAS</span>
-          <h1>Da simulação ao contrato, <em>tudo em um só lugar.</em></h1>
-          <p>Organize sua equipe, negociações e estoque com mais agilidade, segurança e controle.</p>
+          <h1>Do lead ao contrato, <em>tudo em um só lugar.</em></h1>
+          <p>Centralize propostas, clientes, estoque e comissões em uma operação mais rápida, segura e preparada para crescer.</p>
           <div className="auth-features">
-            <span><Icon name="check" size={15}/> Propostas mais rápidas</span>
-            <span><Icon name="check" size={15}/> Gestão centralizada</span>
+            <span><Icon name="check" size={15}/> Fluxo de vendas inteligente</span>
+            <span><Icon name="check" size={15}/> Operação centralizada</span>
             <span><Icon name="check" size={15}/> Dados protegidos</span>
           </div>
         </div>
@@ -166,13 +167,13 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
         <form className="auth-card" onSubmit={submit}>
           {mode === "login" && <>
             <span className="auth-kicker">BEM-VINDO DE VOLTA</span>
-            <h2>Acesse sua conta</h2>
-            <p>Entre com suas credenciais para continuar.</p>
+            <h2>Acesse o painel comercial</h2>
+            <p>Entre com suas credenciais para continuar a operação.</p>
             <label>E-mail<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com.br"/></label>
             <label>Senha<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Sua senha"/></label>
             <button type="button" className="forgot-link" onClick={() => { setMode("forgot"); setNotice(""); }}>Esqueci minha senha</button>
             <button className="auth-submit" type="submit">Entrar <Icon name="arrow" size={16}/></button>
-            <div className="demo-access"><strong>Acesso de demonstração</strong><span>admin@proposta.com.br · Proposta123</span></div>
+            <div className="demo-access"><strong>Demonstração ativa</strong><span>admin@proposta.com.br · Proposta123</span></div>
           </>}
           {mode === "forgot" && <>
             <button type="button" className="auth-back" onClick={() => { setMode("login"); setNotice(""); }}>‹ Voltar para o login</button>
@@ -193,7 +194,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
           </>}
           {notice && <div className={`auth-notice ${notice.startsWith("Link") ? "success" : ""}`}>{notice}</div>}
         </form>
-        <span className="auth-footer">© 2025 Proposta · Privacidade e segurança</span>
+        <span className="auth-footer">© 2025 {clientCompany} · Segurança, produtividade e confiança</span>
       </div>
     </div>
   );
@@ -777,7 +778,7 @@ function ReportsPage() {
       {exportError && <div className="export-error">{exportError} Verifique se a API de relatórios está disponível.</div>}
       <section className="report-hero"><div><span>Total de comissões</span><strong>R$ 50.740,00</strong><small>4 colaboradores elegíveis</small></div><div><p>Volume vendido<strong>R$ 5.036.000</strong></p><p>Contratos<strong>39</strong></p><p>Ticket médio<strong>R$ 129.128</strong></p></div></section>
       <section className="panel module-table"><div className="panel-header"><div><h3>Detalhamento por colaborador</h3><p>Valores sujeitos à validação financeira</p></div></div><div className="table-wrap"><table><thead><tr><th>COLABORADOR</th><th>PERFIL</th><th>CONTRATOS</th><th>BASE DE CÁLCULO</th><th>COMISSÃO A PAGAR</th></tr></thead><tbody>{payouts.map((row) => <tr key={row[0]}>{row.map((cell, index) => <td key={cell}><strong className={index === 4 ? "payout-value" : ""}>{cell}</strong></td>)}</tr>)}</tbody></table></div></section>
-      <p className="report-footnote">Relatório gerado pelo Proposta · Período de 01/06/2025 a 30/06/2025</p>
+      <p className="report-footnote">Relatório gerado por {clientCompany} · Período de 01/06/2025 a 30/06/2025</p>
     </div>
   );
 }
@@ -863,8 +864,7 @@ export default function App() {
     <div className="app-shell">
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="brand">
-          <div className="brand-mark"><span></span><span></span><span></span></div>
-          <div><strong>Proposta</strong><small>GESTÃO COMERCIAL</small></div>
+          <img src={vfcLogo} alt={clientCompany} className="brand-logo sidebar-logo" />
         </div>
         <nav>
           {navGroups.map((group) => (
@@ -910,7 +910,7 @@ export default function App() {
             <button className="icon-button notification" aria-label="Notificações"><Icon name="bell" size={20} /><i /></button>
             <div className="top-divider" />
             <span className="store-label">Loja</span>
-            <button className="store-select">Matriz — São Paulo <span>⌄</span></button>
+            <button className="store-select">{clientCompany} • São Paulo <span>⌄</span></button>
           </div>
         </header>
 
@@ -918,7 +918,7 @@ export default function App() {
           <section className="page-heading">
             <div>
               <p>{currentDateLabel}</p>
-              <h1>Olá, André. <span>Vamos aos resultados.</span></h1>
+              <h1>Olá, André. <span>Seu desempenho está em alta.</span></h1>
             </div>
             <div className="heading-actions">
               <label className="period-picker">
