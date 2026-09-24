@@ -1,0 +1,77 @@
+{
+  "usuarios": [
+    {
+      "id": 1,
+      "nome": "Administrador VFC",
+      "email": "admin@vfc.com",
+      "senhaHash": "$2a$10$h2i7Q8b7oTz6Q5lLhQ4r0uzYzzwH8u6Xc0w/2YFQhW7QFzV0mvQmS",
+      "perfil": "admin",
+      "status": "ativo",
+      "createdAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": 2,
+      "nome": "Administrador VFC",
+      "email": "admin@proposta.com.br",
+      "senhaHash": "$2a$10$mZObbme9TcAmHZu0p0msxu6HW3kfKSueDA3/SeZFJ.aAikYeBNfqW",
+      "perfil": "admin",
+      "status": "ativo",
+      "createdAt": "2026-09-24T18:02:28.846Z"
+    }
+  ],
+  "clientes": [
+    {
+      "id": 1,
+      "nome": "Maria Oliveira",
+      "razaoSocial": "Maria Oliveira LTDA",
+      "documento": "12345678900",
+      "tipoPessoa": "pf",
+      "email": "maria@email.com",
+      "telefone": "11999999999",
+      "cidade": "São Paulo",
+      "estado": "SP",
+      "status": "ativo",
+      "createdAt": "2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "vendedores": [
+    {
+      "id": 1,
+      "nome": "Carlos Mendes",
+      "email": "carlos@vfc.com",
+      "telefone": "11988888888",
+      "cargo": "Vendedor",
+      "equipe": "Leste",
+      "status": "ativo",
+      "usuarioId": 1,
+      "createdAt": "2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "veiculos": [
+    {
+      "id": 1,
+      "marca": "Toyota",
+      "modelo": "Corolla",
+      "ano": 2024,
+      "placa": "ABC1D23",
+      "valor": 180000,
+      "status": "disponivel",
+      "observacoes": "Veículo seminovo",
+      "createdAt": "2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "propostas": [
+    {
+      "id": 1,
+      "clienteId": 1,
+      "vendedorId": 1,
+      "veiculoId": 1,
+      "valorProposta": 175000,
+      "status": "pendente",
+      "observacoes": "Clienta em análise",
+      "createdAt": "2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "contratos": [],
+  "financeiro": []
+}

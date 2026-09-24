@@ -201,14 +201,17 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
   const [email, setEmail] = useState("admin@proposta.com.br");
   const [password, setPassword] = useState("Proposta123");
   const [notice, setNotice] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const submit = (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setNotice("");
+
     if (mode === "forgot") {
       setNotice("Link de recuperação enviado. Verifique sua caixa de entrada.");
       return;
     }
+
     if (mode === "change") {
       if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}/.test(password)) {
         setNotice("Use ao menos 8 caracteres, com maiúscula, minúscula e número.");
@@ -217,12 +220,40 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
       onAuthenticated();
       return;
     }
+
     if (!email.includes("@") || password.length < 8) {
       setNotice("Informe um e-mail válido e uma senha com pelo menos 8 caracteres.");
       return;
     }
-    setMode("change");
-    setPassword("");
+
+    try {
+      setIsSubmitting(true);
+      const response = await fetch("http://localhost:4000/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          senha: password,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        setNotice(result.message || "Credenciais inválidas.");
+        return;
+      }
+
+      localStorage.setItem("vfcAuthToken", result.data.token);
+      localStorage.setItem("vfcAuthUser", JSON.stringify(result.data.user));
+      onAuthenticated();
+    } catch (error) {
+      setNotice("Não foi possível conectar ao servidor. Verifique se a API local está ativa.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -252,7 +283,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
             <label>E-mail<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com.br"/></label>
             <label>Senha<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Sua senha"/></label>
             <button type="button" className="forgot-link" onClick={() => { setMode("forgot"); setNotice(""); }}>Esqueci minha senha</button>
-            <button className="auth-submit" type="submit">Entrar <Icon name="arrow" size={16}/></button>
+            <button className="auth-submit" type="submit" disabled={isSubmitting}>{isSubmitting ? "Entrando..." : <>Entrar <Icon name="arrow" size={16}/></>}</button>
             <div className="demo-access"><strong>Demonstração ativa</strong><span>admin@proposta.com.br · Proposta123</span></div>
           </>}
           {mode === "forgot" && <>
@@ -2630,7 +2661,7 @@ function ExecutiveBoardPage() {
 }
 
 export default function App() {
-  const [authenticated, setAuthenticated] = useState(false);
+  const [authenticated, setAuthenticated] = useState(() => Boolean(localStorage.getItem("vfcAuthToken")));
   const [active, setActive] = useState("Dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [period, setPeriod] = useState(currentWeekLabel);

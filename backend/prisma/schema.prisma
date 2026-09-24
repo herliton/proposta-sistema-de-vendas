@@ -1,0 +1,126 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id        Int       @id @default(autoincrement())
+  nome      String
+  email     String    @unique
+  senhaHash String
+  perfil    String
+  status    String    @default("ativo")
+  createdAt DateTime  @default(now())
+
+  vendedores Vendedor[]
+  aprovacoes Aprovacao[]
+}
+
+model Cliente {
+  id          Int      @id @default(autoincrement())
+  nome        String
+  razaoSocial String?
+  documento   String?
+  tipoPessoa  String?
+  email       String?
+  telefone    String?
+  cidade      String?
+  estado      String?
+  status      String   @default("ativo")
+  createdAt   DateTime @default(now())
+
+  propostas Proposta[]
+  contratos Contrato[]
+}
+
+model Vendedor {
+  id        Int      @id @default(autoincrement())
+  nome      String
+  email     String   @unique
+  telefone  String?
+  cargo     String?
+  equipe    String?
+  status    String   @default("ativo")
+  usuarioId Int?
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+
+  propostas Proposta[]
+  contratos Contrato[]
+}
+
+model Veiculo {
+  id          Int      @id @default(autoincrement())
+  marca       String
+  modelo      String
+  ano         Int
+  placa       String?
+  valor       Decimal
+  status      String   @default("disponivel")
+  observacoes String?
+  createdAt   DateTime @default(now())
+
+  propostas Proposta[]
+}
+
+model Proposta {
+  id            Int      @id @default(autoincrement())
+  clienteId     Int
+  vendedorId    Int
+  veiculoId     Int
+  valorProposta Decimal
+  status        String   @default("pendente")
+  observacoes   String?
+  createdAt     DateTime @default(now())
+
+  cliente  Cliente   @relation(fields: [clienteId], references: [id])
+  vendedor Vendedor  @relation(fields: [vendedorId], references: [id])
+  veiculo  Veiculo   @relation(fields: [veiculoId], references: [id])
+
+  contrato Contrato?
+}
+
+model Contrato {
+  id             Int       @id @default(autoincrement())
+  propostaId     Int       @unique
+  clienteId      Int
+  vendedorId     Int
+  valorTotal     Decimal
+  status         String    @default("ativo")
+  dataAssinatura DateTime?
+  documentoUrl   String?
+  createdAt      DateTime  @default(now())
+
+  proposta   Proposta     @relation(fields: [propostaId], references: [id])
+  cliente    Cliente      @relation(fields: [clienteId], references: [id])
+  vendedor   Vendedor     @relation(fields: [vendedorId], references: [id])
+  financeiro Financeiro[]
+}
+
+model Financeiro {
+  id             Int       @id @default(autoincrement())
+  contratoId     Int
+  tipo           String
+  valor          Decimal
+  status         String    @default("pendente")
+  dataVencimento DateTime?
+  observacoes    String?
+  createdAt      DateTime  @default(now())
+
+  contrato Contrato @relation(fields: [contratoId], references: [id])
+}
+
+model Aprovacao {
+  id         Int      @id @default(autoincrement())
+  entidade   String
+  entidadeId Int
+  usuarioId  Int?
+  acao       String
+  observacao String?
+  createdAt  DateTime @default(now())
+
+  usuario Usuario? @relation(fields: [usuarioId], references: [id])
+}
