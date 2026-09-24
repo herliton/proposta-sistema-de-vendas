@@ -1,5 +1,4 @@
 import { useState } from "react";
-import vfcLogo from "./assets/vfc-logo.png";
 import { downloadCommissionReport } from "./api/reports";
 import { formatWeekRange, getCurrentWeekRange } from "./utils/dateRange";
 import { transitionSalesStage, type SalesStage } from "./utils/salesLifecycle";
@@ -12,6 +11,72 @@ const currentDateLabel = new Intl.DateTimeFormat("pt-BR", {
   day: "2-digit",
   month: "long",
 }).format(new Date());
+const dashboardPeriodData = {
+  [currentWeekLabel]: {
+    label: currentWeekLabel,
+    sims: { value: "48", delta: "+12,5%", tone: "up" },
+    proposals: { value: "26", delta: "+8,3%", tone: "up" },
+    contracts: { value: "13", delta: "+18,2%", tone: "up" },
+    rejected: { value: "5", delta: "−2,1%", tone: "down" },
+    spark: [
+      { height: "35%", tone: "blue" },
+      { height: "55%", tone: "blue" },
+      { height: "43%", tone: "blue" },
+      { height: "70%", tone: "purple" },
+      { height: "61%", tone: "purple" },
+      { height: "88%", tone: "purple" },
+      { height: "100%", tone: "green" },
+    ],
+  },
+  "Últimos 30 dias": {
+    label: "Últimos 30 dias",
+    sims: { value: "164", delta: "+18,7%", tone: "up" },
+    proposals: { value: "92", delta: "+11,4%", tone: "up" },
+    contracts: { value: "41", delta: "+22,1%", tone: "up" },
+    rejected: { value: "16", delta: "−4,8%", tone: "down" },
+    spark: [
+      { height: "40%", tone: "blue" },
+      { height: "60%", tone: "blue" },
+      { height: "52%", tone: "blue" },
+      { height: "75%", tone: "purple" },
+      { height: "66%", tone: "purple" },
+      { height: "92%", tone: "purple" },
+      { height: "100%", tone: "green" },
+    ],
+  },
+  "Últimos 90 dias": {
+    label: "Últimos 90 dias",
+    sims: { value: "512", delta: "+26,4%", tone: "up" },
+    proposals: { value: "286", delta: "+17,9%", tone: "up" },
+    contracts: { value: "127", delta: "+28,5%", tone: "up" },
+    rejected: { value: "38", delta: "−6,2%", tone: "down" },
+    spark: [
+      { height: "46%", tone: "blue" },
+      { height: "63%", tone: "blue" },
+      { height: "58%", tone: "blue" },
+      { height: "78%", tone: "purple" },
+      { height: "71%", tone: "purple" },
+      { height: "95%", tone: "purple" },
+      { height: "100%", tone: "green" },
+    ],
+  },
+  "Período personalizado": {
+    label: "Período personalizado",
+    sims: { value: "48", delta: "+12,5%", tone: "up" },
+    proposals: { value: "26", delta: "+8,3%", tone: "up" },
+    contracts: { value: "13", delta: "+18,2%", tone: "up" },
+    rejected: { value: "5", delta: "−2,1%", tone: "down" },
+    spark: [
+      { height: "35%", tone: "blue" },
+      { height: "55%", tone: "blue" },
+      { height: "43%", tone: "blue" },
+      { height: "70%", tone: "purple" },
+      { height: "61%", tone: "purple" },
+      { height: "88%", tone: "purple" },
+      { height: "100%", tone: "green" },
+    ],
+  },
+};
 
 type IconName =
   | "home"
@@ -117,6 +182,14 @@ const proposals = [
 
 type AuthMode = "login" | "forgot" | "change";
 
+type CustomerHistoryEntry = {
+  date: string;
+  title: string;
+  detail: string;
+  tone: string;
+  icon: IconName;
+};
+
 function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("admin@proposta.com.br");
@@ -149,7 +222,8 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
   return (
     <div className="auth-page">
       <div className="auth-brand">
-        <img src={vfcLogo} alt={clientCompany} className="brand-logo" />
+        <div className="brand-mark"><span /><span /><span /></div>
+        <div className="brand-wordmark"><strong>VFC</strong><small>Multimarcas</small></div>
       </div>
       <div className="auth-visual">
         <div className="auth-visual-copy">
@@ -225,16 +299,32 @@ const moduleData: Record<string, { title: string; subtitle: string; action: stri
 
 function UsersPage() {
   const [showForm, setShowForm] = useState(false);
-  const [editingName, setEditingName] = useState("");
+  const [editingUserId, setEditingUserId] = useState<number | null>(null);
+  const [userQuery, setUserQuery] = useState("");
+  const [userStatus, setUserStatus] = useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
   const [cep, setCep] = useState("");
   const [address, setAddress] = useState({ street: "", neighborhood: "", city: "", state: "" });
   const [cepStatus, setCepStatus] = useState("");
-  const users = [
-    { initials: "MC", name: "Marcos Costa", email: "marcos@proposta.com.br", phone: "(11) 98722-1840", role: "SELLER", active: true },
-    { initials: "AS", name: "Amanda Silva", email: "amanda@proposta.com.br", phone: "(11) 99188-4201", role: "MANAGER", active: true },
-    { initials: "RL", name: "Rafael Lima", email: "rafael@proposta.com.br", phone: "(11) 99854-1770", role: "SELLER", active: true },
-    { initials: "BS", name: "Beatriz Souza", email: "beatriz@proposta.com.br", phone: "(11) 98231-9802", role: "SUPPORT", active: false },
-  ];
+  const [form, setForm] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    role: "SELLER",
+    active: true,
+  });
+  const [users, setUsers] = useState([
+    { id: 1, initials: "MC", name: "Marcos Costa", email: "marcos@proposta.com.br", phone: "(11) 98722-1840", role: "SELLER", active: true },
+    { id: 2, initials: "AS", name: "Amanda Silva", email: "amanda@proposta.com.br", phone: "(11) 99188-4201", role: "MANAGER", active: true },
+    { id: 3, initials: "RL", name: "Rafael Lima", email: "rafael@proposta.com.br", phone: "(11) 99854-1770", role: "SELLER", active: true },
+    { id: 4, initials: "BS", name: "Beatriz Souza", email: "beatriz@proposta.com.br", phone: "(11) 98231-9802", role: "SUPPORT", active: false },
+  ]);
+
+  const filteredUsers = users.filter((user) => {
+    const matchesQuery = `${user.name} ${user.email} ${user.role}`.toLowerCase().includes(userQuery.toLowerCase());
+    const matchesStatus = userStatus === "ALL" || (userStatus === "ACTIVE" ? user.active : !user.active);
+    return matchesQuery && matchesStatus;
+  });
+
   const lookupCep = async () => {
     const normalized = cep.replace(/\D/g, "");
     if (normalized.length !== 8) {
@@ -252,74 +342,200 @@ function UsersPage() {
       setCepStatus("CEP não encontrado. Preencha o endereço manualmente.");
     }
   };
-  const openForm = (name = "") => {
-    setEditingName(name);
+
+  const openForm = (user?: typeof users[number]) => {
+    setEditingUserId(user ? user.id : null);
+    setForm({
+      name: user?.name ?? "",
+      phone: user?.phone ?? "",
+      email: user?.email ?? "",
+      role: user?.role ?? "SELLER",
+      active: user?.active ?? true,
+    });
     setCep("");
     setAddress({ street: "", neighborhood: "", city: "", state: "" });
     setCepStatus("");
     setShowForm(true);
   };
+
+  const saveUser = (event: React.FormEvent) => {
+    event.preventDefault();
+    const nextName = form.name.trim();
+    const nextEmail = form.email.trim();
+    if (!nextName || !nextEmail) return;
+
+    if (editingUserId === null) {
+      const nextId = Math.max(0, ...users.map((user) => user.id)) + 1;
+      const initials = nextName.split(" ").slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("");
+      setUsers((current) => [{ id: nextId, initials, name: nextName, email: nextEmail, phone: form.phone, role: form.role, active: form.active }, ...current]);
+    } else {
+      setUsers((current) => current.map((user) => user.id === editingUserId ? { ...user, name: nextName, email: nextEmail, phone: form.phone, role: form.role, active: form.active, initials: nextName.split(" ").slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("") } : user));
+    }
+
+    setShowForm(false);
+  };
+
+  const toggleUserStatus = (id: number) => {
+    setUsers((current) => current.map((user) => user.id === id ? { ...user, active: !user.active } : user));
+  };
+
   return (
     <div className="content module-content">
       <section className="module-heading"><div><p>ADMINISTRAÇÃO E ACESSOS</p><h1>Usuários e perfis</h1><span>Gerencie dados pessoais, funções e acessos dos colaboradores.</span></div><button className="primary-button" onClick={() => openForm()}><Icon name="plus" size={18}/>Novo usuário</button></section>
-      <section className="module-summary"><div><span>Usuários ativos</span><strong>18</strong></div><div><span>Gerentes-vendedores</span><strong>3</strong></div><div><span>Acessos desativados</span><strong>2</strong></div></section>
+      <section className="module-summary"><div><span>Usuários ativos</span><strong>{users.filter((user) => user.active).length}</strong></div><div><span>Gerentes-vendedores</span><strong>{users.filter((user) => user.role === "MANAGER").length}</strong></div><div><span>Acessos desativados</span><strong>{users.filter((user) => !user.active).length}</strong></div></section>
       <section className="panel module-table">
-        <div className="module-toolbar"><div className="search-box"><Icon name="search" size={17}/><input placeholder="Buscar usuário, e-mail ou perfil..."/></div><button><Icon name="settings" size={16}/>Filtros</button></div>
-        <div className="table-wrap"><table><thead><tr><th>USUÁRIO</th><th>CONTATO</th><th>PERFIL</th><th>STATUS</th><th>ACESSOS HERDADOS</th><th></th></tr></thead><tbody>{users.map((user) => <tr key={user.email}><td><div className="seller-cell"><div className="mini-avatar blue">{user.initials}</div><div><strong>{user.name}</strong><small className="table-subcopy">{user.email}</small></div></div></td><td>{user.phone}</td><td><span className="role-pill">{user.role}</span></td><td><span className={`status ${user.active ? "green" : "red"}`}>{user.active ? "Ativo" : "Inativo"}</span></td><td>{user.role === "MANAGER" ? <span className="inheritance-pill">MANAGER + SELLER</span> : "—"}</td><td><button className="edit-link" onClick={() => openForm(user.name)}>Editar</button></td></tr>)}</tbody></table></div>
+        <div className="module-toolbar">
+          <div className="search-box"><Icon name="search" size={17}/><input value={userQuery} onChange={(event) => setUserQuery(event.target.value)} placeholder="Buscar usuário, e-mail ou perfil..."/></div>
+          <select value={userStatus} onChange={(event) => setUserStatus(event.target.value as "ALL" | "ACTIVE" | "INACTIVE")} className="status-filter-select">
+            <option value="ALL">Todos os status</option>
+            <option value="ACTIVE">Ativos</option>
+            <option value="INACTIVE">Inativos</option>
+          </select>
+        </div>
+        <div className="table-wrap"><table><thead><tr><th>USUÁRIO</th><th>CONTATO</th><th>PERFIL</th><th>STATUS</th><th>ACESSOS HERDADOS</th><th>AÇÃO</th></tr></thead><tbody>{filteredUsers.map((user) => <tr key={user.id}><td><div className="seller-cell"><div className="mini-avatar blue">{user.initials}</div><div><strong>{user.name}</strong><small className="table-subcopy">{user.email}</small></div></div></td><td>{user.phone}</td><td><span className="role-pill">{user.role}</span></td><td><span className={`status ${user.active ? "green" : "red"}`}>{user.active ? "Ativo" : "Inativo"}</span></td><td>{user.role === "MANAGER" ? <span className="inheritance-pill">MANAGER + SELLER</span> : "—"}</td><td><div className="row-actions"><button className="edit-link" onClick={() => openForm(user)}>Editar</button><button className="row-status-toggle" onClick={() => toggleUserStatus(user.id)}>{user.active ? "Desativar" : "Ativar"}</button></div></td></tr>)}</tbody></table></div>
       </section>
-      {showForm && <div className="page-form-layer"><div className="modal-card wide-modal user-modal page-form-card">
-        <button className="page-back" onClick={() => setShowForm(false)}><Icon name="arrow" size={16}/>Voltar para usuários</button>
-        <div className="modal-title"><div><span>{editingName ? "EDIÇÃO DE USUÁRIO" : "NOVO USUÁRIO"}</span><h2>{editingName || "Cadastrar colaborador"}</h2><p>Preencha os dados de identificação, acesso e endereço do colaborador.</p></div></div>
+      {showForm && <div className="page-form-layer"><form onSubmit={saveUser} className="modal-card wide-modal user-modal page-form-card">
+        <button type="button" className="page-back" onClick={() => setShowForm(false)}><Icon name="arrow" size={16}/>Voltar para usuários</button>
+        <div className="modal-title"><div><span>{editingUserId === null ? "NOVO USUÁRIO" : "EDIÇÃO DE USUÁRIO"}</span><h2>{editingUserId === null ? "Cadastrar colaborador" : form.name || "Editar colaborador"}</h2><p>Preencha os dados de identificação, acesso e endereço do colaborador.</p></div></div>
         <div className="profile-upload"><label><input type="file" accept="image/*"/><span><Icon name="plus" size={17}/></span></label><div><strong>Foto de perfil</strong><small>JPG ou PNG · máximo de 5 MB</small></div></div>
         <div className="form-section-title">Identificação e acesso</div>
-        <div className="modal-row"><label>Nome completo<input defaultValue={editingName} placeholder="Nome e sobrenome"/></label><label>Telefone / WhatsApp<input placeholder="(00) 00000-0000"/></label></div>
-        <div className="modal-row"><label>E-mail de acesso<input type="email" placeholder="usuario@empresa.com.br"/></label><label>Perfil<select defaultValue={editingName === "Amanda Silva" ? "MANAGER" : "SELLER"}><option>ADMIN</option><option>MANAGER</option><option>SELLER</option><option>SUPPORT</option></select></label></div>
+        <div className="modal-row"><label>Nome completo<input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="Nome e sobrenome"/></label><label>Telefone / WhatsApp<input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} placeholder="(00) 00000-0000"/></label></div>
+        <div className="modal-row"><label>E-mail de acesso<input type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} placeholder="usuario@empresa.com.br"/></label><label>Perfil<select value={form.role} onChange={(event) => setForm((current) => ({ ...current, role: event.target.value }))}><option value="ADMIN">ADMIN</option><option value="MANAGER">MANAGER</option><option value="SELLER">SELLER</option><option value="SUPPORT">SUPPORT</option></select></label></div>
         <div className="role-inheritance-note"><Icon name="users" size={17}/><span>O perfil <strong>MANAGER</strong> herda automaticamente todos os acessos operacionais de <strong>SELLER</strong>.</span></div>
         <div className="form-section-title">Endereço completo</div>
         <div className="cep-row"><label>CEP<input value={cep} onChange={(event) => setCep(event.target.value)} onBlur={lookupCep} placeholder="00000-000"/></label><button type="button" onClick={lookupCep}><Icon name="search" size={15}/>Buscar CEP</button><span>{cepStatus}</span></div>
         <div className="modal-row address-main"><label>Logradouro<input value={address.street} onChange={(event) => setAddress({ ...address, street: event.target.value })}/></label><label>Número<input placeholder="Nº"/></label></div>
         <div className="modal-row"><label>Complemento<input placeholder="Apto, bloco ou referência"/></label><label>Bairro<input value={address.neighborhood} onChange={(event) => setAddress({ ...address, neighborhood: event.target.value })}/></label></div>
         <div className="modal-row city-row"><label>Cidade<input value={address.city} onChange={(event) => setAddress({ ...address, city: event.target.value })}/></label><label>Estado<input value={address.state} onChange={(event) => setAddress({ ...address, state: event.target.value })}/></label></div>
-        <div className="modal-actions"><button onClick={() => setShowForm(false)}>Cancelar</button><button className="primary-button" onClick={() => setShowForm(false)}>{editingName ? "Salvar alterações" : "Cadastrar e enviar acesso"}</button></div>
-      </div></div>}
+        <div className="modal-actions"><button type="button" onClick={() => setShowForm(false)}>Cancelar</button><button type="submit" className="primary-button">{editingUserId === null ? "Cadastrar e enviar acesso" : "Salvar alterações"}</button></div>
+      </form></div>}
     </div>
   );
 }
 
 type VehicleStatus = "AVAILABLE" | "IN_NEGOTIATION" | "SOLD";
 
+type VehicleRecord = {
+  id: number;
+  name: string;
+  detail: string;
+  years: string;
+  fipe: string;
+  suggested: string;
+  minimum: string;
+  status: VehicleStatus;
+  simulations: number;
+};
+
 function VehiclesPage() {
   const [showForm, setShowForm] = useState(false);
+  const [editingVehicleId, setEditingVehicleId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState("ALL");
-  const vehicles: { name: string; detail: string; years: string; fipe: string; suggested: string; minimum: string; status: VehicleStatus; simulations: number }[] = [
-    { name: "Jeep Compass Limited", detail: "RZY-4J82 · Flex · Automático", years: "2024 / 2025", fipe: "R$ 163.420", suggested: "R$ 168.900", minimum: "R$ 160.000", status: "IN_NEGOTIATION", simulations: 4 },
-    { name: "VW T-Cross Highline", detail: "KLP-2D67 · Flex · Automático", years: "2024 / 2024", fipe: "R$ 132.110", suggested: "R$ 134.900", minimum: "R$ 128.500", status: "AVAILABLE", simulations: 0 },
-    { name: "Hyundai Creta Platinum", detail: "EJM-7K31 · Flex · Automático", years: "2023 / 2024", fipe: "R$ 96.870", suggested: "R$ 98.500", minimum: "R$ 93.000", status: "IN_NEGOTIATION", simulations: 2 },
-    { name: "Honda HR-V Touring", detail: "BRA-9F21 · Gasolina · Automático", years: "2024 / 2025", fipe: "R$ 171.800", suggested: "R$ 176.200", minimum: "R$ 168.000", status: "SOLD", simulations: 0 },
-  ];
-  const visible = vehicles.filter((vehicle) => statusFilter === "ALL" || vehicle.status === statusFilter);
+  const [vehicleQuery, setVehicleQuery] = useState("");
+  const [form, setForm] = useState({
+    name: "",
+    detail: "",
+    years: "",
+    fipe: "",
+    suggested: "",
+    minimum: "",
+    status: "AVAILABLE" as VehicleStatus,
+    simulations: 0,
+  });
+  const [vehicles, setVehicles] = useState<VehicleRecord[]>([
+    { id: 1, name: "Jeep Compass Limited", detail: "RZY-4J82 · Flex · Automático", years: "2024 / 2025", fipe: "R$ 163.420", suggested: "R$ 168.900", minimum: "R$ 160.000", status: "IN_NEGOTIATION", simulations: 4 },
+    { id: 2, name: "VW T-Cross Highline", detail: "KLP-2D67 · Flex · Automático", years: "2024 / 2024", fipe: "R$ 132.110", suggested: "R$ 134.900", minimum: "R$ 128.500", status: "AVAILABLE", simulations: 0 },
+    { id: 3, name: "Hyundai Creta Platinum", detail: "EJM-7K31 · Flex · Automático", years: "2023 / 2024", fipe: "R$ 96.870", suggested: "R$ 98.500", minimum: "R$ 93.000", status: "IN_NEGOTIATION", simulations: 2 },
+    { id: 4, name: "Honda HR-V Touring", detail: "BRA-9F21 · Gasolina · Automático", years: "2024 / 2025", fipe: "R$ 171.800", suggested: "R$ 176.200", minimum: "R$ 168.000", status: "SOLD", simulations: 0 },
+  ]);
+
   const statusLabel = { AVAILABLE: "Disponível", IN_NEGOTIATION: "Em negociação", SOLD: "Vendido" };
+
+  const visible = vehicles.filter((vehicle) => {
+    const matchesFilter = statusFilter === "ALL" || vehicle.status === statusFilter;
+    const matchesQuery = `${vehicle.name} ${vehicle.detail} ${vehicle.years}`.toLowerCase().includes(vehicleQuery.toLowerCase());
+    return matchesFilter && matchesQuery;
+  });
+
+  const openForm = (vehicle?: VehicleRecord) => {
+    setEditingVehicleId(vehicle ? vehicle.id : null);
+    setForm({
+      name: vehicle?.name ?? "",
+      detail: vehicle?.detail ?? "",
+      years: vehicle?.years ?? "",
+      fipe: vehicle?.fipe ?? "",
+      suggested: vehicle?.suggested ?? "",
+      minimum: vehicle?.minimum ?? "",
+      status: vehicle?.status ?? "AVAILABLE",
+      simulations: vehicle?.simulations ?? 0,
+    });
+    setShowForm(true);
+  };
+
+  const saveVehicle = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!form.name.trim() || !form.suggested.trim()) return;
+
+    if (editingVehicleId === null) {
+      const nextId = Math.max(0, ...vehicles.map((vehicle) => vehicle.id)) + 1;
+      setVehicles((current) => [{
+        id: nextId,
+        name: form.name.trim(),
+        detail: form.detail.trim() || "Placa não informada · Flex · Automático",
+        years: form.years.trim() || "2024 / 2025",
+        fipe: form.fipe.trim() || "R$ 0,00",
+        suggested: form.suggested.trim(),
+        minimum: form.minimum.trim() || form.suggested.trim(),
+        status: form.status,
+        simulations: form.simulations,
+      }, ...current]);
+    } else {
+      setVehicles((current) => current.map((vehicle) => vehicle.id === editingVehicleId ? {
+        ...vehicle,
+        name: form.name.trim(),
+        detail: form.detail.trim() || vehicle.detail,
+        years: form.years.trim() || vehicle.years,
+        fipe: form.fipe.trim() || vehicle.fipe,
+        suggested: form.suggested.trim() || vehicle.suggested,
+        minimum: form.minimum.trim() || vehicle.minimum,
+        status: form.status,
+        simulations: Number(form.simulations) || vehicle.simulations,
+      } : vehicle));
+    }
+
+    setShowForm(false);
+  };
+
+  const toggleVehicleStatus = (id: number) => {
+    setVehicles((current) => current.map((vehicle) => {
+      if (vehicle.id !== id) return vehicle;
+      const nextStatus: VehicleStatus = vehicle.status === "AVAILABLE" ? "IN_NEGOTIATION" : vehicle.status === "IN_NEGOTIATION" ? "AVAILABLE" : "AVAILABLE";
+      return { ...vehicle, status: nextStatus };
+    }));
+  };
+
   return (
     <div className="content module-content">
-      <section className="module-heading"><div><p>GESTÃO DE ESTOQUE</p><h1>Veículos</h1><span>Controle preços, mídia e disponibilidade do estoque.</span></div><button className="primary-button" onClick={() => setShowForm(true)}><Icon name="plus" size={18}/>Cadastrar veículo</button></section>
-      <section className="module-summary"><div><span>Disponíveis</span><strong>24</strong></div><div><span>Em negociação</span><strong>7</strong></div><div><span>Vendidos no mês</span><strong>13</strong></div></section>
+      <section className="module-heading"><div><p>GESTÃO DE ESTOQUE</p><h1>Veículos</h1><span>Controle preços, mídia e disponibilidade do estoque.</span></div><button className="primary-button" onClick={() => openForm()}><Icon name="plus" size={18}/>Cadastrar veículo</button></section>
+      <section className="module-summary"><div><span>Disponíveis</span><strong>{vehicles.filter((vehicle) => vehicle.status === "AVAILABLE").length}</strong></div><div><span>Em negociação</span><strong>{vehicles.filter((vehicle) => vehicle.status === "IN_NEGOTIATION").length}</strong></div><div><span>Vendidos no mês</span><strong>{vehicles.filter((vehicle) => vehicle.status === "SOLD").length}</strong></div></section>
       <section className="panel module-table">
-        <div className="module-toolbar vehicle-toolbar"><div className="search-box"><Icon name="search" size={17}/><input placeholder="Buscar marca, modelo ou placa..."/></div><div className="filter-fields"><select><option>Todos os anos</option><option>2025</option><option>2024</option><option>2023</option></select><select><option>Todas as marcas</option><option>Jeep</option><option>Volkswagen</option><option>Hyundai</option></select><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="ALL">Todos os status</option><option value="AVAILABLE">Disponível</option><option value="IN_NEGOTIATION">Em negociação</option><option value="SOLD">Vendido</option></select></div></div>
-        <div className="table-wrap"><table><thead><tr><th>VEÍCULO</th><th>ANO FAB. / MOD.</th><th>VALOR FIPE</th><th>PREÇO SUGERIDO</th><th>PREÇO MÍNIMO</th><th>SIMULAÇÕES ATIVAS</th><th>STATUS</th><th></th></tr></thead><tbody>{visible.map((vehicle) => <tr key={vehicle.name}><td><div className="vehicle-cell"><div><Icon name="car" size={20}/></div><span><strong>{vehicle.name}</strong><small>{vehicle.detail}</small></span></div></td><td>{vehicle.years}</td><td>{vehicle.fipe}</td><td><strong>{vehicle.suggested}</strong></td><td>{vehicle.minimum}</td><td><span className={`simulation-count ${vehicle.simulations ? "has-count" : ""}`}>{vehicle.simulations}</span></td><td><span className={`status ${vehicle.status === "AVAILABLE" ? "green" : vehicle.status === "SOLD" ? "red" : "yellow"}`}>{statusLabel[vehicle.status]}</span></td><td><button className="row-more"><Icon name="more" size={18}/></button></td></tr>)}</tbody></table></div>
+        <div className="module-toolbar vehicle-toolbar"><div className="search-box"><Icon name="search" size={17}/><input value={vehicleQuery} onChange={(event) => setVehicleQuery(event.target.value)} placeholder="Buscar marca, modelo ou placa..."/></div><div className="filter-fields"><select><option>Todos os anos</option><option>2025</option><option>2024</option><option>2023</option></select><select><option>Todas as marcas</option><option>Jeep</option><option>Volkswagen</option><option>Hyundai</option></select><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="ALL">Todos os status</option><option value="AVAILABLE">Disponível</option><option value="IN_NEGOTIATION">Em negociação</option><option value="SOLD">Vendido</option></select></div></div>
+        <div className="table-wrap"><table><thead><tr><th>VEÍCULO</th><th>ANO FAB. / MOD.</th><th>VALOR FIPE</th><th>PREÇO SUGERIDO</th><th>PREÇO MÍNIMO</th><th>SIMULAÇÕES ATIVAS</th><th>STATUS</th><th>AÇÃO</th></tr></thead><tbody>{visible.map((vehicle) => <tr key={vehicle.id}><td><div className="vehicle-cell"><div><Icon name="car" size={20}/></div><span><strong>{vehicle.name}</strong><small>{vehicle.detail}</small></span></div></td><td>{vehicle.years}</td><td>{vehicle.fipe}</td><td><strong>{vehicle.suggested}</strong></td><td>{vehicle.minimum}</td><td><span className={`simulation-count ${vehicle.simulations ? "has-count" : ""}`}>{vehicle.simulations}</span></td><td><span className={`status ${vehicle.status === "AVAILABLE" ? "green" : vehicle.status === "SOLD" ? "red" : "yellow"}`}>{statusLabel[vehicle.status]}</span></td><td><div className="row-actions"><button className="edit-link" onClick={() => openForm(vehicle)}>Editar</button><button className="row-status-toggle" onClick={() => toggleVehicleStatus(vehicle.id)}>{vehicle.status === "AVAILABLE" ? "Reservar" : "Disponibilizar"}</button></div></td></tr>)}</tbody></table></div>
       </section>
-      {showForm && <div className="page-form-layer"><div className="modal-card wide-modal vehicle-modal page-form-card">
-        <button className="page-back" onClick={() => setShowForm(false)}><Icon name="arrow" size={16}/>Voltar para veículos</button>
-        <div className="modal-title"><div><span>NOVO ITEM DO ESTOQUE</span><h2>Cadastrar veículo</h2><p>Adicione os dados, valores e arquivos de mídia do veículo.</p></div></div>
+      {showForm && <div className="page-form-layer"><form onSubmit={saveVehicle} className="modal-card wide-modal vehicle-modal page-form-card">
+        <button type="button" className="page-back" onClick={() => setShowForm(false)}><Icon name="arrow" size={16}/>Voltar para veículos</button>
+        <div className="modal-title"><div><span>{editingVehicleId === null ? "NOVO ITEM DO ESTOQUE" : "EDIÇÃO DE VEÍCULO"}</span><h2>{editingVehicleId === null ? "Cadastrar veículo" : form.name || "Editar veículo"}</h2><p>Adicione ou atualize os dados, valores e arquivos de mídia do veículo.</p></div></div>
         <div className="form-section-title">Identificação</div>
-        <div className="modal-row"><label>Marca<input placeholder="Ex.: Jeep"/></label><label>Modelo<input placeholder="Ex.: Compass Limited"/></label></div>
-        <div className="modal-row"><label>Ano de fabricação<input placeholder="2024"/></label><label>Ano do modelo<input placeholder="2025"/></label></div>
-        <div className="modal-row"><label>Código FIPE<input placeholder="000000-0"/></label><label>Placa<input placeholder="ABC-1D23"/></label></div>
+        <div className="modal-row"><label>Marca/Modelo<input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="Ex.: Jeep Compass Limited"/></label><label>Detalhes<input value={form.detail} onChange={(event) => setForm((current) => ({ ...current, detail: event.target.value }))} placeholder="Ex.: RZY-4J82 · Flex · Automático"/></label></div>
+        <div className="modal-row"><label>Ano de fabricação / modelo<input value={form.years} onChange={(event) => setForm((current) => ({ ...current, years: event.target.value }))} placeholder="2024 / 2025"/></label><label>Status<select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as VehicleStatus }))}><option value="AVAILABLE">Disponível</option><option value="IN_NEGOTIATION">Em negociação</option><option value="SOLD">Vendido</option></select></label></div>
         <div className="form-section-title">Precificação</div>
-        <div className="pricing-grid"><label>Valor FIPE<div className="input-action"><input placeholder="R$ 0,00"/><button>Consultar FIPE</button></div></label><label>Preço sugerido<input placeholder="R$ 0,00"/></label><label>Preço mínimo<input placeholder="R$ 0,00"/></label></div>
+        <div className="pricing-grid"><label>Valor FIPE<input value={form.fipe} onChange={(event) => setForm((current) => ({ ...current, fipe: event.target.value }))} placeholder="R$ 0,00"/></label><label>Preço sugerido<input value={form.suggested} onChange={(event) => setForm((current) => ({ ...current, suggested: event.target.value }))} placeholder="R$ 0,00"/></label><label>Preço mínimo<input value={form.minimum} onChange={(event) => setForm((current) => ({ ...current, minimum: event.target.value }))} placeholder="R$ 0,00"/></label></div>
+        <div className="form-section-title">Simulações</div>
+        <div className="modal-row"><label>Simulações ativas<input type="number" min={0} value={form.simulations} onChange={(event) => setForm((current) => ({ ...current, simulations: Number(event.target.value) }))} placeholder="0"/></label></div>
         <div className="form-section-title">Fotos e vídeo</div>
         <div className="media-grid">{["Frente", "Lateral direita", "Lateral esquerda", "Traseira", "Interior"].map((label) => <label key={label}><input type="file" accept="image/*"/><Icon name="plus" size={18}/><span>{label}</span></label>)}<label className="video-upload"><input type="file" accept="video/*"/><Icon name="plus" size={18}/><span>Vídeo · máx. 1 min</span></label></div>
-        <div className="modal-actions"><button onClick={() => setShowForm(false)}>Cancelar</button><button className="primary-button" onClick={() => setShowForm(false)}>Cadastrar veículo</button></div>
-      </div></div>}
+        <div className="modal-actions"><button type="button" onClick={() => setShowForm(false)}>Cancelar</button><button type="submit" className="primary-button">{editingVehicleId === null ? "Cadastrar veículo" : "Salvar alterações"}</button></div>
+      </form></div>}
     </div>
   );
 }
@@ -366,33 +582,83 @@ function ModulePage({ name }: { name: string }) {
   );
 }
 
-function CustomersPage() {
+function CustomersPage({ customerHistoryMap, onAddCustomerHistory }: { customerHistoryMap: Record<number, CustomerHistoryEntry[]>; onAddCustomerHistory: (customerName: string, title: string, detail: string, tone?: string, icon?: IconName) => void }) {
   const [showForm, setShowForm] = useState(false);
   const [cpf, setCpf] = useState("");
-  const [editingCustomer, setEditingCustomer] = useState<number | null>(null);
+  const [editingCustomerId, setEditingCustomerId] = useState<number | null>(null);
+  const [customerQuery, setCustomerQuery] = useState("");
+  const [customerStatus, setCustomerStatus] = useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
   const [customerCep, setCustomerCep] = useState("");
   const [customerAddress, setCustomerAddress] = useState({ street: "", neighborhood: "", city: "", state: "" });
   const [customerCepStatus, setCustomerCepStatus] = useState("");
   const [creditResult, setCreditResult] = useState<"idle" | "loading" | "approved">("idle");
-  const customers = [
-    ["Henrique Alves", "123.456.789-10", "(11) 98722-1840", "R$ 12.500", "Juliana Castro", "Em atendimento"],
-    ["Camila Rocha", "298.441.720-09", "(11) 99134-5531", "R$ 18.900", "Rafael Lima", "Em proposta"],
-    ["Ricardo Nunes", "442.807.116-34", "(11) 98802-4260", "R$ 9.800", "Marcos Costa", "Em simulação"],
-  ];
+  const [form, setForm] = useState({
+    name: "",
+    cpf: "",
+    email: "",
+    phone: "",
+    income: "R$ 0,00",
+    seller: "Marcos Costa",
+    status: "Em atendimento",
+    active: true,
+  });
+  const [customers, setCustomers] = useState([
+    { id: 1, name: "Henrique Alves", cpf: "123.456.789-10", email: "henrique@email.com", phone: "(11) 98722-1840", income: "R$ 12.500", seller: "Juliana Castro", status: "Em atendimento", active: true },
+    { id: 2, name: "Camila Rocha", cpf: "298.441.720-09", email: "camila@email.com", phone: "(11) 99134-5531", income: "R$ 18.900", seller: "Rafael Lima", status: "Em proposta", active: true },
+    { id: 3, name: "Ricardo Nunes", cpf: "442.807.116-34", email: "ricardo@email.com", phone: "(11) 98802-4260", income: "R$ 9.800", seller: "Marcos Costa", status: "Em simulação", active: true },
+    { id: 4, name: "Fernanda Dias", cpf: "856.412.339-21", email: "fernanda@email.com", phone: "(11) 99910-9472", income: "R$ 21.300", seller: "Amanda Silva", status: "Inativo", active: false },
+  ]);
+
+  const filteredCustomers = customers.filter((customer) => {
+    const matchesQuery = `${customer.name} ${customer.cpf} ${customer.seller}`.toLowerCase().includes(customerQuery.toLowerCase());
+    const matchesStatus = customerStatus === "ALL" || (customerStatus === "ACTIVE" ? customer.active : !customer.active);
+    return matchesQuery && matchesStatus;
+  });
 
   const checkCredit = () => {
     setCreditResult("loading");
     window.setTimeout(() => setCreditResult("approved"), 700);
   };
-  const openCustomerForm = (index: number | null) => {
-    setEditingCustomer(index);
-    setCpf(index === null ? "" : customers[index][1]);
-    setCustomerCep(index === null ? "" : "01310-100");
-    setCustomerAddress(index === null ? { street: "", neighborhood: "", city: "", state: "" } : { street: "Avenida Paulista", neighborhood: "Bela Vista", city: "São Paulo", state: "SP" });
+  const openCustomerForm = (customer?: typeof customers[number]) => {
+    setEditingCustomerId(customer ? customer.id : null);
+    setForm({
+      name: customer?.name ?? "",
+      cpf: customer?.cpf ?? "",
+      email: customer?.email ?? "",
+      phone: customer?.phone ?? "",
+      income: customer?.income ?? "R$ 0,00",
+      seller: customer?.seller ?? "Marcos Costa",
+      status: customer?.status ?? "Em atendimento",
+      active: customer?.active ?? true,
+    });
+    setCpf(customer?.cpf ?? "");
+    setCustomerCep(customer ? "01310-100" : "");
+    setCustomerAddress(customer ? { street: "Avenida Paulista", neighborhood: "Bela Vista", city: "São Paulo", state: "SP" } : { street: "", neighborhood: "", city: "", state: "" });
     setCustomerCepStatus("");
     setCreditResult("idle");
     setShowForm(true);
   };
+
+  const saveCustomer = (event: React.FormEvent) => {
+    event.preventDefault();
+    const nextName = form.name.trim();
+    const nextCpf = form.cpf.trim();
+    if (!nextName || !nextCpf) return;
+
+    if (editingCustomerId === null) {
+      const nextId = Math.max(0, ...customers.map((customer) => customer.id)) + 1;
+      setCustomers((current) => [{ id: nextId, name: nextName, cpf: nextCpf, email: form.email, phone: form.phone, income: form.income, seller: form.seller, status: form.status, active: form.active }, ...current]);
+    } else {
+      setCustomers((current) => current.map((customer) => customer.id === editingCustomerId ? { ...customer, name: nextName, cpf: nextCpf, email: form.email, phone: form.phone, income: form.income, seller: form.seller, status: form.status, active: form.active } : customer));
+    }
+
+    setShowForm(false);
+  };
+
+  const toggleCustomerStatus = (id: number) => {
+    setCustomers((current) => current.map((customer) => customer.id === id ? { ...customer, active: !customer.active, status: customer.active ? "Inativo" : "Em atendimento" } : customer));
+  };
+
   const lookupCustomerCep = async () => {
     const normalized = customerCep.replace(/\D/g, "");
     if (normalized.length !== 8) {
@@ -410,7 +676,7 @@ function CustomersPage() {
       setCustomerCepStatus("CEP não encontrado. Preencha o endereço manualmente.");
     }
   };
-  const customerHistory = [
+  const customerHistory = customerHistoryMap[editingCustomerId ?? 0] ?? [
     { date: "12/06/2025 · 14:32", title: "Simulação realizada", detail: "Jeep Compass Limited · Entrada de R$ 50.000 · 48 parcelas", tone: "blue", icon: "proposal" as IconName },
     { date: "10/06/2025 · 09:18", title: "Consulta de crédito", detail: "Score 782 · Risco baixo · Cliente sem restrições ativas", tone: "green", icon: "search" as IconName },
     { date: "22/03/2024 · 16:45", title: "Veículo adquirido", detail: "Honda City EXL 2023 · Contrato #CONT-2024-0148", tone: "purple", icon: "car" as IconName },
@@ -421,38 +687,46 @@ function CustomersPage() {
     <div className="content module-content">
       <section className="module-heading">
         <div><p>OPERAÇÃO COMERCIAL</p><h1>Clientes</h1><span>Cadastre clientes e acompanhe o responsável por cada atendimento.</span></div>
-        <button className="primary-button" onClick={() => openCustomerForm(null)}><Icon name="plus" size={18}/>Novo cliente</button>
+        <button className="primary-button" onClick={() => openCustomerForm()}><Icon name="plus" size={18}/>Novo cliente</button>
       </section>
       <section className="module-summary">
-        <div><span>Clientes ativos</span><strong>184</strong></div><div><span>Novos esta semana</span><strong>12</strong></div><div><span>Em negociação</span><strong>27</strong></div>
+        <div><span>Clientes ativos</span><strong>{customers.filter((customer) => customer.active).length}</strong></div><div><span>Novos esta semana</span><strong>12</strong></div><div><span>Em negociação</span><strong>{customers.filter((customer) => customer.status !== "Inativo").length}</strong></div>
       </section>
       <section className="panel module-table">
-        <div className="module-toolbar"><div className="search-box"><Icon name="search" size={17}/><input placeholder="Buscar por nome ou CPF..."/></div><button><Icon name="settings" size={16}/>Filtros</button></div>
-        <div className="table-wrap"><table><thead><tr><th>CLIENTE</th><th>CPF</th><th>CONTATO</th><th>RENDA</th><th>VENDEDOR RESPONSÁVEL</th><th>STATUS</th><th></th></tr></thead>
-          <tbody>{customers.map((row, customerIndex) => <tr key={row[1]}>{row.map((cell, index) => <td key={cell}>{index === 5 ? <span className="status blue">{cell}</span> : cell}</td>)}<td><button className="edit-customer-button" onClick={() => openCustomerForm(customerIndex)}>Editar <Icon name="arrow" size={14}/></button></td></tr>)}</tbody>
+        <div className="module-toolbar">
+          <div className="search-box"><Icon name="search" size={17}/><input value={customerQuery} onChange={(event) => setCustomerQuery(event.target.value)} placeholder="Buscar por nome ou CPF..."/></div>
+          <select value={customerStatus} onChange={(event) => setCustomerStatus(event.target.value as "ALL" | "ACTIVE" | "INACTIVE")} className="status-filter-select">
+            <option value="ALL">Todos os clientes</option>
+            <option value="ACTIVE">Ativos</option>
+            <option value="INACTIVE">Inativos</option>
+          </select>
+        </div>
+        <div className="table-wrap"><table><thead><tr><th>CLIENTE</th><th>CPF</th><th>CONTATO</th><th>RENDA</th><th>VENDEDOR RESPONSÁVEL</th><th>STATUS</th><th>AÇÃO</th></tr></thead>
+          <tbody>{filteredCustomers.map((customer) => <tr key={customer.id}><td>{customer.name}</td><td>{customer.cpf}</td><td>{customer.phone}</td><td>{customer.income}</td><td>{customer.seller}</td><td><span className={`status ${customer.active ? "blue" : "red"}`}>{customer.status}</span></td><td><div className="row-actions"><button className="edit-customer-button" onClick={() => openCustomerForm(customer)}>Editar <Icon name="arrow" size={14}/></button><button className="row-status-toggle" onClick={() => toggleCustomerStatus(customer.id)}>{customer.active ? "Desativar" : "Ativar"}</button></div></td></tr>)}</tbody>
         </table></div>
       </section>
-      {showForm && <div className="page-form-layer"><div className="modal-card wide-modal page-form-card">
-        <button className="page-back" onClick={() => setShowForm(false)}><Icon name="arrow" size={16}/>Voltar para clientes</button>
-        <div className="modal-title"><div><span>{editingCustomer === null ? "CADASTRO COMERCIAL" : "EDIÇÃO E RELACIONAMENTO"}</span><h2>{editingCustomer === null ? "Novo cliente" : customers[editingCustomer][0]}</h2><p>{editingCustomer === null ? "Informe os dados necessários para contratos e análise de crédito." : "Atualize os dados cadastrais e consulte o histórico de relacionamento."}</p></div></div>
+      {showForm && <div className="page-form-layer"><form onSubmit={saveCustomer} className="modal-card wide-modal page-form-card">
+        <button type="button" className="page-back" onClick={() => setShowForm(false)}><Icon name="arrow" size={16}/>Voltar para clientes</button>
+        <div className="modal-title"><div><span>{editingCustomerId === null ? "CADASTRO COMERCIAL" : "EDIÇÃO E RELACIONAMENTO"}</span><h2>{editingCustomerId === null ? "Novo cliente" : form.name || "Editar cliente"}</h2><p>{editingCustomerId === null ? "Informe os dados necessários para contratos e análise de crédito." : "Atualize os dados cadastrais e consulte o histórico de relacionamento."}</p></div></div>
         <div className="form-section-title">Dados pessoais</div>
-        <div className="modal-row"><label>Nome completo<input autoFocus defaultValue={editingCustomer === null ? "" : customers[editingCustomer][0]} placeholder="Nome conforme documento"/></label><label>CPF<input value={cpf} onChange={(e) => { setCpf(e.target.value); setCreditResult("idle"); }} placeholder="000.000.000-00"/></label></div>
-        <div className="modal-row"><label>E-mail<input type="email" defaultValue={editingCustomer === null ? "" : `${customers[editingCustomer][0].toLowerCase().replace(" ", ".")}@email.com`} placeholder="cliente@email.com"/></label><label>Telefone<input defaultValue={editingCustomer === null ? "" : customers[editingCustomer][2]} placeholder="(00) 00000-0000"/></label></div>
+        <div className="modal-row"><label>Nome completo<input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="Nome conforme documento"/></label><label>CPF<input value={cpf} onChange={(event) => { setCpf(event.target.value); setForm((current) => ({ ...current, cpf: event.target.value })); setCreditResult("idle"); }} placeholder="000.000.000-00"/></label></div>
+        <div className="modal-row"><label>E-mail<input type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} placeholder="cliente@email.com"/></label><label>Telefone<input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} placeholder="(00) 00000-0000"/></label></div>
         <div className="form-section-title">Endereço completo</div>
         <div className="cep-row"><label>CEP<input value={customerCep} onChange={(event) => setCustomerCep(event.target.value)} onBlur={lookupCustomerCep} placeholder="00000-000"/></label><button type="button" onClick={lookupCustomerCep}><Icon name="search" size={15}/>Buscar ViaCEP</button><span>{customerCepStatus}</span></div>
-        <div className="modal-row address-main"><label>Logradouro<input value={customerAddress.street} onChange={(event) => setCustomerAddress({ ...customerAddress, street: event.target.value })} placeholder="Rua, avenida ou travessa"/></label><label>Número<input defaultValue={editingCustomer === null ? "" : "1000"} placeholder="Nº"/></label></div>
-        <div className="modal-row"><label>Complemento<input defaultValue={editingCustomer === null ? "" : "Apto 42"} placeholder="Apto, bloco ou referência"/></label><label>Bairro<input value={customerAddress.neighborhood} onChange={(event) => setCustomerAddress({ ...customerAddress, neighborhood: event.target.value })}/></label></div>
+        <div className="modal-row address-main"><label>Logradouro<input value={customerAddress.street} onChange={(event) => setCustomerAddress({ ...customerAddress, street: event.target.value })} placeholder="Rua, avenida ou travessa"/></label><label>Número<input placeholder="Nº"/></label></div>
+        <div className="modal-row"><label>Complemento<input placeholder="Apto, bloco ou referência"/></label><label>Bairro<input value={customerAddress.neighborhood} onChange={(event) => setCustomerAddress({ ...customerAddress, neighborhood: event.target.value })}/></label></div>
         <div className="modal-row city-row"><label>Cidade<input value={customerAddress.city} onChange={(event) => setCustomerAddress({ ...customerAddress, city: event.target.value })}/></label><label>Estado<input value={customerAddress.state} onChange={(event) => setCustomerAddress({ ...customerAddress, state: event.target.value })}/></label></div>
         <div className="form-section-title">Renda e ocupação</div>
-        <div className="modal-row"><label>Renda mensal<input placeholder="R$ 0,00"/></label><label>Ocupação<input placeholder="Profissão ou atividade"/></label></div>
+        <div className="modal-row"><label>Renda mensal<input value={form.income} onChange={(event) => setForm((current) => ({ ...current, income: event.target.value }))} placeholder="R$ 0,00"/></label><label>Vendedor responsável<select value={form.seller} onChange={(event) => setForm((current) => ({ ...current, seller: event.target.value }))}><option>Marcos Costa</option><option>Juliana Castro</option><option>Rafael Lima</option><option>Amanda Silva</option></select></label></div>
+        <div className="modal-row"><label>Status<select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}><option>Em atendimento</option><option>Em proposta</option><option>Em simulação</option><option>Inativo</option></select></label><label>Ativo<input type="checkbox" checked={form.active} onChange={(event) => setForm((current) => ({ ...current, active: event.target.checked }))}/></label></div>
         <div className="credit-check">
           <div className="credit-icon"><Icon name={creditResult === "approved" ? "check" : "search"} size={19}/></div>
           <div><strong>Consulta de crédito</strong><span>{creditResult === "approved" ? "CPF consultado · Score 782 · Risco baixo" : "Consulte o CPF nos bureaus de proteção ao crédito."}</span></div>
           <button type="button" onClick={checkCredit} disabled={!cpf || creditResult === "loading"}>{creditResult === "loading" ? "Consultando..." : creditResult === "approved" ? "Consultar novamente" : "Consultar CPF"}</button>
         </div>
-        {editingCustomer !== null && <div className="customer-history"><div className="form-section-title">Histórico de relacionamento</div><div className="timeline">{customerHistory.map((event) => <div className="timeline-event" key={event.date}><div className={`timeline-icon ${event.tone}`}><Icon name={event.icon} size={16}/></div><div><span>{event.date}</span><strong>{event.title}</strong><p>{event.detail}</p></div></div>)}</div></div>}
-        <div className="modal-actions"><button onClick={() => setShowForm(false)}>Cancelar</button><button className="primary-button" onClick={() => setShowForm(false)}>{editingCustomer === null ? "Cadastrar cliente" : "Salvar alterações"}</button></div>
-      </div></div>}
+        {editingCustomerId !== null && <div className="customer-history"><div className="form-section-title">Histórico de relacionamento</div><div className="timeline">{customerHistory.map((event) => <div className="timeline-event" key={event.date}><div className={`timeline-icon ${event.tone}`}><Icon name={event.icon} size={16}/></div><div><span>{event.date}</span><strong>{event.title}</strong><p>{event.detail}</p></div></div>)}</div></div>}
+        <div className="modal-actions"><button type="button" onClick={() => setShowForm(false)}>Cancelar</button><button type="submit" className="primary-button">{editingCustomerId === null ? "Cadastrar cliente" : "Salvar alterações"}</button></div>
+      </form></div>}
     </div>
   );
 }
@@ -601,8 +875,9 @@ function ClassifiedsPage({ onSimulate }: { onSimulate: () => void }) {
   );
 }
 
-function SimulationPage() {
+function SimulationPage({ onAddCustomerHistory }: { onAddCustomerHistory: (customerName: string, title: string, detail: string, tone?: string, icon?: IconName) => void }) {
   const [customer, setCustomer] = useState("");
+  const [currentStep, setCurrentStep] = useState(1);
   const [vehicle, setVehicle] = useState("169000");
   const [salePrice, setSalePrice] = useState("168900");
   const [downPayment, setDownPayment] = useState("50000");
@@ -626,19 +901,40 @@ function SimulationPage() {
 
   const selectCustomer = (value: string) => {
     setCustomer(value);
+    setCurrentStep(1);
     setConflict(value === "Henrique Alves" ? "O cliente está sendo atendido por Juliana Castro desde 09/06/2025." : "");
   };
   const toggleBenefit = (benefit: string) => setBenefits((current) => current.includes(benefit) ? current.filter((item) => item !== benefit) : [...current, benefit]);
+  const completeSimulation = () => {
+    if (!customer) return;
+    const timestamp = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date());
+    const detail = `${months} parcelas • Entrada ${brl(Number(downPayment || 0))} • Valor ${brl(Number(salePrice))}`;
+    onAddCustomerHistory(customer, "Simulação criada", `${timestamp} • ${detail}`, "blue", "proposal");
+    setStage((current) => transitionSalesStage(current, "PROPOSAL"));
+  };
 
   return (
     <div className="content module-content">
       <section className="module-heading"><div><p>OPERAÇÃO COMERCIAL</p><h1>Nova simulação</h1><span>Configure os dados da negociação e calcule o financiamento.</span></div><button className="secondary-button">Salvar rascunho</button></section>
+      <div className="simulation-steps" aria-label="Fluxo em 3 etapas">
+        {[
+          { step: 1, label: "Cliente" },
+          { step: 2, label: "Veículo" },
+          { step: 3, label: "Resumo" },
+        ].map((item) => (
+          <button key={item.step} type="button" className={currentStep === item.step ? "active" : ""} onClick={() => setCurrentStep(item.step)}>
+            <span>{item.step}</span>
+            {item.label}
+          </button>
+        ))}
+      </div>
       <div className="simulation-layout">
         <div className="simulation-form">
           <section className="panel form-panel">
             <div className="step-title"><span>1</span><div><h3>Cliente</h3><p>Selecione o cliente desta negociação.</p></div></div>
             <label>Cliente cadastrado<select value={customer} onChange={(e) => selectCustomer(e.target.value)}><option value="">Selecione um cliente</option><option>Ricardo Nunes</option><option>Camila Rocha</option><option>Henrique Alves</option></select></label>
             {conflict && <div className="conflict-alert"><strong>Atendimento em andamento</strong><span>{conflict}</span><small>Para prosseguir, solicite a transferência ao gerente.</small></div>}
+            {customer && <button type="button" className="secondary-button" onClick={() => setCurrentStep(2)}>Avançar para veículo</button>}
           </section>
           <section className="panel form-panel">
             <div className="step-title"><span>2</span><div><h3>Veículo</h3><p>Apenas veículos disponíveis podem ser selecionados.</p></div></div>
@@ -646,10 +942,12 @@ function SimulationPage() {
             <div className="vehicle-selection-meta"><span><Icon name="check" size={15}/> Aceita novas simulações</span><span><Icon name="proposal" size={15}/> {currentVehicle.simulations} simulações ativas</span><span>Status: <strong>{currentVehicle.status === "AVAILABLE" ? "Disponível" : "Em negociação"}</strong></span></div>
             <label className="sale-price-field">Preço negociado<input type="number" value={salePrice} onChange={(event) => setSalePrice(event.target.value)}/><small>Preço mínimo autorizado: {brl(currentVehicle.minimum)}</small></label>
             {isBelowMinimum && <div className="price-alert">O valor de venda não pode ser menor que o preço mínimo cadastrado.</div>}
+            <button type="button" className="secondary-button" onClick={() => setCurrentStep(3)}>Avançar para resumo</button>
           </section>
           <section className="panel form-panel">
             <div className="step-title"><span>3</span><div><h3>Benefícios</h3><p>Escolha os benefícios autorizados para esta proposta.</p></div></div>
             <div className="benefit-grid">{["IPVA pago", "Tanque cheio", "Transferência", "Seguro 3 meses"].map((benefit) => <button type="button" className={benefits.includes(benefit) ? "selected" : ""} onClick={() => toggleBenefit(benefit)} key={benefit}><span><Icon name="gift" size={18}/>{benefit}</span><i>{benefits.includes(benefit) ? "✓" : "+"}</i></button>)}</div>
+            <button type="button" className="auth-submit" onClick={completeSimulation} disabled={!customer || Boolean(conflict) || isBelowMinimum || stage !== "SIMULATION"}>{stage === "PROPOSAL" ? "Proposta gerada" : "Gerar proposta"} <Icon name={stage === "PROPOSAL" ? "check" : "arrow"} size={16}/></button>
           </section>
         </div>
         <aside className="finance-card">
@@ -663,7 +961,7 @@ function SimulationPage() {
           <button
             disabled={!customer || Boolean(conflict) || isBelowMinimum || stage !== "SIMULATION"}
             className="auth-submit"
-            onClick={() => setStage((current) => transitionSalesStage(current, "PROPOSAL"))}
+            onClick={completeSimulation}
           >
             {stage === "PROPOSAL" ? "Proposta gerada" : "Gerar proposta"} <Icon name={stage === "PROPOSAL" ? "check" : "arrow"} size={16}/>
           </button>
@@ -677,14 +975,14 @@ function SimulationPage() {
 
 function SupportDashboard() {
   const teams = [
-    { name: "Equipe Horizonte", manager: "Amanda Silva", contracts: 18, sales: "R$ 2,48 mi", goal: 92 },
+    { name: `Equipe ${clientCompany}`, manager: "Amanda Silva", contracts: 18, sales: "R$ 2,48 mi", goal: 92 },
     { name: "Equipe Impulso", manager: "Bruno Tavares", contracts: 15, sales: "R$ 1,96 mi", goal: 81 },
     { name: "Equipe Vértice", manager: "Patrícia Melo", contracts: 12, sales: "R$ 1,54 mi", goal: 74 },
   ];
   const sellers = [
-    { initials: "MC", name: "Marcos Costa", team: "Horizonte", contracts: 8, sales: "R$ 986 mil" },
+    { initials: "MC", name: "Marcos Costa", team: clientCompany, contracts: 8, sales: "R$ 986 mil" },
     { initials: "JC", name: "Juliana Castro", team: "Impulso", contracts: 7, sales: "R$ 842 mil" },
-    { initials: "RL", name: "Rafael Lima", team: "Horizonte", contracts: 6, sales: "R$ 728 mil" },
+    { initials: "RL", name: "Rafael Lima", team: clientCompany, contracts: 6, sales: "R$ 728 mil" },
   ];
   return (
     <div className="content module-content">
@@ -709,21 +1007,111 @@ function SupportDashboard() {
   );
 }
 
-function ProposalReviewPage() {
+type ReviewStatus = "PENDING" | "BANK_ANALYSIS" | "APPROVED" | "REJECTED" | "CONTRACT_EFFECTIVE";
+
+function ProposalReviewPage({ onAddCustomerHistory }: { onAddCustomerHistory: (customerName: string, title: string, detail: string, tone?: string, icon?: IconName) => void }) {
   const [submitted, setSubmitted] = useState<string[]>([]);
-  const reviewRows = [
-    { id: "#0842", customer: "Ricardo Nunes", seller: "Marcos Costa", bank: "Banco Alfa", amount: "R$ 118.900", score: "782" },
-    { id: "#0841", customer: "Camila Rocha", seller: "Rafael Lima", bank: "Banco Capital", amount: "R$ 92.500", score: "714" },
-    { id: "#0838", customer: "Pedro Azevedo", seller: "Juliana Castro", bank: "Banco União", amount: "R$ 106.200", score: "698" },
+  const [query, setQuery] = useState("");
+  const [activeTab, setActiveTab] = useState<ReviewStatus | "ALL">("ALL");
+  const [reviewRows, setReviewRows] = useState([
+    { id: "#0842", customer: "Ricardo Nunes", seller: "Marcos Costa", bank: "Banco Alfa", amount: "R$ 118.900", score: "782", status: "PENDING" as ReviewStatus },
+    { id: "#0841", customer: "Camila Rocha", seller: "Rafael Lima", bank: "Banco Capital", amount: "R$ 92.500", score: "714", status: "BANK_ANALYSIS" as ReviewStatus },
+    { id: "#0838", customer: "Pedro Azevedo", seller: "Juliana Castro", bank: "Banco União", amount: "R$ 106.200", score: "698", status: "CONTRACT_EFFECTIVE" as ReviewStatus },
+    { id: "#0837", customer: "Fernanda Dias", seller: "Amanda Silva", bank: "Bradesco", amount: "R$ 132.400", score: "744", status: "REJECTED" as ReviewStatus },
+  ]);
+
+  const tabs: Array<{ key: ReviewStatus | "ALL"; label: string }> = [
+    { key: "ALL", label: "Todas" },
+    { key: "PENDING", label: "Aguardando envio" },
+    { key: "BANK_ANALYSIS", label: "Em análise bancária" },
+    { key: "APPROVED", label: "Aprovadas" },
+    { key: "CONTRACT_EFFECTIVE", label: "Contratos ativos" },
+    { key: "REJECTED", label: "Recusadas" },
   ];
+
+  const visibleRows = reviewRows.filter((row) => {
+    const matchesTab = activeTab === "ALL" || row.status === activeTab;
+    const matchesQuery = `${row.id} ${row.customer} ${row.seller} ${row.bank}`.toLowerCase().includes(query.toLowerCase());
+    return matchesTab && matchesQuery;
+  });
+
+  const statusLabel: Record<ReviewStatus, string> = {
+    PENDING: "Aguardando envio",
+    BANK_ANALYSIS: "Em análise",
+    APPROVED: "Aprovada",
+    REJECTED: "Recusada",
+    CONTRACT_EFFECTIVE: "Contrato ativo",
+  };
+
+  const statusTone: Record<ReviewStatus, string> = {
+    PENDING: "yellow",
+    BANK_ANALYSIS: "blue",
+    APPROVED: "green",
+    REJECTED: "red",
+    CONTRACT_EFFECTIVE: "green",
+  };
+
+  const addHistoryForCustomer = (customer: string, eventName: string, note: string, tone: string = "blue", icon: IconName = "proposal") => {
+    onAddCustomerHistory(customer, eventName, note, tone, icon);
+  };
+
+  const handleSendToBank = (row: typeof reviewRows[number]) => {
+    setSubmitted((current) => (current.includes(row.id) ? current : [...current, row.id]));
+    if (row.status === "PENDING") {
+      setReviewRows((current) => current.map((item) => item.id === row.id ? { ...item, status: "BANK_ANALYSIS" } : item));
+      addHistoryForCustomer(row.customer, "Proposta enviada ao banco", `${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date())} • ${row.bank} • Valor ${row.amount}`, "blue", "file");
+      return;
+    }
+    if (row.status === "BANK_ANALYSIS") {
+      setReviewRows((current) => current.map((item) => item.id === row.id ? { ...item, status: "APPROVED" } : item));
+      addHistoryForCustomer(row.customer, "Proposta aprovada", `${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date())} • ${row.bank} • Documento aprovado e liberado para contratação`, "green", "check");
+      return;
+    }
+    if (row.status === "APPROVED") {
+      setReviewRows((current) => current.map((item) => item.id === row.id ? { ...item, status: "CONTRACT_EFFECTIVE" } : item));
+      addHistoryForCustomer(row.customer, "Contrato efetivado", `${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date())} • ${row.amount} • Documento assinado e contrato ativo`, "purple", "contract");
+      return;
+    }
+    if (row.status === "REJECTED") {
+      setReviewRows((current) => current.map((item) => item.id === row.id ? { ...item, status: "PENDING" } : item));
+      addHistoryForCustomer(row.customer, "Nova proposta aberta", `${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date())} • Revisão reaberta para ajuste de documentação`, "orange", "proposal");
+    }
+  };
+
+  const getActionLabel = (status: ReviewStatus) => {
+    switch (status) {
+      case "PENDING":
+        return "Revisar e enviar";
+      case "BANK_ANALYSIS":
+        return "Aprovar proposta";
+      case "APPROVED":
+        return "Ativar contrato";
+      case "CONTRACT_EFFECTIVE":
+        return "Contrato ativo";
+      case "REJECTED":
+        return "Reabrir proposta";
+      default:
+        return "Ação";
+    }
+  };
+
   return (
     <div className="content module-content">
       <section className="module-heading"><div><p>OPERAÇÃO BANCÁRIA</p><h1>Análise de propostas</h1><span>Revise a documentação e envie propostas para aprovação bancária.</span></div></section>
-      <div className="review-tabs"><button className="active">Aguardando envio <span>3</span></button><button>Em análise bancária <span>8</span></button><button>Aprovadas <span>14</span></button><button>Recusadas <span>5</span></button></div>
+      <div className="review-tabs">
+        {tabs.map((tab) => {
+          const count = tab.key === "ALL" ? reviewRows.length : reviewRows.filter((row) => row.status === tab.key).length;
+          return (
+            <button key={tab.key} className={activeTab === tab.key ? "active" : ""} onClick={() => setActiveTab(tab.key)}>
+              {tab.label} <span>{count}</span>
+            </button>
+          );
+        })}
+      </div>
       <section className="panel module-table">
-        <div className="module-toolbar"><div className="search-box"><Icon name="search" size={17}/><input placeholder="Buscar proposta ou cliente..."/></div><button><Icon name="settings" size={16}/>Filtros</button></div>
-        <div className="table-wrap"><table><thead><tr><th>PROPOSTA</th><th>CLIENTE</th><th>VENDEDOR</th><th>BANCO SELECIONADO</th><th>FINANCIADO</th><th>SCORE</th><th>AÇÃO</th></tr></thead>
-          <tbody>{reviewRows.map((row) => <tr key={row.id}><td><strong>{row.id}</strong></td><td>{row.customer}</td><td>{row.seller}</td><td>{row.bank}</td><td><strong>{row.amount}</strong></td><td><span className="score-pill">{row.score}</span></td><td><button className={`submit-bank ${submitted.includes(row.id) ? "done" : ""}`} onClick={() => setSubmitted((current) => [...current, row.id])}>{submitted.includes(row.id) ? "Enviada ao banco" : "Revisar e enviar"}</button></td></tr>)}</tbody>
+        <div className="module-toolbar"><div className="search-box"><Icon name="search" size={17}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar proposta, cliente ou banco..."/></div><button><Icon name="settings" size={16}/>Filtros</button></div>
+        <div className="table-wrap"><table><thead><tr><th>PROPOSTA</th><th>CLIENTE</th><th>VENDEDOR</th><th>BANCO SELECIONADO</th><th>FINANCIADO</th><th>SCORE</th><th>STATUS</th><th>AÇÃO</th></tr></thead>
+          <tbody>{visibleRows.map((row) => <tr key={row.id}><td><strong>{row.id}</strong></td><td>{row.customer}</td><td>{row.seller}</td><td>{row.bank}</td><td><strong>{row.amount}</strong></td><td><span className="score-pill">{row.score}</span></td><td><span className={`status ${statusTone[row.status]}`}>{statusLabel[row.status]}</span></td><td><button className={`submit-bank ${submitted.includes(row.id) ? "done" : ""}`} onClick={() => handleSendToBank(row)} disabled={row.status === "CONTRACT_EFFECTIVE"}>{getActionLabel(row.status)}</button></td></tr>)}</tbody>
         </table></div>
       </section>
       <div className="support-note"><Icon name="settings" size={18}/><div><strong>Integração com portais bancários</strong><span>O envio está em modo demonstrativo. Em produção, cada banco utilizará seu conector de API ou portal homologado.</span></div></div>
@@ -741,14 +1129,14 @@ function TeamsCommissionsPage() {
       <div className="commissions-layout">
         <section className="panel teams-list">
           <div className="panel-header"><div><h3>Equipes de vendas</h3><p>3 equipes · 12 vendedores ativos</p></div></div>
-          {[["Horizonte", "Amanda Silva", "5 vendedores", "R$ 2,48 mi"], ["Impulso", "Bruno Tavares", "4 vendedores", "R$ 1,96 mi"], ["Vértice", "Patrícia Melo", "3 vendedores", "R$ 1,54 mi"]].map((team, index) => <div className="team-card" key={team[0]}><div className={`team-icon team-${index + 1}`}><Icon name="users" size={19}/></div><div><strong>Equipe {team[0]}</strong><span>Gerente: {team[1]} · {team[2]}</span></div><div><strong>{team[3]}</strong><span>Vendas no período</span></div><button><Icon name="arrow" size={17}/></button></div>)}
+          {[[clientCompany, "Amanda Silva", "5 vendedores", "R$ 2,48 mi"], ["Impulso", "Bruno Tavares", "4 vendedores", "R$ 1,96 mi"], ["Vértice", "Patrícia Melo", "3 vendedores", "R$ 1,54 mi"]].map((team, index) => <div className="team-card" key={team[0]}><div className={`team-icon team-${index + 1}`}><Icon name="users" size={19}/></div><div><strong>Equipe {team[0]}</strong><span>Gerente: {team[1]} · {team[2]}</span></div><div><strong>{team[3]}</strong><span>Vendas no período</span></div><button><Icon name="arrow" size={17}/></button></div>)}
         </section>
         <section className="panel commission-config">
           <div className="panel-header"><div><h3>Regras de comissão</h3><p>Percentuais sobre contratos efetivados</p></div></div>
           <div className="commission-body">
             <label>Comissão do vendedor<div className="percent-input"><input type="number" step=".1" value={sellerRate} onChange={(e) => setSellerRate(e.target.value)}/><span>%</span></div><small>Aplicada sobre o valor total vendido pelo vendedor.</small></label>
             <label>Comissão do gerente<div className="percent-input"><input type="number" step=".1" value={managerRate} onChange={(e) => setManagerRate(e.target.value)}/><span>%</span></div><small>Aplicada sobre as vendas de toda a equipe gerenciada.</small></label>
-            <div className="commission-preview"><span>Simulação · Equipe Horizonte</span><div><p>Volume vendido<strong>R$ 2.480.000</strong></p><p>Vendedores<strong>R$ {(sales * Number(sellerRate) / 100).toLocaleString("pt-BR")}</strong></p><p>Gerência<strong>R$ {(sales * Number(managerRate) / 100).toLocaleString("pt-BR")}</strong></p></div></div>
+            <div className="commission-preview"><span>Simulação · Equipe {clientCompany}</span><div><p>Volume vendido<strong>R$ 2.480.000</strong></p><p>Vendedores<strong>R$ {(sales * Number(sellerRate) / 100).toLocaleString("pt-BR")}</strong></p><p>Gerência<strong>R$ {(sales * Number(managerRate) / 100).toLocaleString("pt-BR")}</strong></p></div></div>
             <button className="auth-submit">Salvar regras de comissão</button>
           </div>
         </section>
@@ -795,7 +1183,7 @@ function ManagerDashboard() {
   const managerCommission = overrideCommission + directCommission;
   return (
     <div className="content module-content">
-      <section className="module-heading"><div><p>GESTÃO DA EQUIPE HORIZONTE</p><h1>Visão da gerência</h1><span>Acompanhe a produção dos seus vendedores e a evolução das metas.</span></div><label className="period-picker"><Icon name="calendar" size={18}/><select><option>{currentWeekLabel}</option><option>Período personalizado</option></select></label></section>
+      <section className="module-heading"><div><p>GESTÃO DA EQUIPE {clientCompany.toUpperCase()}</p><h1>Visão da gerência</h1><span>Acompanhe a produção dos seus vendedores e a evolução das metas.</span></div><label className="period-picker"><Icon name="calendar" size={18}/><select><option>{currentWeekLabel}</option><option>Período personalizado</option></select></label></section>
       <section className="stats-grid manager-stats">
         <article className="stat-card"><div className="stat-icon blue"><Icon name="proposal"/></div><div className="stat-title"><span>Simulações da equipe</span><strong className="up">+15,7%</strong></div><h2>54</h2><p>12 a mais que na semana anterior</p></article>
         <article className="stat-card"><div className="stat-icon purple"><Icon name="file"/></div><div className="stat-title"><span>Propostas enviadas</span><strong className="up">+9,4%</strong></div><h2>33</h2><p>61% de conversão das simulações</p></article>
@@ -834,7 +1222,7 @@ function MyTeamPage() {
   };
   return (
     <div className="content module-content">
-      <section className="module-heading"><div><p>EQUIPE HORIZONTE</p><h1>Minha equipe</h1><span>Gerencie os vendedores sob sua responsabilidade sem perder o histórico.</span></div><button className="primary-button"><Icon name="plus" size={18}/>Adicionar vendedor</button></section>
+      <section className="module-heading"><div><p>EQUIPE {clientCompany.toUpperCase()}</p><h1>Minha equipe</h1><span>Gerencie os vendedores sob sua responsabilidade sem perder o histórico.</span></div><button className="primary-button"><Icon name="plus" size={18}/>Adicionar vendedor</button></section>
       <section className="module-summary"><div><span>Vendedores ativos</span><strong>{sellers.filter((seller) => seller.active).length}</strong></div><div><span>Contratos no mês</span><strong>21</strong></div><div><span>Produção da equipe</span><strong>R$ 2,48 mi</strong></div></section>
       <div className="audit-notice"><div><Icon name="settings" size={18}/></div><p><strong>Histórico preservado</strong><span>Vendedores desligados não são excluídos. O acesso é revogado, mas propostas, contratos e registros permanecem disponíveis para auditoria.</span></p></div>
       <section className="panel module-table">
@@ -857,6 +1245,54 @@ export default function App() {
   const [active, setActive] = useState("Dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [period, setPeriod] = useState(currentWeekLabel);
+  const [customerHistoryMap, setCustomerHistoryMap] = useState<Record<number, CustomerHistoryEntry[]>>({
+    1: [
+      { date: "12/06/2025 · 14:32", title: "Simulação realizada", detail: "Jeep Compass Limited · Entrada de R$ 50.000 · 48 parcelas", tone: "blue", icon: "proposal" },
+      { date: "10/06/2025 · 09:18", title: "Consulta de crédito", detail: "Score 782 · Risco baixo · Cliente sem restrições ativas", tone: "green", icon: "search" },
+      { date: "22/03/2024 · 16:45", title: "Veículo adquirido", detail: "Honda City EXL 2023 · Contrato #CONT-2024-0148", tone: "purple", icon: "car" },
+    ],
+    2: [
+      { date: "09/06/2025 · 10:10", title: "Proposta enviada", detail: "Banco Capital · Valor R$ 92.500 · Aguardando análise", tone: "blue", icon: "file" },
+      { date: "04/06/2025 · 15:45", title: "Consulta de crédito", detail: "Score 714 · Aprovado para financiamento", tone: "green", icon: "check" },
+    ],
+    3: [
+      { date: "11/06/2025 · 17:00", title: "Simulação iniciada", detail: "Toyota Corolla XEi · Entrada de R$ 40.000 · 48 parcelas", tone: "blue", icon: "proposal" },
+    ],
+    4: [
+      { date: "18/03/2024 · 11:20", title: "Contrato de recuperação de crédito", detail: "Acordo concluído e baixado em 02/04/2024", tone: "orange", icon: "contract" },
+    ],
+  });
+  const currentPeriodData = dashboardPeriodData[period] ?? dashboardPeriodData[currentWeekLabel];
+
+  const addCustomerHistory = (customerName: string, title: string, detail: string, tone = "blue", icon: IconName = "proposal") => {
+    const customerId = Object.keys(customerHistoryMap).find((key) => {
+      const customer = [
+        "Henrique Alves",
+        "Camila Rocha",
+        "Ricardo Nunes",
+        "Fernanda Dias",
+      ][Number(key) - 1];
+      return customer === customerName;
+    });
+
+    if (!customerId) return;
+
+    const formattedDate = new Intl.DateTimeFormat("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date());
+
+    setCustomerHistoryMap((current) => ({
+      ...current,
+      [Number(customerId)]: [
+        { date: formattedDate, title, detail, tone, icon },
+        ...(current[Number(customerId)] ?? []),
+      ],
+    }));
+  };
 
   if (!authenticated) return <AuthScreen onAuthenticated={() => setAuthenticated(true)} />;
 
@@ -864,7 +1300,8 @@ export default function App() {
     <div className="app-shell">
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="brand">
-          <img src={vfcLogo} alt={clientCompany} className="brand-logo sidebar-logo" />
+          <div className="brand-mark"><span /><span /><span /></div>
+          <div className="brand-wordmark"><strong>VFC</strong><small>Multimarcas</small></div>
         </div>
         <nav>
           {navGroups.map((group) => (
@@ -914,7 +1351,7 @@ export default function App() {
           </div>
         </header>
 
-        {active === "Clientes" ? <CustomersPage/> : active === "Classificados" ? <ClassifiedsPage onSimulate={() => setActive("Simulações")}/> : active === "Simulações" ? <SimulationPage/> : active === "Usuários e perfis" ? <UsersPage/> : active === "Veículos" ? <VehiclesPage/> : active === "Painel do gerente" ? <ManagerDashboard/> : active === "Minha equipe" ? <MyTeamPage/> : active === "Painel de suporte" ? <SupportDashboard/> : active === "Propostas" ? <ProposalReviewPage/> : active === "Equipes e comissões" ? <TeamsCommissionsPage/> : active === "Relatórios" ? <ReportsPage/> : active !== "Dashboard" ? <ModulePage name={active}/> : <div className="content">
+        {active === "Clientes" ? <CustomersPage customerHistoryMap={customerHistoryMap} onAddCustomerHistory={addCustomerHistory} /> : active === "Classificados" ? <ClassifiedsPage onSimulate={() => setActive("Simulações")}/> : active === "Simulações" ? <SimulationPage onAddCustomerHistory={addCustomerHistory} /> : active === "Usuários e perfis" ? <UsersPage/> : active === "Veículos" ? <VehiclesPage/> : active === "Painel do gerente" ? <ManagerDashboard/> : active === "Minha equipe" ? <MyTeamPage/> : active === "Painel de suporte" ? <SupportDashboard/> : active === "Propostas" ? <ProposalReviewPage onAddCustomerHistory={addCustomerHistory}/> : active === "Equipes e comissões" ? <TeamsCommissionsPage/> : active === "Relatórios" ? <ReportsPage/> : active !== "Dashboard" ? <ModulePage name={active}/> : <div className="content">
           <section className="page-heading">
             <div>
               <p>{currentDateLabel}</p>
@@ -925,6 +1362,8 @@ export default function App() {
                 <Icon name="calendar" size={18} />
                 <select value={period} onChange={(e) => setPeriod(e.target.value)}>
                   <option>{currentWeekLabel}</option>
+                  <option>Últimos 30 dias</option>
+                  <option>Últimos 90 dias</option>
                   <option>Período personalizado</option>
                 </select>
               </label>
@@ -935,27 +1374,27 @@ export default function App() {
           <section className="stats-grid">
             <article className="stat-card">
               <div className="stat-icon blue"><Icon name="proposal" /></div>
-              <div className="stat-title"><span>Simulações</span><strong className="up">+12,5%</strong></div>
-              <h2>48</h2><p>vs. 42 na semana anterior</p>
-              <div className="spark blue-spark"><i/><i/><i/><i/><i/><i/><i/></div>
+              <div className="stat-title"><span>Simulações</span><strong className={currentPeriodData.sims.tone}>{currentPeriodData.sims.delta}</strong></div>
+              <h2>{currentPeriodData.sims.value}</h2><p>vs. período anterior</p>
+              <div className="spark blue-spark">{currentPeriodData.spark.map((item, index) => <i key={`${item.height}-${index}`} style={{ height: item.height, opacity: index === 6 ? 0.7 : 0.19 }} />)}</div>
             </article>
             <article className="stat-card">
               <div className="stat-icon purple"><Icon name="file" /></div>
-              <div className="stat-title"><span>Propostas</span><strong className="up">+8,3%</strong></div>
-              <h2>26</h2><p>vs. 24 na semana anterior</p>
-              <div className="spark purple-spark"><i/><i/><i/><i/><i/><i/><i/></div>
+              <div className="stat-title"><span>Propostas</span><strong className={currentPeriodData.proposals.tone}>{currentPeriodData.proposals.delta}</strong></div>
+              <h2>{currentPeriodData.proposals.value}</h2><p>vs. período anterior</p>
+              <div className="spark purple-spark">{currentPeriodData.spark.map((item, index) => <i key={`${item.height}-${index}`} style={{ height: item.height, opacity: index === 6 ? 0.7 : 0.19 }} />)}</div>
             </article>
             <article className="stat-card">
               <div className="stat-icon green"><Icon name="check" /></div>
-              <div className="stat-title"><span>Contratos efetivados</span><strong className="up">+18,2%</strong></div>
-              <h2>13</h2><p>vs. 11 na semana anterior</p>
-              <div className="spark green-spark"><i/><i/><i/><i/><i/><i/><i/></div>
+              <div className="stat-title"><span>Contratos efetivados</span><strong className={currentPeriodData.contracts.tone}>{currentPeriodData.contracts.delta}</strong></div>
+              <h2>{currentPeriodData.contracts.value}</h2><p>vs. período anterior</p>
+              <div className="spark green-spark">{currentPeriodData.spark.map((item, index) => <i key={`${item.height}-${index}`} style={{ height: item.height, opacity: index === 6 ? 0.7 : 0.19 }} />)}</div>
             </article>
             <article className="stat-card">
               <div className="stat-icon red"><Icon name="close" /></div>
-              <div className="stat-title"><span>Propostas recusadas</span><strong className="down">−2,1%</strong></div>
-              <h2>5</h2><p>vs. 6 na semana anterior</p>
-              <div className="spark red-spark"><i/><i/><i/><i/><i/><i/><i/></div>
+              <div className="stat-title"><span>Propostas recusadas</span><strong className={currentPeriodData.rejected.tone}>{currentPeriodData.rejected.delta}</strong></div>
+              <h2>{currentPeriodData.rejected.value}</h2><p>vs. período anterior</p>
+              <div className="spark red-spark">{currentPeriodData.spark.map((item, index) => <i key={`${item.height}-${index}`} style={{ height: item.height, opacity: index === 6 ? 0.7 : 0.19 }} />)}</div>
             </article>
           </section>
 
