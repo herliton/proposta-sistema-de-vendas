@@ -1,7 +1,58 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { downloadCommissionReport } from "./api/reports";
 import { formatWeekRange, getCurrentWeekRange } from "./utils/dateRange";
 import { transitionSalesStage, type SalesStage } from "./utils/salesLifecycle";
+
+const API_BASE_URL = "http://localhost:4000/api";
+
+async function apiRequest(path: string, options: RequestInit = {}) {
+  const token = localStorage.getItem("vfcAuthToken");
+  const headers = new Headers(options.headers || {});
+
+  if (!(options.body instanceof FormData) && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers,
+    });
+
+    const payload = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      const message = payload?.message || "Erro ao comunicar com a API.";
+      throw new Error(message);
+    }
+
+    return payload;
+  } catch (error) {
+    const message = error instanceof Error && error.message
+      ? error.message
+      : "Não foi possível conectar ao servidor. Verifique se a API local está ativa.";
+
+    if (message.toLowerCase().includes("failed to fetch") || message.toLowerCase().includes("network") || message.toLowerCase().includes("conectar") || message.toLowerCase().includes("api")) {
+      throw new Error("Não foi possível conectar ao servidor. Verifique se a API local está ativa.");
+    }
+
+    throw new Error(message);
+  }
+}
+
+const formatCurrency = (value: number | string | null | undefined) => {
+  const numericValue = typeof value === "number" ? value : Number(String(value ?? "0").replace(/[^\d,.-]/g, "").replace(".", "").replace(",", "."));
+  if (!Number.isFinite(numericValue)) return "R$ 0,00";
+
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(numericValue);
+};
 
 const currentWeek = getCurrentWeekRange();
 const currentWeekLabel = formatWeekRange(currentWeek);
@@ -228,21 +279,18 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
 
     try {
       setIsSubmitting(true);
-      const response = await fetch("http://localhost:4000/api/auth/login", {
+      setNotice("");
+
+      const result = await apiRequest("/auth/login", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify({
           email: email.trim().toLowerCase(),
           senha: password,
         }),
       });
 
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        setNotice(result.message || "Credenciais inválidas.");
+      if (!result.success) {
+        setNotice(result.message || "E-mail ou senha incorretos.");
         return;
       }
 
@@ -250,7 +298,8 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
       localStorage.setItem("vfcAuthUser", JSON.stringify(result.data.user));
       onAuthenticated();
     } catch (error) {
-      setNotice("Não foi possível conectar ao servidor. Verifique se a API local está ativa.");
+      const message = error instanceof Error && error.message ? error.message : "Não foi possível conectar ao servidor. Verifique se a API local está ativa.";
+      setNotice(message === "Credenciais inválidas" ? "E-mail ou senha incorretos. Verifique os dados e tente novamente." : message);
     } finally {
       setIsSubmitting(false);
     }
@@ -265,7 +314,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
       <div className="auth-visual">
         <div className="auth-visual-copy">
           <span className="eyebrow">GESTÃO DE VENDAS AUTOMOTIVAS</span>
-          <h1>Do lead ao contrato, <em>tudo em um só lugar.</em></h1>
+          <h1>Da simulação ao contrato, <em>tudo em um só lugar.</em></h1>
           <p>Centralize propostas, clientes, estoque e comissões em uma operação mais rápida, segura e preparada para crescer.</p>
           <div className="auth-features">
             <span><Icon name="check" size={15}/> Fluxo de vendas inteligente</span>
@@ -284,8 +333,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
             <label>Senha<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Sua senha"/></label>
             <button type="button" className="forgot-link" onClick={() => { setMode("forgot"); setNotice(""); }}>Esqueci minha senha</button>
             <button className="auth-submit" type="submit" disabled={isSubmitting}>{isSubmitting ? "Entrando..." : <>Entrar <Icon name="arrow" size={16}/></>}</button>
-            <div className="demo-access"><strong>Demonstração ativa</strong><span>admin@proposta.com.br · Proposta123</span></div>
-          </>}
+              </>}
           {mode === "forgot" && <>
             <button type="button" className="auth-back" onClick={() => { setMode("login"); setNotice(""); }}>‹ Voltar para o login</button>
             <div className="auth-symbol"><Icon name="file" size={25}/></div>
@@ -349,12 +397,31 @@ function UsersPage() {
     role: "SELLER",
     active: true,
   });
-  const [users, setUsers] = useState([
-    { id: 1, initials: "MC", name: "Marcos Costa", email: "marcos@proposta.com.br", phone: "(11) 98722-1840", role: "SELLER", active: true },
-    { id: 2, initials: "AS", name: "Amanda Silva", email: "amanda@proposta.com.br", phone: "(11) 99188-4201", role: "MANAGER", active: true },
-    { id: 3, initials: "RL", name: "Rafael Lima", email: "rafael@proposta.com.br", phone: "(11) 99854-1770", role: "SELLER", active: true },
-    { id: 4, initials: "BS", name: "Beatriz Souza", email: "beatriz@proposta.com.br", phone: "(11) 98231-9802", role: "SUPPORT", active: false },
-  ]);
+  const [users, setUsers] = useState<Array<{ id: number; initials: string; name: string; email: string; phone: string; role: string; active: boolean }>>([]);
+
+  const normalizeUser = (user: any) => ({
+    id: user.id,
+    initials: (user.nome || user.name || "U").split(" ").slice(0, 2).map((part: string) => part[0]?.toUpperCase() ?? "").join(""),
+    name: user.nome || user.name || "Usuário",
+    email: user.email || "",
+    phone: user.telefone || user.phone || "",
+    role: user.cargo || user.role || "SELLER",
+    active: (user.status || user.active) !== "inativo" && user.active !== false,
+  });
+
+  const loadUsers = async () => {
+    try {
+      const result = await apiRequest("/vendedores");
+      const data = Array.isArray(result?.data) ? result.data : [];
+      setUsers(data.map(normalizeUser));
+    } catch {
+      setUsers([]);
+    }
+  };
+
+  useEffect(() => {
+    void loadUsers();
+  }, []);
 
   const filteredUsers = users.filter((user) => {
     const matchesQuery = `${user.name} ${user.email} ${user.role}`.toLowerCase().includes(userQuery.toLowerCase());
@@ -395,25 +462,56 @@ function UsersPage() {
     setShowForm(true);
   };
 
-  const saveUser = (event: React.FormEvent) => {
+  const saveUser = async (event: React.FormEvent) => {
     event.preventDefault();
     const nextName = form.name.trim();
     const nextEmail = form.email.trim();
     if (!nextName || !nextEmail) return;
 
-    if (editingUserId === null) {
-      const nextId = Math.max(0, ...users.map((user) => user.id)) + 1;
-      const initials = nextName.split(" ").slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("");
-      setUsers((current) => [{ id: nextId, initials, name: nextName, email: nextEmail, phone: form.phone, role: form.role, active: form.active }, ...current]);
-    } else {
-      setUsers((current) => current.map((user) => user.id === editingUserId ? { ...user, name: nextName, email: nextEmail, phone: form.phone, role: form.role, active: form.active, initials: nextName.split(" ").slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("") } : user));
-    }
+    const payload = {
+      nome: nextName,
+      email: nextEmail,
+      telefone: form.phone,
+      cargo: form.role,
+      status: form.active ? "ativo" : "inativo",
+      equipe: "Comercial",
+    };
 
-    setShowForm(false);
+    try {
+      if (editingUserId === null) {
+        const result = await apiRequest("/vendedores", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        setUsers((current) => [normalizeUser(result.data), ...current]);
+      } else {
+        const result = await apiRequest(`/vendedores/${editingUserId}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+        setUsers((current) => current.map((user) => user.id === editingUserId ? normalizeUser(result.data) : user));
+      }
+      setShowForm(false);
+    } catch {
+      setShowForm(false);
+    }
   };
 
-  const toggleUserStatus = (id: number) => {
-    setUsers((current) => current.map((user) => user.id === id ? { ...user, active: !user.active } : user));
+  const toggleUserStatus = async (id: number) => {
+    const user = users.find((item) => item.id === id);
+    if (!user) return;
+
+    try {
+      const result = await apiRequest(`/vendedores/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          status: user.active ? "inativo" : "ativo",
+        }),
+      });
+      setUsers((current) => current.map((item) => item.id === id ? normalizeUser(result.data) : item));
+    } catch {
+      setUsers((current) => current.map((item) => item.id === id ? { ...item, active: !item.active } : item));
+    }
   };
 
   return (
@@ -479,12 +577,36 @@ function VehiclesPage() {
     status: "AVAILABLE" as VehicleStatus,
     simulations: 0,
   });
-  const [vehicles, setVehicles] = useState<VehicleRecord[]>([
-    { id: 1, name: "Jeep Compass Limited", detail: "RZY-4J82 · Flex · Automático", years: "2024 / 2025", fipe: "R$ 163.420", suggested: "R$ 168.900", minimum: "R$ 160.000", status: "IN_NEGOTIATION", simulations: 4 },
-    { id: 2, name: "VW T-Cross Highline", detail: "KLP-2D67 · Flex · Automático", years: "2024 / 2024", fipe: "R$ 132.110", suggested: "R$ 134.900", minimum: "R$ 128.500", status: "AVAILABLE", simulations: 0 },
-    { id: 3, name: "Hyundai Creta Platinum", detail: "EJM-7K31 · Flex · Automático", years: "2023 / 2024", fipe: "R$ 96.870", suggested: "R$ 98.500", minimum: "R$ 93.000", status: "IN_NEGOTIATION", simulations: 2 },
-    { id: 4, name: "Honda HR-V Touring", detail: "BRA-9F21 · Gasolina · Automático", years: "2024 / 2025", fipe: "R$ 171.800", suggested: "R$ 176.200", minimum: "R$ 168.000", status: "SOLD", simulations: 0 },
-  ]);
+  const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
+
+  const normalizeVehicle = (vehicle: any): VehicleRecord => {
+    const nextStatus: VehicleStatus = vehicle.status === "vendido" ? "SOLD" : vehicle.status === "em_negociacao" ? "IN_NEGOTIATION" : "AVAILABLE";
+    return {
+      id: vehicle.id,
+      name: `${vehicle.marca || "Veículo"} ${vehicle.modelo || ""}`.trim(),
+      detail: `${vehicle.placa || "Placa não informada"} · ${vehicle.observacoes || "Flex · Automático"}`,
+      years: `${vehicle.ano || new Date().getFullYear()} / ${vehicle.ano || new Date().getFullYear()}`,
+      fipe: `R$ ${Number(vehicle.valor || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      suggested: `R$ ${Number(vehicle.valor || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      minimum: `R$ ${(Number(vehicle.valor || 0) * 0.96).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      status: nextStatus,
+      simulations: 0,
+    };
+  };
+
+  const loadVehicles = async () => {
+    try {
+      const result = await apiRequest("/veiculos");
+      const data = Array.isArray(result?.data) ? result.data : [];
+      setVehicles(data.map(normalizeVehicle));
+    } catch {
+      setVehicles([]);
+    }
+  };
+
+  useEffect(() => {
+    void loadVehicles();
+  }, []);
 
   const statusLabel = { AVAILABLE: "Disponível", IN_NEGOTIATION: "Em negociação", SOLD: "Vendido" };
 
@@ -509,46 +631,56 @@ function VehiclesPage() {
     setShowForm(true);
   };
 
-  const saveVehicle = (event: React.FormEvent) => {
+  const saveVehicle = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!form.name.trim() || !form.suggested.trim()) return;
 
-    if (editingVehicleId === null) {
-      const nextId = Math.max(0, ...vehicles.map((vehicle) => vehicle.id)) + 1;
-      setVehicles((current) => [{
-        id: nextId,
-        name: form.name.trim(),
-        detail: form.detail.trim() || "Placa não informada · Flex · Automático",
-        years: form.years.trim() || "2024 / 2025",
-        fipe: form.fipe.trim() || "R$ 0,00",
-        suggested: form.suggested.trim(),
-        minimum: form.minimum.trim() || form.suggested.trim(),
-        status: form.status,
-        simulations: form.simulations,
-      }, ...current]);
-    } else {
-      setVehicles((current) => current.map((vehicle) => vehicle.id === editingVehicleId ? {
-        ...vehicle,
-        name: form.name.trim(),
-        detail: form.detail.trim() || vehicle.detail,
-        years: form.years.trim() || vehicle.years,
-        fipe: form.fipe.trim() || vehicle.fipe,
-        suggested: form.suggested.trim() || vehicle.suggested,
-        minimum: form.minimum.trim() || vehicle.minimum,
-        status: form.status,
-        simulations: Number(form.simulations) || vehicle.simulations,
-      } : vehicle));
-    }
+    const [marca = "", modelo = ""] = form.name.trim().split(/\s+(?=[A-Z].*$)/);
+    const payload = {
+      marca: marca || "Veículo",
+      modelo: modelo || form.name.trim(),
+      ano: Number(form.years.split("/")[0].trim()) || new Date().getFullYear(),
+      placa: form.detail.split("·")[0]?.trim() || "SEM-PLACA",
+      valor: Number(form.suggested.replace(/[^\d,.-]/g, "").replace(".", "").replace(",", ".")) || 0,
+      status: form.status === "AVAILABLE" ? "disponivel" : form.status === "IN_NEGOTIATION" ? "em_negociacao" : "vendido",
+      observacoes: form.detail || "Veículo cadastrado no sistema",
+    };
 
-    setShowForm(false);
+    try {
+      if (editingVehicleId === null) {
+        const result = await apiRequest("/veiculos", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        setVehicles((current) => [normalizeVehicle(result.data), ...current]);
+      } else {
+        const result = await apiRequest(`/veiculos/${editingVehicleId}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+        setVehicles((current) => current.map((vehicle) => vehicle.id === editingVehicleId ? normalizeVehicle(result.data) : vehicle));
+      }
+      setShowForm(false);
+    } catch {
+      setShowForm(false);
+    }
   };
 
-  const toggleVehicleStatus = (id: number) => {
-    setVehicles((current) => current.map((vehicle) => {
-      if (vehicle.id !== id) return vehicle;
-      const nextStatus: VehicleStatus = vehicle.status === "AVAILABLE" ? "IN_NEGOTIATION" : vehicle.status === "IN_NEGOTIATION" ? "AVAILABLE" : "AVAILABLE";
-      return { ...vehicle, status: nextStatus };
-    }));
+  const toggleVehicleStatus = async (id: number) => {
+    const vehicle = vehicles.find((item) => item.id === id);
+    if (!vehicle) return;
+
+    const nextStatus = vehicle.status === "AVAILABLE" ? "em_negociacao" : "disponivel";
+
+    try {
+      const result = await apiRequest(`/veiculos/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      setVehicles((current) => current.map((item) => item.id === id ? normalizeVehicle(result.data) : item));
+    } catch {
+      setVehicles((current) => current.map((item) => item.id === id ? { ...item, status: vehicle.status === "AVAILABLE" ? "IN_NEGOTIATION" : "AVAILABLE" } : item));
+    }
   };
 
   return (
@@ -639,12 +771,33 @@ function CustomersPage({ customerHistoryMap, onAddCustomerHistory }: { customerH
     status: "Em atendimento",
     active: true,
   });
-  const [customers, setCustomers] = useState([
-    { id: 1, name: "Henrique Alves", cpf: "123.456.789-10", email: "henrique@email.com", phone: "(11) 98722-1840", income: "R$ 12.500", seller: "Juliana Castro", status: "Em atendimento", active: true },
-    { id: 2, name: "Camila Rocha", cpf: "298.441.720-09", email: "camila@email.com", phone: "(11) 99134-5531", income: "R$ 18.900", seller: "Rafael Lima", status: "Em proposta", active: true },
-    { id: 3, name: "Ricardo Nunes", cpf: "442.807.116-34", email: "ricardo@email.com", phone: "(11) 98802-4260", income: "R$ 9.800", seller: "Marcos Costa", status: "Em simulação", active: true },
-    { id: 4, name: "Fernanda Dias", cpf: "856.412.339-21", email: "fernanda@email.com", phone: "(11) 99910-9472", income: "R$ 21.300", seller: "Amanda Silva", status: "Inativo", active: false },
-  ]);
+  const [customers, setCustomers] = useState<Array<{ id: number; name: string; cpf: string; email: string; phone: string; income: string; seller: string; status: string; active: boolean }>>([]);
+
+  const normalizeCustomer = (customer: any) => ({
+    id: customer.id,
+    name: customer.nome || customer.name || "Cliente",
+    cpf: customer.documento || customer.cpf || "",
+    email: customer.email || "",
+    phone: customer.telefone || customer.phone || "",
+    income: customer.rendaMensal ? `R$ ${Number(customer.rendaMensal).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "R$ 0,00",
+    seller: customer.vendedor || customer.seller || "Marcos Costa",
+    status: customer.status === "inativo" ? "Inativo" : customer.status || "Em atendimento",
+    active: customer.status !== "inativo" && customer.active !== false,
+  });
+
+  const loadCustomers = async () => {
+    try {
+      const result = await apiRequest("/clientes");
+      const data = Array.isArray(result?.data) ? result.data : [];
+      setCustomers(data.map(normalizeCustomer));
+    } catch {
+      setCustomers([]);
+    }
+  };
+
+  useEffect(() => {
+    void loadCustomers();
+  }, []);
 
   const filteredCustomers = customers.filter((customer) => {
     const matchesQuery = `${customer.name} ${customer.cpf} ${customer.seller}`.toLowerCase().includes(customerQuery.toLowerCase());
@@ -676,24 +829,58 @@ function CustomersPage({ customerHistoryMap, onAddCustomerHistory }: { customerH
     setShowForm(true);
   };
 
-  const saveCustomer = (event: React.FormEvent) => {
+  const saveCustomer = async (event: React.FormEvent) => {
     event.preventDefault();
     const nextName = form.name.trim();
     const nextCpf = form.cpf.trim();
     if (!nextName || !nextCpf) return;
 
-    if (editingCustomerId === null) {
-      const nextId = Math.max(0, ...customers.map((customer) => customer.id)) + 1;
-      setCustomers((current) => [{ id: nextId, name: nextName, cpf: nextCpf, email: form.email, phone: form.phone, income: form.income, seller: form.seller, status: form.status, active: form.active }, ...current]);
-    } else {
-      setCustomers((current) => current.map((customer) => customer.id === editingCustomerId ? { ...customer, name: nextName, cpf: nextCpf, email: form.email, phone: form.phone, income: form.income, seller: form.seller, status: form.status, active: form.active } : customer));
-    }
+    const payload = {
+      nome: nextName,
+      documento: nextCpf,
+      email: form.email,
+      telefone: form.phone,
+      tipoPessoa: "pf",
+      rendaMensal: Number(form.income.replace(/[^\d,.-]/g, "").replace(".", "").replace(",", ".")) || 0,
+      status: form.active ? "ativo" : "inativo",
+      vendedor: form.seller,
+    };
 
-    setShowForm(false);
+    try {
+      if (editingCustomerId === null) {
+        const result = await apiRequest("/clientes", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        setCustomers((current) => [normalizeCustomer(result.data), ...current]);
+      } else {
+        const result = await apiRequest(`/clientes/${editingCustomerId}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+        setCustomers((current) => current.map((customer) => customer.id === editingCustomerId ? normalizeCustomer(result.data) : customer));
+      }
+      setShowForm(false);
+    } catch {
+      setShowForm(false);
+    }
   };
 
-  const toggleCustomerStatus = (id: number) => {
-    setCustomers((current) => current.map((customer) => customer.id === id ? { ...customer, active: !customer.active, status: customer.active ? "Inativo" : "Em atendimento" } : customer));
+  const toggleCustomerStatus = async (id: number) => {
+    const customer = customers.find((item) => item.id === id);
+    if (!customer) return;
+
+    try {
+      const result = await apiRequest(`/clientes/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          status: customer.active ? "inativo" : "ativo",
+        }),
+      });
+      setCustomers((current) => current.map((item) => item.id === id ? normalizeCustomer(result.data) : item));
+    } catch {
+      setCustomers((current) => current.map((item) => item.id === id ? { ...item, active: !item.active, status: item.active ? "Inativo" : "Em atendimento" } : item));
+    }
   };
 
   const lookupCustomerCep = async () => {
@@ -1047,6 +1234,13 @@ function SupportDashboard() {
 type ReviewStatus = "PENDING" | "BANK_ANALYSIS" | "APPROVED" | "REJECTED" | "CONTRACT_EFFECTIVE";
 
 function ProposalReviewPage({ onAddCustomerHistory }: { onAddCustomerHistory: (customerName: string, title: string, detail: string, tone?: string, icon?: IconName) => void }) {
+  const staticReviewRows = [
+    { id: "#0842", apiId: 842, customer: "Ricardo Nunes", seller: "Marcos Costa", bank: "Banco Alfa", amount: "R$ 118.900", score: "782", status: "PENDING" as ReviewStatus },
+    { id: "#0841", apiId: 841, customer: "Camila Rocha", seller: "Rafael Lima", bank: "Banco Capital", amount: "R$ 92.500", score: "714", status: "BANK_ANALYSIS" as ReviewStatus },
+    { id: "#0838", apiId: 838, customer: "Pedro Azevedo", seller: "Juliana Castro", bank: "Banco União", amount: "R$ 106.200", score: "698", status: "CONTRACT_EFFECTIVE" as ReviewStatus },
+    { id: "#0837", apiId: 837, customer: "Fernanda Dias", seller: "Amanda Silva", bank: "Bradesco", amount: "R$ 132.400", score: "744", status: "REJECTED" as ReviewStatus },
+  ];
+
   const [submitted, setSubmitted] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState<ReviewStatus | "ALL">("ALL");
@@ -1057,12 +1251,57 @@ function ProposalReviewPage({ onAddCustomerHistory }: { onAddCustomerHistory: (c
     "#0838": { "RG/CPF": true, "Comprovante residencial": true, "Contrato digital": true, "Assinatura do cliente": true },
     "#0837": { "RG/CPF": false, "Comprovante residencial": false, "Contrato digital": false, "Assinatura do cliente": false },
   });
-  const [reviewRows, setReviewRows] = useState([
-    { id: "#0842", customer: "Ricardo Nunes", seller: "Marcos Costa", bank: "Banco Alfa", amount: "R$ 118.900", score: "782", status: "PENDING" as ReviewStatus },
-    { id: "#0841", customer: "Camila Rocha", seller: "Rafael Lima", bank: "Banco Capital", amount: "R$ 92.500", score: "714", status: "BANK_ANALYSIS" as ReviewStatus },
-    { id: "#0838", customer: "Pedro Azevedo", seller: "Juliana Castro", bank: "Banco União", amount: "R$ 106.200", score: "698", status: "CONTRACT_EFFECTIVE" as ReviewStatus },
-    { id: "#0837", customer: "Fernanda Dias", seller: "Amanda Silva", bank: "Bradesco", amount: "R$ 132.400", score: "744", status: "REJECTED" as ReviewStatus },
-  ]);
+  const [reviewRows, setReviewRows] = useState<typeof staticReviewRows>(staticReviewRows);
+
+  useEffect(() => {
+    const loadReviewRows = async () => {
+      try {
+        const result = await apiRequest("/propostas");
+        const nextRows = Array.isArray(result?.data) ? result.data : [];
+
+        if (!nextRows.length) return;
+
+        const mappedRows = nextRows.map((item: any) => {
+          const statusMap: Record<string, ReviewStatus> = {
+            pendente: "PENDING",
+            aguardando: "PENDING",
+            em_analise: "BANK_ANALYSIS",
+            emAnalise: "BANK_ANALYSIS",
+            analisando: "BANK_ANALYSIS",
+            aprovado: "APPROVED",
+            aprovada: "APPROVED",
+            recusado: "REJECTED",
+            recusada: "REJECTED",
+            contrato_ativo: "CONTRACT_EFFECTIVE",
+            ativo: "CONTRACT_EFFECTIVE",
+          };
+
+          const normalizedStatus = statusMap[String(item.status ?? "").toLowerCase()] ?? "PENDING";
+          const proposalId = `#${String(item.id).padStart(4, "0")}`;
+
+          return {
+            id: proposalId,
+            apiId: item.id,
+            customer: item.cliente?.nome || item.cliente?.name || "Cliente",
+            seller: item.vendedor?.nome || item.vendedor?.name || "Vendedor",
+            bank: item.banco || "Banco VFC",
+            amount: formatCurrency(item.valorProposta || item.valor || 0),
+            score: item.score || "780",
+            status: normalizedStatus,
+          };
+        });
+
+        setReviewRows(mappedRows.length ? mappedRows : staticReviewRows);
+        if (mappedRows.length) {
+          setSelectedProposalId(mappedRows[0].id);
+        }
+      } catch {
+        setReviewRows(staticReviewRows);
+      }
+    };
+
+    void loadReviewRows();
+  }, []);
 
   const tabs: Array<{ key: ReviewStatus | "ALL"; label: string }> = [
     { key: "ALL", label: "Todas" },
@@ -1099,26 +1338,53 @@ function ProposalReviewPage({ onAddCustomerHistory }: { onAddCustomerHistory: (c
     onAddCustomerHistory(customer, eventName, note, tone, icon);
   };
 
-  const handleSendToBank = (row: typeof reviewRows[number]) => {
-    setSubmitted((current) => (current.includes(row.id) ? current : [...current, row.id]));
-    if (row.status === "PENDING") {
-      setReviewRows((current) => current.map((item) => item.id === row.id ? { ...item, status: "BANK_ANALYSIS" } : item));
-      addHistoryForCustomer(row.customer, "Proposta enviada ao banco", `${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date())} • ${row.bank} • Valor ${row.amount}`, "blue", "file");
-      return;
-    }
-    if (row.status === "BANK_ANALYSIS") {
-      setReviewRows((current) => current.map((item) => item.id === row.id ? { ...item, status: "APPROVED" } : item));
-      addHistoryForCustomer(row.customer, "Proposta aprovada", `${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date())} • ${row.bank} • Documento aprovado e liberado para contratação`, "green", "check");
-      return;
-    }
-    if (row.status === "APPROVED") {
-      setReviewRows((current) => current.map((item) => item.id === row.id ? { ...item, status: "CONTRACT_EFFECTIVE" } : item));
-      addHistoryForCustomer(row.customer, "Contrato efetivado", `${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date())} • ${row.amount} • Documento assinado e contrato ativo`, "purple", "contract");
-      return;
-    }
-    if (row.status === "REJECTED") {
-      setReviewRows((current) => current.map((item) => item.id === row.id ? { ...item, status: "PENDING" } : item));
-      addHistoryForCustomer(row.customer, "Nova proposta aberta", `${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date())} • Revisão reaberta para ajuste de documentação`, "orange", "proposal");
+  const handleSendToBank = async (row: typeof reviewRows[number]) => {
+    const nextStatusMap: Record<ReviewStatus, string> = {
+      PENDING: "pendente",
+      BANK_ANALYSIS: "em_analise",
+      APPROVED: "aprovado",
+      REJECTED: "recusado",
+      CONTRACT_EFFECTIVE: "contrato_ativo",
+    };
+
+    try {
+      if (row.status === "PENDING") {
+        await apiRequest(`/propostas/${row.apiId}/status`, {
+          method: "PATCH",
+          body: JSON.stringify({ status: nextStatusMap.BANK_ANALYSIS }),
+        });
+        setReviewRows((current) => current.map((item) => item.id === row.id ? { ...item, status: "BANK_ANALYSIS" } : item));
+        addHistoryForCustomer(row.customer, "Proposta enviada ao banco", `${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date())} • ${row.bank} • Valor ${row.amount}`, "blue", "file");
+        return;
+      }
+      if (row.status === "BANK_ANALYSIS") {
+        await apiRequest(`/propostas/${row.apiId}/status`, {
+          method: "PATCH",
+          body: JSON.stringify({ status: nextStatusMap.APPROVED }),
+        });
+        setReviewRows((current) => current.map((item) => item.id === row.id ? { ...item, status: "APPROVED" } : item));
+        addHistoryForCustomer(row.customer, "Proposta aprovada", `${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date())} • ${row.bank} • Documento aprovado e liberado para contratação`, "green", "check");
+        return;
+      }
+      if (row.status === "APPROVED") {
+        await apiRequest(`/propostas/${row.apiId}/status`, {
+          method: "PATCH",
+          body: JSON.stringify({ status: nextStatusMap.CONTRACT_EFFECTIVE }),
+        });
+        setReviewRows((current) => current.map((item) => item.id === row.id ? { ...item, status: "CONTRACT_EFFECTIVE" } : item));
+        addHistoryForCustomer(row.customer, "Contrato efetivado", `${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date())} • ${row.amount} • Documento assinado e contrato ativo`, "purple", "contract");
+        return;
+      }
+      if (row.status === "REJECTED") {
+        await apiRequest(`/propostas/${row.apiId}/status`, {
+          method: "PATCH",
+          body: JSON.stringify({ status: nextStatusMap.PENDING }),
+        });
+        setReviewRows((current) => current.map((item) => item.id === row.id ? { ...item, status: "PENDING" } : item));
+        addHistoryForCustomer(row.customer, "Nova proposta aberta", `${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date())} • Revisão reaberta para ajuste de documentação`, "orange", "proposal");
+      }
+    } catch {
+      setSubmitted((current) => (current.includes(row.id) ? current : [...current, row.id]));
     }
   };
 
@@ -1203,12 +1469,41 @@ function ContractManagementPage() {
     "#REC-2025-0101": { fileName: "consultoria-recuperacao-camila-rocha.pdf", signedAt: "24/09/2026 · 14:20", eGovSignature: "e-Gov • Assinatura válida", status: "Arquivo armazenado com validade jurídica", stored: true },
     "#REC-2025-0104": { fileName: "consultoria-recuperacao-ricardo-nunes.pdf", signedAt: "24/09/2026 · 09:45", eGovSignature: "e-Gov • Assinatura válida", status: "Arquivo armazenado com validade jurídica", stored: true },
   });
-
-  const contracts = [
+  const [contracts, setContracts] = useState<Array<{ id: string; customer: string; vehicle: string; value: string; status: string; completion: number; nextStep: string; docs: number; due: string }>>([
     { id: "#CONT-2025-0318", customer: "Pedro Azevedo", vehicle: "Toyota Corolla Cross XRE", value: "R$ 159.800", status: "Em assinatura", completion: 82, nextStep: "Assinatura do cliente", docs: 5, due: "12/07/2025" },
     { id: "#CONT-2025-0315", customer: "Camila Rocha", vehicle: "Jeep Compass Limited", value: "R$ 168.900", status: "Documentação", completion: 64, nextStep: "Validação de renda", docs: 3, due: "18/07/2025" },
     { id: "#CONT-2025-0306", customer: "Ricardo Nunes", vehicle: "Hyundai Creta Platinum", value: "R$ 98.500", status: "Aprovado", completion: 100, nextStep: "Agendar entrega", docs: 6, due: "21/07/2025" },
-  ];
+  ]);
+
+  useEffect(() => {
+    const loadContracts = async () => {
+      try {
+        const result = await apiRequest("/contratos");
+        const data = Array.isArray(result?.data) ? result.data : [];
+
+        if (!data.length) return;
+
+        const mappedContracts = data.map((item: any) => ({
+          id: `#CONT-${String(item.id).padStart(4, "0")}`,
+          customer: item.cliente?.nome || item.cliente?.name || "Cliente",
+          vehicle: item.proposta?.veiculo?.modelo || item.proposta?.veiculo?.name || "Veículo",
+          value: formatCurrency(item.valorTotal || item.valor || 0),
+          status: item.status === "ativo" ? "Aprovado" : item.status === "pendente" ? "Documentação" : "Em assinatura",
+          completion: item.status === "ativo" ? 100 : item.status === "pendente" ? 64 : 82,
+          nextStep: item.status === "ativo" ? "Agendar entrega" : "Validação documental",
+          docs: item.status === "ativo" ? 6 : 4,
+          due: item.dataAssinatura ? new Intl.DateTimeFormat("pt-BR").format(new Date(item.dataAssinatura)) : "—",
+        }));
+
+        setContracts(mappedContracts);
+        if (mappedContracts[0]) setSelectedContractId(mappedContracts[0].id);
+      } catch {
+        setContracts((current) => current);
+      }
+    };
+
+    void loadContracts();
+  }, []);
   const creditRecoveryContracts = [
     { id: "#REC-2025-0101", customer: "Camila Rocha", vehicle: "Jeep Compass Limited", financingStatus: "Não recusado", value: "R$ 2.400", status: "Elegível", nextStep: "Emitir contrato de consultoria" },
     { id: "#REC-2025-0104", customer: "Ricardo Nunes", vehicle: "Hyundai Creta Platinum", financingStatus: "Aprovado", value: "R$ 2.400", status: "Elegível", nextStep: "Enviar proposta de consultoria" },
@@ -1807,18 +2102,44 @@ function FinanceSystemPage() {
     document.title = previousTitle;
   };
 
+  const [movements, setMovements] = useState<Array<{ id: string; client: string; type: string; value: string; status: string; due: string }>>([
+    { id: "FIN-2301", client: "Camila Rocha", type: "Honorários consultoria", value: "R$ 7.000", status: "Pendente", due: "30/09/2026" },
+    { id: "FIN-2302", client: "Ricardo Nunes", type: "Entrada de contrato", value: "R$ 18.400", status: "Recebido", due: "25/09/2026" },
+    { id: "FIN-2303", client: "Pedro Azevedo", type: "Complemento de veículo", value: "R$ 6.200", status: "Em revisão", due: "28/09/2026" },
+    { id: "FIN-2304", client: "Fernanda Dias", type: "Taxa de análise", value: "R$ 2.400", status: "Pendente", due: "02/10/2026" },
+  ]);
+
+  useEffect(() => {
+    const loadFinance = async () => {
+      try {
+        const result = await apiRequest("/financeiro");
+        const data = Array.isArray(result?.data) ? result.data : [];
+
+        if (!data.length) return;
+
+        const mappedMovements = data.map((item: any) => ({
+          id: `FIN-${String(item.id).padStart(4, "0")}`,
+          client: item.contrato?.cliente?.nome || item.contrato?.cliente?.name || "Cliente",
+          type: item.tipo || "Movimentação",
+          value: formatCurrency(item.valor || 0),
+          status: item.status === "pago" ? "Recebido" : item.status === "pendente" ? "Pendente" : "Em revisão",
+          due: item.dataVencimento ? new Intl.DateTimeFormat("pt-BR").format(new Date(item.dataVencimento)) : "—",
+        }));
+
+        setMovements(mappedMovements);
+      } catch {
+        setMovements((current) => current);
+      }
+    };
+
+    void loadFinance();
+  }, []);
+
   const revenueSummary = [
     { label: "Disponível em caixa", value: "R$ 1.428.300", tone: "green" },
     { label: "Recebimentos previstos", value: "R$ 486.000", tone: "blue" },
     { label: "Pagamentos pendentes", value: "R$ 198.500", tone: "yellow" },
     { label: "Inadimplência ativa", value: "4,3%", tone: "red" },
-  ];
-
-  const movements = [
-    { id: "FIN-2301", client: "Camila Rocha", type: "Honorários consultoria", value: "R$ 7.000", status: "Pendente", due: "30/09/2026" },
-    { id: "FIN-2302", client: "Ricardo Nunes", type: "Entrada de contrato", value: "R$ 18.400", status: "Recebido", due: "25/09/2026" },
-    { id: "FIN-2303", client: "Pedro Azevedo", type: "Complemento de veículo", value: "R$ 6.200", status: "Em revisão", due: "28/09/2026" },
-    { id: "FIN-2304", client: "Fernanda Dias", type: "Taxa de análise", value: "R$ 2.400", status: "Pendente", due: "02/10/2026" },
   ];
 
   const bankFlow = [

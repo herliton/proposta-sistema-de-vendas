@@ -72,6 +72,29 @@
       "createdAt": "2026-01-01T00:00:00.000Z"
     }
   ],
-  "contratos": [],
-  "financeiro": []
+  "contratos": [
+    {
+      "id": 1,
+      "propostaId": 1,
+      "clienteId": 1,
+      "vendedorId": 1,
+      "valorTotal": 175000,
+      "documentoUrl": "/documents/contrato-1.pdf",
+      "status": "ativo",
+      "dataAssinatura": "2026-09-24T18:25:42.355Z",
+      "createdAt": "2026-09-24T18:25:42.356Z"
+    }
+  ],
+  "financeiro": [
+    {
+      "id": 1,
+      "contratoId": 1,
+      "tipo": "Entrada de contrato",
+      "valor": 21000,
+      "status": "pago",
+      "dataVencimento": "2026-09-24T18:25:42.357Z",
+      "observacoes": "Registro financeiro demo inicial",
+      "createdAt": "2026-09-24T18:25:42.357Z"
+    }
+  ]
 }
