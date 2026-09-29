@@ -7,110 +7,245 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Usuario {
-  id        Int       @id @default(autoincrement())
-  nome      String
-  email     String    @unique
-  senhaHash String
-  perfil    String
-  status    String    @default("ativo")
-  createdAt DateTime  @default(now())
+model Loja {
+  id            Int                   @id @default(autoincrement())
+  nome          String                @unique
+  cnpj          String?               @unique
+  telefone      String?
+  email         String?
+  cep           String?
+  logradouro    String?
+  numero        String?
+  complemento   String?
+  bairro        String?
+  cidade        String?
+  estado        String?
+  status        String                @default("ativo")
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  usuarios      Usuario[]
+  vendedores    Vendedor[]
+  clientes      Cliente[]
+  veiculos      Veiculo[]
+  propostas     Proposta[]
+  contratos     Contrato[]
+  oportunidades OportunidadeCredito[]
+}
 
-  vendedores Vendedor[]
-  aprovacoes Aprovacao[]
+model Usuario {
+  id                     Int                   @id @default(autoincrement())
+  nome                   String
+  email                  String                @unique
+  senhaHash              String
+  perfil                 String
+  status                 String                @default("ativo")
+  telefone               String?
+  avatarUrl              String?
+  cep                    String?
+  logradouro             String?
+  numero                 String?
+  complemento            String?
+  bairro                 String?
+  cidade                 String?
+  estado                 String?
+  chavePix               String?
+  metaMensal             Decimal?              @db.Decimal(12, 2)
+  firstAccess            Boolean               @default(true)
+  resetPasswordTokenHash String?               @unique
+  resetPasswordExpires   DateTime?
+  gerenteId              Int?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @default(now()) @updatedAt
+  gerente                Usuario?              @relation("UserManager", fields: [gerenteId], references: [id], onDelete: SetNull)
+  equipe                 Usuario[]             @relation("UserManager")
+  vendedores             Vendedor[]
+  aprovacoes             Aprovacao[]
+  auditorias             AuditLog[]
+  comissoes              Comissao[]
+  oportunidades          OportunidadeCredito[]
+  lojaId                 Int                   @default(1)
+  loja                   Loja                  @relation(fields: [lojaId], references: [id], onDelete: Restrict)
+
+  @@index([perfil, status])
+  @@index([gerenteId])
+}
+
+model SystemModule {
+  id          String           @id @db.VarChar(50)
+  name        String           @db.VarChar(100)
+  route       String           @db.VarChar(100)
+  icon        String?          @db.VarChar(50)
+  permissions RolePermission[]
+}
+
+model RolePermission {
+  id        String       @id @default(uuid()) @db.Uuid
+  role      String       @db.VarChar(30)
+  moduleId  String       @db.VarChar(50)
+  canAccess Boolean      @default(true)
+  module    SystemModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now())
+
+  @@unique([role, moduleId])
+  @@index([role])
 }
 
 model Cliente {
-  id          Int      @id @default(autoincrement())
-  nome        String
-  razaoSocial String?
-  documento   String?
-  tipoPessoa  String?
-  email       String?
-  telefone    String?
-  cidade      String?
-  estado      String?
-  status      String   @default("ativo")
-  createdAt   DateTime @default(now())
+  id            Int                   @id @default(autoincrement())
+  nome          String
+  razaoSocial   String?
+  nomeFantasia  String?
+  documento     String?
+  tipoPessoa    String?
+  email         String?
+  telefone      String?
+  cep           String?
+  logradouro    String?
+  numero        String?
+  complemento   String?
+  bairro        String?
+  cidade        String?
+  estado        String?
+  rendaMensal   Decimal?              @db.Decimal(12, 2)
+  ocupacao      String?
+  status        String                @default("ativo")
+  vendedorId    Int?
+  gerenteId     Int?
+  deletedAt     DateTime?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @default(now()) @updatedAt
+  vendedor      Vendedor?             @relation(fields: [vendedorId], references: [id], onDelete: SetNull)
+  propostas     Proposta[]
+  oportunidades OportunidadeCredito[]
+  contratos     Contrato[]
+  lojaId        Int                   @default(1)
+  loja          Loja                  @relation(fields: [lojaId], references: [id], onDelete: Restrict)
 
-  propostas Proposta[]
-  contratos Contrato[]
+  @@index([documento])
+  @@index([nome])
+  @@index([vendedorId, status])
 }
 
 model Vendedor {
-  id        Int      @id @default(autoincrement())
+  id        Int        @id @default(autoincrement())
   nome      String
-  email     String   @unique
+  email     String     @unique
   telefone  String?
   cargo     String?
   equipe    String?
-  status    String   @default("ativo")
+  status    String     @default("ativo")
   usuarioId Int?
-  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
-
+  usuario   Usuario?   @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  clientes  Cliente[]
   propostas Proposta[]
   contratos Contrato[]
+  comissoes Comissao[]
+  createdAt DateTime   @default(now())
+  lojaId    Int        @default(1)
+  loja      Loja       @relation(fields: [lojaId], references: [id], onDelete: Restrict)
+
+  @@index([equipe, status])
 }
 
 model Veiculo {
-  id          Int      @id @default(autoincrement())
-  marca       String
-  modelo      String
-  ano         Int
-  placa       String?
-  valor       Decimal
-  status      String   @default("disponivel")
-  observacoes String?
-  createdAt   DateTime @default(now())
+  id            Int        @id @default(autoincrement())
+  marca         String     @db.VarChar(100)
+  modelo        String     @db.VarChar(100)
+  ano           Int
+  anoFabricacao Int?
+  anoModelo     Int?
+  codigoFipe    String?    @db.VarChar(20)
+  valorFipe     Decimal?   @db.Decimal(12, 2)
+  precoSugerido Decimal?   @db.Decimal(12, 2)
+  precoMinimo   Decimal?   @db.Decimal(12, 2)
+  placa         String?    @db.VarChar(10)
+  lojaId        Int        @default(1)
+  status        String     @default("disponivel")
+  observacoes   String?
+  fotoDireita   String?
+  fotoEsquerda  String?
+  fotoFrente    String?
+  fotoTraseira  String?
+  fotoInterior  String?
+  videoUrl      String?
+  videoDuracao  Int?
+  deletedAt     DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @default(now()) @updatedAt
+  propostas     Proposta[]
+  loja          Loja       @relation(fields: [lojaId], references: [id], onDelete: Restrict)
 
-  propostas Proposta[]
+  @@index([marca, modelo, anoFabricacao, anoModelo, status])
+  @@index([placa])
 }
 
 model Proposta {
-  id            Int      @id @default(autoincrement())
-  clienteId     Int
-  vendedorId    Int
-  veiculoId     Int
-  valorProposta Decimal
-  status        String   @default("pendente")
-  observacoes   String?
-  createdAt     DateTime @default(now())
+  id              Int                  @id @default(autoincrement())
+  clienteId       Int
+  vendedorId      Int
+  veiculoId       Int
+  lojaId          Int                  @default(1)
+  valorProposta   Decimal              @db.Decimal(12, 2)
+  entrada         Decimal?             @db.Decimal(12, 2)
+  parcelas        Int?
+  taxaJuros       Decimal?             @db.Decimal(5, 2)
+  valorParcela    Decimal?             @db.Decimal(12, 2)
+  totalFinanciado Decimal?             @db.Decimal(12, 2)
+  status          String               @default("pendente")
+  motivoRecusa    String?
+  observacoes     String?
+  deletedAt       DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @default(now()) @updatedAt
+  cliente         Cliente              @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  vendedor        Vendedor             @relation(fields: [vendedorId], references: [id], onDelete: Restrict)
+  veiculo         Veiculo              @relation(fields: [veiculoId], references: [id], onDelete: Restrict)
+  contrato        Contrato?
+  comissoes       Comissao[]
+  oportunidade    OportunidadeCredito?
+  loja            Loja                 @relation(fields: [lojaId], references: [id], onDelete: Restrict)
 
-  cliente  Cliente   @relation(fields: [clienteId], references: [id])
-  vendedor Vendedor  @relation(fields: [vendedorId], references: [id])
-  veiculo  Veiculo   @relation(fields: [veiculoId], references: [id])
-
-  contrato Contrato?
+  @@index([veiculoId, status])
+  @@index([vendedorId, status, createdAt])
+  @@index([lojaId, status, createdAt])
+  @@index([clienteId, createdAt])
 }
 
 model Contrato {
-  id             Int       @id @default(autoincrement())
-  propostaId     Int       @unique
+  id             Int          @id @default(autoincrement())
+  propostaId     Int          @unique
   clienteId      Int
   vendedorId     Int
-  valorTotal     Decimal
-  status         String    @default("ativo")
+  tipo           String       @default("VENDA_VEICULO")
+  lojaId         Int          @default(1)
+  valorTotal     Decimal      @db.Decimal(12, 2)
+  status         String       @default("ativo")
   dataAssinatura DateTime?
   documentoUrl   String?
-  createdAt      DateTime  @default(now())
+  deletedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @default(now()) @updatedAt
+  proposta       Proposta     @relation(fields: [propostaId], references: [id], onDelete: Restrict)
+  loja           Loja         @relation(fields: [lojaId], references: [id], onDelete: Restrict)
+  cliente        Cliente      @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  vendedor       Vendedor     @relation(fields: [vendedorId], references: [id], onDelete: Restrict)
+  financeiro     Financeiro[]
 
-  proposta   Proposta     @relation(fields: [propostaId], references: [id])
-  cliente    Cliente      @relation(fields: [clienteId], references: [id])
-  vendedor   Vendedor     @relation(fields: [vendedorId], references: [id])
-  financeiro Financeiro[]
+  @@index([status, dataAssinatura])
 }
 
 model Financeiro {
   id             Int       @id @default(autoincrement())
   contratoId     Int
   tipo           String
-  valor          Decimal
+  valor          Decimal   @db.Decimal(12, 2)
   status         String    @default("pendente")
   dataVencimento DateTime?
   observacoes    String?
   createdAt      DateTime  @default(now())
+  contrato       Contrato  @relation(fields: [contratoId], references: [id], onDelete: Restrict)
 
-  contrato Contrato @relation(fields: [contratoId], references: [id])
+  @@index([status, dataVencimento])
 }
 
 model Aprovacao {
@@ -121,6 +256,66 @@ model Aprovacao {
   acao       String
   observacao String?
   createdAt  DateTime @default(now())
+  usuario    Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
 
-  usuario Usuario? @relation(fields: [usuarioId], references: [id])
+  @@index([entidade, entidadeId, createdAt])
+}
+
+model Comissao {
+  id         Int      @id @default(autoincrement())
+  propostaId Int
+  vendedorId Int
+  usuarioId  Int?
+  tipo       String
+  valor      Decimal  @db.Decimal(12, 2)
+  pago       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  proposta   Proposta @relation(fields: [propostaId], references: [id], onDelete: Cascade)
+  vendedor   Vendedor @relation(fields: [vendedorId], references: [id], onDelete: Restrict)
+  usuario    Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@index([vendedorId, pago, createdAt])
+  @@index([propostaId])
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  actorId   Int
+  action    String   @db.VarChar(100)
+  details   Json?
+  createdAt DateTime @default(now())
+  actor     Usuario  @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+}
+
+model Configuracao {
+  chave     String   @id @db.VarChar(100)
+  valor     Json
+  updatedAt DateTime @updatedAt
+}
+
+model OportunidadeCredito {
+  id               Int       @id @default(autoincrement())
+  clienteId        Int
+  lojaId           Int       @default(1)
+  propostaId       Int?      @unique
+  responsavelId    Int?
+  tipo             String    @default("REANALISE_CREDITO")
+  status           String    @default("ABERTA")
+  motivo           String?
+  proximoContatoEm DateTime?
+  observacoes      String?
+  encerradaEm      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  cliente          Cliente   @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  loja             Loja      @relation(fields: [lojaId], references: [id], onDelete: Restrict)
+  proposta         Proposta? @relation(fields: [propostaId], references: [id], onDelete: SetNull)
+  responsavel      Usuario?  @relation(fields: [responsavelId], references: [id], onDelete: SetNull)
+
+  @@index([responsavelId, status, proximoContatoEm])
+  @@index([clienteId, status])
+  @@index([lojaId, status])
 }

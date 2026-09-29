@@ -16,6 +16,7 @@ const defaultStore = {
   propostas: [],
   contratos: [],
   financeiro: [],
+  configuracoes: {},
 };
 
 const getNextId = (collection, items) => {
@@ -77,26 +78,47 @@ const seedDemoFinance = (store) => {
 
 export const ensureDefaultAdmin = async () => {
   const store = readStore();
-  const hasDemoAdmin = store.usuarios.some((user) => user.email === 'admin@proposta.com.br');
+  const bootstrapAccounts = [
+    { email: 'admin@proposta.com.br', nome: 'Administrador VFC' },
+    { email: 'herliton@allos.net.br', nome: 'Herliton' },
+  ];
+  let changed = false;
 
-  if (hasDemoAdmin) {
-    return store;
+  for (const account of bootstrapAccounts) {
+    let user = store.usuarios.find((item) => item.email?.trim().toLowerCase() === account.email);
+    if (!user) {
+      const nextId = store.usuarios.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1;
+      user = {
+        id: nextId,
+        nome: account.nome,
+        email: account.email,
+        senhaHash: await bcrypt.hash('Proposta123', 10),
+        perfil: 'admin',
+        status: 'ativo',
+        firstAccess: false,
+        createdAt: new Date().toISOString(),
+      };
+      store.usuarios.push(user);
+      changed = true;
+      continue;
+    }
+
+    const validBcryptHash = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(user.senhaHash || '');
+    if (!validBcryptHash) {
+      user.senhaHash = await bcrypt.hash('Proposta123', 10);
+      changed = true;
+    }
+    if (user.perfil !== 'admin') {
+      user.perfil = 'admin';
+      changed = true;
+    }
+    if (user.status !== 'ativo') {
+      user.status = 'ativo';
+      changed = true;
+    }
   }
 
-  const adminPasswordHash = await bcrypt.hash('Proposta123', 10);
-  const adminUser = {
-    id: createId('usuarios'),
-    nome: 'Administrador VFC',
-    email: 'admin@proposta.com.br',
-    senhaHash: adminPasswordHash,
-    perfil: 'admin',
-    status: 'ativo',
-    createdAt: new Date().toISOString(),
-  };
-
-  store.usuarios.push(adminUser);
-  writeStore(store);
-
+  if (changed) writeStore(store);
   return store;
 };
 
@@ -123,6 +145,7 @@ export const ensureStore = () => {
       propostas: Array.isArray(parsed.propostas) ? parsed.propostas : [],
       contratos: Array.isArray(parsed.contratos) ? parsed.contratos : [],
       financeiro: Array.isArray(parsed.financeiro) ? parsed.financeiro : [],
+      configuracoes: parsed.configuracoes && typeof parsed.configuracoes === 'object' && !Array.isArray(parsed.configuracoes) ? parsed.configuracoes : {},
     };
 
     if (!nextStore.contratos.length) {
@@ -133,12 +156,18 @@ export const ensureStore = () => {
       seedDemoFinance(nextStore);
     }
 
-    if (JSON.stringify(nextStore) !== raw) {
-      fs.writeFileSync(dataFile, JSON.stringify(nextStore, null, 2));
+    if (JSON.stringify(nextStore) !== JSON.stringify(parsed)) {
+      persistStore(nextStore);
     }
   } catch (error) {
-    fs.writeFileSync(dataFile, JSON.stringify(defaultStore, null, 2));
+    throw new Error(`Não foi possível ler os dados em ${dataFile}. O arquivo foi preservado.`, { cause: error });
   }
+};
+
+const persistStore = (store) => {
+  const temporaryFile = `${dataFile}.tmp`;
+  fs.writeFileSync(temporaryFile, JSON.stringify(store, null, 2), 'utf-8');
+  fs.renameSync(temporaryFile, dataFile);
 };
 
 export const readStore = () => {
@@ -146,16 +175,12 @@ export const readStore = () => {
 
   const raw = fs.readFileSync(dataFile, 'utf-8');
 
-  try {
-    return JSON.parse(raw);
-  } catch (error) {
-    return { ...defaultStore };
-  }
+  return JSON.parse(raw);
 };
 
 export const writeStore = (store) => {
   ensureStore();
-  fs.writeFileSync(dataFile, JSON.stringify(store, null, 2));
+  persistStore(store);
 };
 
 export const createId = (collection) => {

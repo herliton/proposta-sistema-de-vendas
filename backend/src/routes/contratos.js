@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { authMiddleware } from '../middleware/auth.js';
+import { requireModuleAccess } from '../middleware/requireModuleAccess.js';
 import {
   listContratos,
   getContratoById,
@@ -7,6 +9,7 @@ import {
 } from '../controllers/contratosController.js';
 
 const router = Router();
+router.use(authMiddleware, requireModuleAccess('CONTRACTS'));
 
 router.get('/', listContratos);
 router.get('/:id', getContratoById);

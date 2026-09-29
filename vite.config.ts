@@ -32,6 +32,16 @@ react(),
     },
     server: {
       host: process.env.FIGMA_DEV_SERVER_HOST || '0.0.0.0',
+      proxy: {
+        '/api': {
+          target: process.env.API_PROXY_TARGET || 'http://localhost:4000',
+          changeOrigin: true,
+        },
+        '/uploads': {
+          target: process.env.API_PROXY_TARGET || 'http://localhost:4000',
+          changeOrigin: true,
+        },
+      },
       port: parseInt(process.env.PORT || '8443'),
       strictPort: true,
       watch: {

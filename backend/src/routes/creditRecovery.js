@@ -1,0 +1,10 @@
+import { Router } from 'express';
+import { authMiddleware } from '../middleware/auth.js';
+import { requireModuleAccess } from '../middleware/requireModuleAccess.js';
+import { createCreditOpportunity, listCreditOpportunities, updateCreditOpportunity } from '../controllers/creditRecoveryController.js';
+const router = Router();
+router.use(authMiddleware, requireModuleAccess('CREDIT_RECOVERY'));
+router.get('/', listCreditOpportunities);
+router.post('/', createCreditOpportunity);
+router.patch('/:id', updateCreditOpportunity);
+export default router;

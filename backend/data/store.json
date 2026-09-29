@@ -11,12 +11,59 @@
     },
     {
       "id": 2,
-      "nome": "Administrador VFC",
+      "nome": "Suporte  VFC",
       "email": "admin@proposta.com.br",
       "senhaHash": "$2a$10$mZObbme9TcAmHZu0p0msxu6HW3kfKSueDA3/SeZFJ.aAikYeBNfqW",
       "perfil": "admin",
       "status": "ativo",
-      "createdAt": "2026-09-24T18:02:28.846Z"
+      "createdAt": "2026-09-24T18:02:28.846Z",
+      "telefone": "",
+      "cep": "",
+      "logradouro": "",
+      "numero": "",
+      "complemento": "",
+      "bairro": "",
+      "cidade": "",
+      "estado": "",
+      "firstAccess": true,
+      "updatedAt": "2026-09-28T19:10:32.935Z"
+    },
+    {
+      "id": 3,
+      "nome": "Herliton",
+      "email": "herliton@allos.net.br",
+      "senhaHash": "$2a$10$hVpFaLAQIsxRAj9SgZK8KuD7e4M8.abTu/jcUbVjMjWB0.EqxtHnm",
+      "perfil": "admin",
+      "status": "ativo",
+      "firstAccess": true,
+      "createdAt": "2026-09-28T18:53:07.764Z",
+      "telefone": "61981685208",
+      "cep": "72322574",
+      "logradouro": "Quadra QN 614 Conjunto D",
+      "numero": "306",
+      "complemento": "Conjunto D",
+      "bairro": "Samambaia Norte",
+      "cidade": "Brasília",
+      "estado": "DF",
+      "updatedAt": "2026-09-28T19:11:38.523Z"
+    },
+    {
+      "id": 4,
+      "nome": "José da Couve",
+      "email": "herliton@gmail.com",
+      "perfil": "SELLER",
+      "senhaHash": "$2a$10$b.QGrL0os.NzdR0RqoJbYOmIOYrjV2/wv6n1oFnIXae0yNVH.pt1O",
+      "telefone": "61981685208",
+      "cep": "72318-307",
+      "logradouro": "QR 408 CONJUNTO 7 CASA",
+      "numero": "05",
+      "complemento": "",
+      "bairro": "",
+      "cidade": "BRASILIA",
+      "estado": "DF",
+      "status": "ativo",
+      "firstAccess": true,
+      "createdAt": "2026-09-28T19:07:52.704Z"
     }
   ],
   "clientes": [
@@ -45,6 +92,16 @@
       "status": "ativo",
       "usuarioId": 1,
       "createdAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": 2,
+      "nome": "José da Couve",
+      "email": "herliton@gmail.com",
+      "telefone": "61981685208",
+      "cargo": "Vendedor",
+      "status": "ativo",
+      "usuarioId": 4,
+      "createdAt": "2026-09-28T19:07:52.705Z"
     }
   ],
   "veiculos": [
@@ -96,5 +153,6 @@
       "observacoes": "Registro financeiro demo inicial",
       "createdAt": "2026-09-24T18:25:42.357Z"
     }
-  ]
+  ],
+  "configuracoes": {}
 }

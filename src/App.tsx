@@ -1,58 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import vfcLogo from "./assets/vfc-logo.png";
 import { downloadCommissionReport } from "./api/reports";
-import { formatWeekRange, getCurrentWeekRange } from "./utils/dateRange";
+import { formatWeekRange, getCurrentWeekRange, toApiDate } from "./utils/dateRange";
 import { transitionSalesStage, type SalesStage } from "./utils/salesLifecycle";
 
-const API_BASE_URL = "http://localhost:4000/api";
-
-async function apiRequest(path: string, options: RequestInit = {}) {
-  const token = localStorage.getItem("vfcAuthToken");
-  const headers = new Headers(options.headers || {});
-
-  if (!(options.body instanceof FormData) && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-
-  try {
-    const response = await fetch(`${API_BASE_URL}${path}`, {
-      ...options,
-      headers,
-    });
-
-    const payload = await response.json().catch(() => null);
-
-    if (!response.ok) {
-      const message = payload?.message || "Erro ao comunicar com a API.";
-      throw new Error(message);
-    }
-
-    return payload;
-  } catch (error) {
-    const message = error instanceof Error && error.message
-      ? error.message
-      : "Não foi possível conectar ao servidor. Verifique se a API local está ativa.";
-
-    if (message.toLowerCase().includes("failed to fetch") || message.toLowerCase().includes("network") || message.toLowerCase().includes("conectar") || message.toLowerCase().includes("api")) {
-      throw new Error("Não foi possível conectar ao servidor. Verifique se a API local está ativa.");
-    }
-
-    throw new Error(message);
-  }
-}
-
-const formatCurrency = (value: number | string | null | undefined) => {
-  const numericValue = typeof value === "number" ? value : Number(String(value ?? "0").replace(/[^\d,.-]/g, "").replace(".", "").replace(",", "."));
-  if (!Number.isFinite(numericValue)) return "R$ 0,00";
-
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(numericValue);
-};
+const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
 
 const currentWeek = getCurrentWeekRange();
 const currentWeekLabel = formatWeekRange(currentWeek);
@@ -62,72 +14,6 @@ const currentDateLabel = new Intl.DateTimeFormat("pt-BR", {
   day: "2-digit",
   month: "long",
 }).format(new Date());
-const dashboardPeriodData = {
-  [currentWeekLabel]: {
-    label: currentWeekLabel,
-    sims: { value: "48", delta: "+12,5%", tone: "up" },
-    proposals: { value: "26", delta: "+8,3%", tone: "up" },
-    contracts: { value: "13", delta: "+18,2%", tone: "up" },
-    rejected: { value: "5", delta: "−2,1%", tone: "down" },
-    spark: [
-      { height: "35%", tone: "blue" },
-      { height: "55%", tone: "blue" },
-      { height: "43%", tone: "blue" },
-      { height: "70%", tone: "purple" },
-      { height: "61%", tone: "purple" },
-      { height: "88%", tone: "purple" },
-      { height: "100%", tone: "green" },
-    ],
-  },
-  "Últimos 30 dias": {
-    label: "Últimos 30 dias",
-    sims: { value: "164", delta: "+18,7%", tone: "up" },
-    proposals: { value: "92", delta: "+11,4%", tone: "up" },
-    contracts: { value: "41", delta: "+22,1%", tone: "up" },
-    rejected: { value: "16", delta: "−4,8%", tone: "down" },
-    spark: [
-      { height: "40%", tone: "blue" },
-      { height: "60%", tone: "blue" },
-      { height: "52%", tone: "blue" },
-      { height: "75%", tone: "purple" },
-      { height: "66%", tone: "purple" },
-      { height: "92%", tone: "purple" },
-      { height: "100%", tone: "green" },
-    ],
-  },
-  "Últimos 90 dias": {
-    label: "Últimos 90 dias",
-    sims: { value: "512", delta: "+26,4%", tone: "up" },
-    proposals: { value: "286", delta: "+17,9%", tone: "up" },
-    contracts: { value: "127", delta: "+28,5%", tone: "up" },
-    rejected: { value: "38", delta: "−6,2%", tone: "down" },
-    spark: [
-      { height: "46%", tone: "blue" },
-      { height: "63%", tone: "blue" },
-      { height: "58%", tone: "blue" },
-      { height: "78%", tone: "purple" },
-      { height: "71%", tone: "purple" },
-      { height: "95%", tone: "purple" },
-      { height: "100%", tone: "green" },
-    ],
-  },
-  "Período personalizado": {
-    label: "Período personalizado",
-    sims: { value: "48", delta: "+12,5%", tone: "up" },
-    proposals: { value: "26", delta: "+8,3%", tone: "up" },
-    contracts: { value: "13", delta: "+18,2%", tone: "up" },
-    rejected: { value: "5", delta: "−2,1%", tone: "down" },
-    spark: [
-      { height: "35%", tone: "blue" },
-      { height: "55%", tone: "blue" },
-      { height: "43%", tone: "blue" },
-      { height: "70%", tone: "purple" },
-      { height: "61%", tone: "purple" },
-      { height: "88%", tone: "purple" },
-      { height: "100%", tone: "green" },
-    ],
-  },
-};
 
 type IconName =
   | "home"
@@ -192,6 +78,7 @@ const navGroups = [
       { label: "Propostas", icon: "file" as IconName, badge: "8" },
       { label: "Contratos", icon: "contract" as IconName },
       { label: "Clientes", icon: "users" as IconName },
+      { label: "Recuperação de crédito", icon: "trend" as IconName },
       { label: "Classificados", icon: "car" as IconName },
     ],
   },
@@ -199,29 +86,43 @@ const navGroups = [
     label: "CADASTROS",
     items: [
       { label: "Veículos", icon: "car" as IconName },
+      { label: "Lojas", icon: "home" as IconName },
       { label: "Taxas e tabelas", icon: "percent" as IconName },
       { label: "Benefícios", icon: "gift" as IconName },
       { label: "Usuários e perfis", icon: "users" as IconName },
+      { label: "Permissões de acesso", icon: "settings" as IconName },
     ],
   },
   {
     label: "GESTÃO",
     items: [
       { label: "Painel do gerente", icon: "home" as IconName },
-      { label: "Painel executivo", icon: "chart" as IconName },
       { label: "Minha equipe", icon: "users" as IconName },
-      { label: "Aprovações e documentos", icon: "file" as IconName },
       { label: "Painel de suporte", icon: "trend" as IconName },
-      { label: "Entrega e pós-venda", icon: "car" as IconName },
-      { label: "Garantia e pós-venda", icon: "gift" as IconName },
-      { label: "CRM pós-venda", icon: "users" as IconName },
       { label: "Equipes e comissões", icon: "chart" as IconName },
-      { label: "Sistema financeiro", icon: "percent" as IconName },
       { label: "Relatórios", icon: "file" as IconName },
       { label: "Configurações", icon: "settings" as IconName },
     ],
   },
 ];
+
+
+const roleModules: Record<string, string[]> = {
+  ADMIN: navGroups.flatMap((group) => group.items.map((item) => item.label)),
+  SELLER: ["Simulações", "Propostas", "Contratos", "Clientes", "Recuperação de crédito", "Classificados", "Veículos", "Taxas e tabelas", "Benefícios"],
+  MANAGER: ["Simulações", "Propostas", "Contratos", "Clientes", "Recuperação de crédito", "Classificados", "Veículos", "Taxas e tabelas", "Benefícios", "Painel do gerente", "Minha equipe", "Equipes e comissões", "Relatórios"],
+  SUPPORT: ["Propostas", "Contratos", "Recuperação de crédito", "Taxas e tabelas", "Painel de suporte", "Equipes e comissões", "Relatórios"],
+};
+
+const normalizeRole = (role?: string) => {
+  const normalized = String(role || "SELLER").trim().toUpperCase();
+  if (["ADMIN", "ADMINISTRADOR"].includes(normalized)) return "ADMIN";
+  if (["MANAGER", "GERENTE"].includes(normalized)) return "MANAGER";
+  if (["SUPPORT", "SUPORTE"].includes(normalized)) return "SUPPORT";
+  return "SELLER";
+};
+
+const roleNames: Record<string, string> = { ADMIN: "Administrador", MANAGER: "Gerente", SELLER: "Vendedor", SUPPORT: "Suporte" };
 
 const activities = [
   { initials: "MC", tone: "blue", name: "Marcos Costa", action: "criou uma nova proposta", item: "#PROP-2025-0842", time: "Há 8 min" },
@@ -237,79 +138,99 @@ const proposals = [
   { id: "#0839", client: "Fernanda Dias", car: "Honda HR-V Touring", seller: "Amanda Silva", value: "R$ 176.200", status: "Recusada", tone: "red" },
 ];
 
-type AuthMode = "login" | "forgot" | "change";
+type AuthMode = "login" | "forgot" | "change" | "reset";
 
-type CustomerHistoryEntry = {
-  date: string;
-  title: string;
-  detail: string;
-  tone: string;
-  icon: IconName;
-};
+type AuthUser = { id: number; nome: string; email: string; perfil: string; firstAccess?: boolean; lojaId?: number | null; lojaNome?: string };
 
-function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
-  const [mode, setMode] = useState<AuthMode>("login");
-  const [email, setEmail] = useState("admin@proposta.com.br");
-  const [password, setPassword] = useState("Proposta123");
+function AuthScreen({ onAuthenticated }: { onAuthenticated: (token: string, user: AuthUser) => void }) {
+  const [resetToken, setResetToken] = useState(() => new URLSearchParams(window.location.search).get("resetToken") || "");
+  const [mode, setMode] = useState<AuthMode>(() => resetToken ? "reset" : "login");
+  const [email, setEmail] = useState("herliton@allos.net.br");
+  const [password, setPassword] = useState(() => resetToken ? "" : "Proposta123");
   const [notice, setNotice] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pendingToken, setPendingToken] = useState("");
+  const [pendingUser, setPendingUser] = useState<AuthUser | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setNotice("");
-
     if (mode === "forgot") {
-      setNotice("Link de recuperação enviado. Verifique sua caixa de entrada.");
+      if (!email.includes("@")) { setNotice("Informe um e-mail válido."); return; }
+      setSubmitting(true);
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }),
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(payload?.message || "Não foi possível solicitar a recuperação.");
+        setNotice(payload?.message || "Se o e-mail estiver cadastrado, enviaremos um link para redefinir a senha.");
+      } catch (requestError) { setNotice(requestError instanceof Error ? requestError.message : "Falha ao solicitar a recuperação."); }
+      finally { setSubmitting(false); }
       return;
     }
-
+    if (mode === "reset") {
+      if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}/.test(password)) {
+        setNotice("Use ao menos 8 caracteres, com maiúscula, minúscula e número."); return;
+      }
+      setSubmitting(true);
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: resetToken, senha: password }),
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(payload?.message || "Não foi possível redefinir a senha.");
+        setMode("login"); setPassword(""); setResetToken("");
+        window.history.replaceState({}, document.title, window.location.pathname);
+        setNotice(payload?.message || "Senha alterada com sucesso. Faça login com a nova senha.");
+      } catch (requestError) { setNotice(requestError instanceof Error ? requestError.message : "Falha ao redefinir a senha."); }
+      finally { setSubmitting(false); }
+      return;
+    }
     if (mode === "change") {
       if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}/.test(password)) {
         setNotice("Use ao menos 8 caracteres, com maiúscula, minúscula e número.");
         return;
       }
-      onAuthenticated();
+      setSubmitting(true);
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/first-access-change`, {
+          method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${pendingToken}` },
+          body: JSON.stringify({ senha: password }),
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(payload?.message || "Não foi possível alterar a senha.");
+        if (pendingUser) onAuthenticated(pendingToken, pendingUser);
+      } catch (requestError) { setNotice(requestError instanceof Error ? requestError.message : "Falha ao alterar a senha."); }
+      finally { setSubmitting(false); }
       return;
     }
-
     if (!email.includes("@") || password.length < 8) {
       setNotice("Informe um e-mail válido e uma senha com pelo menos 8 caracteres.");
       return;
     }
-
+    setSubmitting(true);
     try {
-      setIsSubmitting(true);
-      setNotice("");
-
-      const result = await apiRequest("/auth/login", {
-        method: "POST",
-        body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          senha: password,
-        }),
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, senha: password }),
       });
-
-      if (!result.success) {
-        setNotice(result.message || "E-mail ou senha incorretos.");
-        return;
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(payload?.message || "Não foi possível entrar.");
+      const session = payload?.data;
+      if (!session?.token || !session?.user?.nome) {
+        throw new Error(payload?.message || "O servidor retornou uma sessão inválida.");
       }
-
-      localStorage.setItem("vfcAuthToken", result.data.token);
-      localStorage.setItem("vfcAuthUser", JSON.stringify(result.data.user));
-      onAuthenticated();
-    } catch (error) {
-      const message = error instanceof Error && error.message ? error.message : "Não foi possível conectar ao servidor. Verifique se a API local está ativa.";
-      setNotice(message === "Credenciais inválidas" ? "E-mail ou senha incorretos. Verifique os dados e tente novamente." : message);
-    } finally {
-      setIsSubmitting(false);
-    }
+      if (session.user.firstAccess) {
+        setPendingToken(session.token); setPendingUser(session.user); setMode("change"); setPassword("");
+      } else { onAuthenticated(session.token, session.user); }
+    } catch (requestError) { setNotice(requestError instanceof Error ? requestError.message : "Falha ao entrar no sistema."); }
+    finally { setSubmitting(false); }
   };
 
   return (
     <div className="auth-page">
       <div className="auth-brand">
-        <div className="brand-mark"><span /><span /><span /></div>
-        <div className="brand-wordmark"><strong>VFC</strong><small>Multimarcas</small></div>
+        <img src={vfcLogo} alt={clientCompany} className="brand-logo" />
       </div>
       <div className="auth-visual">
         <div className="auth-visual-copy">
@@ -332,15 +253,26 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
             <label>E-mail<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com.br"/></label>
             <label>Senha<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Sua senha"/></label>
             <button type="button" className="forgot-link" onClick={() => { setMode("forgot"); setNotice(""); }}>Esqueci minha senha</button>
-            <button className="auth-submit" type="submit" disabled={isSubmitting}>{isSubmitting ? "Entrando..." : <>Entrar <Icon name="arrow" size={16}/></>}</button>
-              </>}
+            <button className="auth-submit" type="submit" disabled={submitting}>{submitting ? "Entrando..." : <>Entrar <Icon name="arrow" size={16}/></>}</button>
+            <div className="demo-access"><strong>Demonstração ativa</strong><span>herliton@allos.net.br · Proposta123</span></div>
+          </>}
           {mode === "forgot" && <>
             <button type="button" className="auth-back" onClick={() => { setMode("login"); setNotice(""); }}>‹ Voltar para o login</button>
             <div className="auth-symbol"><Icon name="file" size={25}/></div>
             <h2>Recupere sua senha</h2>
             <p>Enviaremos um link seguro para você criar uma nova senha.</p>
             <label>E-mail cadastrado<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com.br"/></label>
-            <button className="auth-submit" type="submit">Enviar link de recuperação</button>
+            <button className="auth-submit" type="submit" disabled={submitting}>{submitting ? "Enviando..." : "Enviar link de recuperação"}</button>
+          </>}
+          {mode === "reset" && <>
+            <button type="button" className="auth-back" onClick={() => { setMode("login"); setNotice(""); }}>‹ Voltar para o login</button>
+            <div className="auth-symbol"><Icon name="settings" size={25}/></div>
+            <span className="auth-kicker">RECUPERAÇÃO DE ACESSO</span>
+            <h2>Crie uma nova senha</h2>
+            <p>O link é válido por uma hora. Escolha uma senha segura para continuar.</p>
+            <label>Nova senha<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Digite uma senha segura"/></label>
+            <div className="password-rules"><span className={password.length >= 8 ? "valid" : ""}>8+ caracteres</span><span className={/[A-Z]/.test(password) ? "valid" : ""}>Uma maiúscula</span><span className={/[a-z]/.test(password) ? "valid" : ""}>Uma minúscula</span><span className={/\d/.test(password) ? "valid" : ""}>Um número</span></div>
+            <button className="auth-submit" type="submit" disabled={submitting || !resetToken}>{submitting ? "Salvando..." : "Redefinir senha"}</button>
           </>}
           {mode === "change" && <>
             <div className="auth-symbol"><Icon name="settings" size={25}/></div>
@@ -349,9 +281,9 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: () => void }) {
             <p>Por segurança, substitua a senha temporária antes de continuar.</p>
             <label>Nova senha<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Digite uma senha segura"/></label>
             <div className="password-rules"><span className={password.length >= 8 ? "valid" : ""}>8+ caracteres</span><span className={/[A-Z]/.test(password) ? "valid" : ""}>Uma maiúscula</span><span className={/[a-z]/.test(password) ? "valid" : ""}>Uma minúscula</span><span className={/\d/.test(password) ? "valid" : ""}>Um número</span></div>
-            <button className="auth-submit" type="submit">Salvar nova senha</button>
+            <button className="auth-submit" type="submit" disabled={submitting}>{submitting ? "Salvando..." : "Salvar nova senha"}</button>
           </>}
-          {notice && <div className={`auth-notice ${notice.startsWith("Link") ? "success" : ""}`}>{notice}</div>}
+          {notice && <div className={`auth-notice ${notice.startsWith("Se o e-mail") || notice.startsWith("Senha alterada") ? "success" : ""}`}>{notice}</div>}
         </form>
         <span className="auth-footer">© 2025 {clientCompany} · Segurança, produtividade e confiança</span>
       </div>
@@ -382,338 +314,306 @@ const moduleData: Record<string, { title: string; subtitle: string; action: stri
   },
 };
 
-function UsersPage() {
-  const [showForm, setShowForm] = useState(false);
-  const [editingUserId, setEditingUserId] = useState<number | null>(null);
-  const [userQuery, setUserQuery] = useState("");
-  const [userStatus, setUserStatus] = useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
-  const [cep, setCep] = useState("");
-  const [address, setAddress] = useState({ street: "", neighborhood: "", city: "", state: "" });
-  const [cepStatus, setCepStatus] = useState("");
-  const [form, setForm] = useState({
-    name: "",
-    phone: "",
-    email: "",
-    role: "SELLER",
-    active: true,
-  });
-  const [users, setUsers] = useState<Array<{ id: number; initials: string; name: string; email: string; phone: string; role: string; active: boolean }>>([]);
+type ManagedUser = {
+  id: number; nome: string; email: string; perfil: string; status: string; telefone: string;
+  cep: string; logradouro: string; numero: string; complemento: string; bairro: string; cidade: string; estado: string; lojaId: number; lojaNome: string;
+};
 
-  const normalizeUser = (user: any) => ({
-    id: user.id,
-    initials: (user.nome || user.name || "U").split(" ").slice(0, 2).map((part: string) => part[0]?.toUpperCase() ?? "").join(""),
-    name: user.nome || user.name || "Usuário",
-    email: user.email || "",
-    phone: user.telefone || user.phone || "",
-    role: user.cargo || user.role || "SELLER",
-    active: (user.status || user.active) !== "inativo" && user.active !== false,
-  });
+type ManagedUserForm = Omit<ManagedUser, "id">;
+
+const emptyUserForm: ManagedUserForm = {
+  nome: "", email: "", perfil: "SELLER", status: "ativo", telefone: "", cep: "", logradouro: "",
+  numero: "", complemento: "", bairro: "", cidade: "", estado: "", lojaId: 1, lojaNome: "",
+};
+
+function UsersPage({ authToken }: { authToken: string }) {
+  const [users, setUsers] = useState<ManagedUser[]>([]);
+  const [stores, setStores] = useState<StoreRecord[]>([]);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [form, setForm] = useState<ManagedUserForm>(emptyUserForm);
+  const [cepStatus, setCepStatus] = useState("");
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const apiRequest = async (path: string, options: RequestInit = {}) => {
+    const headers = new Headers(options.headers);
+    headers.set("Authorization", `Bearer ${authToken}`);
+    if (options.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+    const response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(payload?.message || "Não foi possível concluir a operação.");
+    return payload?.data;
+  };
 
   const loadUsers = async () => {
+    setLoading(true);
+    setError("");
     try {
-      const result = await apiRequest("/vendedores");
-      const data = Array.isArray(result?.data) ? result.data : [];
-      setUsers(data.map(normalizeUser));
-    } catch {
-      setUsers([]);
+      const [records, storeRecords] = await Promise.all([apiRequest("/auth/users"), apiRequest("/stores")]);
+      setUsers(Array.isArray(records) ? records : []); setStores(Array.isArray(storeRecords) ? storeRecords.filter((store: StoreRecord) => store.status === "ativo") : []);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Falha ao carregar usuários.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  useEffect(() => {
-    void loadUsers();
-  }, []);
+  useEffect(() => { void loadUsers(); }, [authToken]);
 
-  const filteredUsers = users.filter((user) => {
-    const matchesQuery = `${user.name} ${user.email} ${user.role}`.toLowerCase().includes(userQuery.toLowerCase());
-    const matchesStatus = userStatus === "ALL" || (userStatus === "ACTIVE" ? user.active : !user.active);
-    return matchesQuery && matchesStatus;
-  });
-
-  const lookupCep = async () => {
-    const normalized = cep.replace(/\D/g, "");
-    if (normalized.length !== 8) {
-      setCepStatus("Informe um CEP com 8 dígitos.");
-      return;
-    }
-    setCepStatus("Consultando CEP...");
-    try {
-      const response = await fetch(`https://viacep.com.br/ws/${normalized}/json/`);
-      const result = await response.json();
-      if (result.erro) throw new Error();
-      setAddress({ street: result.logradouro, neighborhood: result.bairro, city: result.localidade, state: result.uf });
-      setCepStatus("Endereço preenchido pela ViaCEP.");
-    } catch {
-      setCepStatus("CEP não encontrado. Preencha o endereço manualmente.");
-    }
-  };
-
-  const openForm = (user?: typeof users[number]) => {
-    setEditingUserId(user ? user.id : null);
-    setForm({
-      name: user?.name ?? "",
-      phone: user?.phone ?? "",
-      email: user?.email ?? "",
-      role: user?.role ?? "SELLER",
-      active: user?.active ?? true,
-    });
-    setCep("");
-    setAddress({ street: "", neighborhood: "", city: "", state: "" });
+  const updateField = <K extends keyof ManagedUserForm>(field: K, value: ManagedUserForm[K]) => setForm((current) => ({ ...current, [field]: value }));
+  const openForm = (user?: ManagedUser) => {
+    setEditingId(user?.id ?? null);
+    setForm(user ? {
+      nome: user.nome, email: user.email, perfil: user.perfil.toUpperCase(), status: user.status,
+      telefone: user.telefone || "", cep: user.cep || "", logradouro: user.logradouro || "", numero: user.numero || "",
+      complemento: user.complemento || "", bairro: user.bairro || "", cidade: user.cidade || "", estado: user.estado || "", lojaId: user.lojaId || 1, lojaNome: user.lojaNome || "",
+    } : { ...emptyUserForm, lojaId: stores[0]?.id || 1 });
+    setNotice("");
+    setError("");
     setCepStatus("");
     setShowForm(true);
   };
 
+  const lookupCep = async () => {
+    const normalized = form.cep.replace(/\D/g, "");
+    if (normalized.length !== 8) { setCepStatus("Informe um CEP com 8 dígitos."); return; }
+    setCepStatus("Consultando CEP...");
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${normalized}/json/`);
+      const result = await response.json();
+      if (!response.ok || result.erro) throw new Error();
+      setForm((current) => ({ ...current, logradouro: result.logradouro || "", bairro: result.bairro || "", cidade: result.localidade || "", estado: result.uf || "" }));
+      setCepStatus("Endereço preenchido pela ViaCEP.");
+    } catch { setCepStatus("CEP não encontrado. Preencha o endereço manualmente."); }
+  };
+
   const saveUser = async (event: React.FormEvent) => {
     event.preventDefault();
-    const nextName = form.name.trim();
-    const nextEmail = form.email.trim();
-    if (!nextName || !nextEmail) return;
-
-    const payload = {
-      nome: nextName,
-      email: nextEmail,
-      telefone: form.phone,
-      cargo: form.role,
-      status: form.active ? "ativo" : "inativo",
-      equipe: "Comercial",
-    };
-
+    setSaving(true); setError(""); setNotice("");
+    const payload = { ...form };
     try {
-      if (editingUserId === null) {
-        const result = await apiRequest("/vendedores", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-        setUsers((current) => [normalizeUser(result.data), ...current]);
-      } else {
-        const result = await apiRequest(`/vendedores/${editingUserId}`, {
-          method: "PUT",
-          body: JSON.stringify(payload),
-        });
-        setUsers((current) => current.map((user) => user.id === editingUserId ? normalizeUser(result.data) : user));
-      }
-      setShowForm(false);
-    } catch {
-      setShowForm(false);
-    }
-  };
-
-  const toggleUserStatus = async (id: number) => {
-    const user = users.find((item) => item.id === id);
-    if (!user) return;
-
-    try {
-      const result = await apiRequest(`/vendedores/${id}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          status: user.active ? "inativo" : "ativo",
-        }),
+      const saved = await apiRequest(editingId ? `/auth/users/${editingId}` : "/auth/users", {
+        method: editingId ? "PUT" : "POST", body: JSON.stringify(payload),
       });
-      setUsers((current) => current.map((item) => item.id === id ? normalizeUser(result.data) : item));
-    } catch {
-      setUsers((current) => current.map((item) => item.id === id ? { ...item, active: !item.active } : item));
-    }
+      await loadUsers();
+      setShowForm(false);
+      setNotice(editingId
+        ? `Dados atualizados. As instruções de acesso foram enviadas para ${saved.email}.`
+        : `Usuário criado. As instruções de acesso foram enviadas para ${saved.email}.`);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Falha ao salvar usuário.");
+    } finally { setSaving(false); }
   };
+
+  const initials = (name: string) => name.split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase();
+  const activeUsers = users.filter((user) => user.status !== "inativo").length;
+  const managers = users.filter((user) => user.perfil.toUpperCase() === "MANAGER").length;
 
   return (
     <div className="content module-content">
       <section className="module-heading"><div><p>ADMINISTRAÇÃO E ACESSOS</p><h1>Usuários e perfis</h1><span>Gerencie dados pessoais, funções e acessos dos colaboradores.</span></div><button className="primary-button" onClick={() => openForm()}><Icon name="plus" size={18}/>Novo usuário</button></section>
-      <section className="module-summary"><div><span>Usuários ativos</span><strong>{users.filter((user) => user.active).length}</strong></div><div><span>Gerentes-vendedores</span><strong>{users.filter((user) => user.role === "MANAGER").length}</strong></div><div><span>Acessos desativados</span><strong>{users.filter((user) => !user.active).length}</strong></div></section>
+      <section className="module-summary"><div><span>Usuários ativos</span><strong>{activeUsers}</strong></div><div><span>Gerentes</span><strong>{managers}</strong></div><div><span>Acessos desativados</span><strong>{users.length - activeUsers}</strong></div></section>
+      {notice && <div className="auth-notice success">{notice}</div>}
+      {error && !showForm && <div className="auth-notice">{error} <button onClick={() => void loadUsers()}>Tentar novamente</button></div>}
       <section className="panel module-table">
-        <div className="module-toolbar">
-          <div className="search-box"><Icon name="search" size={17}/><input value={userQuery} onChange={(event) => setUserQuery(event.target.value)} placeholder="Buscar usuário, e-mail ou perfil..."/></div>
-          <select value={userStatus} onChange={(event) => setUserStatus(event.target.value as "ALL" | "ACTIVE" | "INACTIVE")} className="status-filter-select">
-            <option value="ALL">Todos os status</option>
-            <option value="ACTIVE">Ativos</option>
-            <option value="INACTIVE">Inativos</option>
-          </select>
-        </div>
-        <div className="table-wrap"><table><thead><tr><th>USUÁRIO</th><th>CONTATO</th><th>PERFIL</th><th>STATUS</th><th>ACESSOS HERDADOS</th><th>AÇÃO</th></tr></thead><tbody>{filteredUsers.map((user) => <tr key={user.id}><td><div className="seller-cell"><div className="mini-avatar blue">{user.initials}</div><div><strong>{user.name}</strong><small className="table-subcopy">{user.email}</small></div></div></td><td>{user.phone}</td><td><span className="role-pill">{user.role}</span></td><td><span className={`status ${user.active ? "green" : "red"}`}>{user.active ? "Ativo" : "Inativo"}</span></td><td>{user.role === "MANAGER" ? <span className="inheritance-pill">MANAGER + SELLER</span> : "—"}</td><td><div className="row-actions"><button className="edit-link" onClick={() => openForm(user)}>Editar</button><button className="row-status-toggle" onClick={() => toggleUserStatus(user.id)}>{user.active ? "Desativar" : "Ativar"}</button></div></td></tr>)}</tbody></table></div>
+        <div className="module-toolbar"><div className="search-box"><Icon name="search" size={17}/><input placeholder="Buscar usuário, e-mail ou perfil..."/></div><button><Icon name="settings" size={16}/>Filtros</button></div>
+        <div className="table-wrap"><table><thead><tr><th>USUÁRIO</th><th>CONTATO</th><th>PERFIL</th><th>LOJA</th><th>STATUS</th><th>ACESSOS HERDADOS</th><th></th></tr></thead><tbody>
+          {loading ? <tr><td colSpan={6}>Carregando usuários...</td></tr> : users.map((user) => <tr key={user.id}><td><div className="seller-cell"><div className="mini-avatar blue">{initials(user.nome)}</div><div><strong>{user.nome}</strong><small className="table-subcopy">{user.email}</small></div></div></td><td>{user.telefone || "—"}</td><td><span className="role-pill">{user.perfil}</span></td><td>{user.lojaNome || "Loja Brasília"}</td><td><span className={`status ${user.status === "inativo" ? "red" : "green"}`}>{user.status === "inativo" ? "Inativo" : "Ativo"}</span></td><td>{user.perfil.toUpperCase() === "MANAGER" ? <span className="inheritance-pill">MANAGER + SELLER</span> : "—"}</td><td><button className="edit-link" onClick={() => openForm(user)}>Editar</button></td></tr>)}
+          {!loading && users.length === 0 && <tr><td colSpan={6}>Nenhum usuário cadastrado.</td></tr>}
+        </tbody></table></div>
       </section>
       {showForm && <div className="page-form-layer"><form onSubmit={saveUser} className="modal-card wide-modal user-modal page-form-card">
         <button type="button" className="page-back" onClick={() => setShowForm(false)}><Icon name="arrow" size={16}/>Voltar para usuários</button>
-        <div className="modal-title"><div><span>{editingUserId === null ? "NOVO USUÁRIO" : "EDIÇÃO DE USUÁRIO"}</span><h2>{editingUserId === null ? "Cadastrar colaborador" : form.name || "Editar colaborador"}</h2><p>Preencha os dados de identificação, acesso e endereço do colaborador.</p></div></div>
-        <div className="profile-upload"><label><input type="file" accept="image/*"/><span><Icon name="plus" size={17}/></span></label><div><strong>Foto de perfil</strong><small>JPG ou PNG · máximo de 5 MB</small></div></div>
+        <div className="modal-title"><div><span>{editingId ? "EDIÇÃO DE USUÁRIO" : "NOVO USUÁRIO"}</span><h2>{editingId ? form.nome : "Cadastrar colaborador"}</h2><p>{editingId ? "Os dados serão carregados do cadastro atual. Ao salvar, uma senha temporária será enviada ao e-mail cadastrado." : "Preencha os dados de identificação, acesso e endereço do colaborador. As credenciais temporárias serão enviadas ao e-mail informado."}</p></div></div>
         <div className="form-section-title">Identificação e acesso</div>
-        <div className="modal-row"><label>Nome completo<input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="Nome e sobrenome"/></label><label>Telefone / WhatsApp<input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} placeholder="(00) 00000-0000"/></label></div>
-        <div className="modal-row"><label>E-mail de acesso<input type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} placeholder="usuario@empresa.com.br"/></label><label>Perfil<select value={form.role} onChange={(event) => setForm((current) => ({ ...current, role: event.target.value }))}><option value="ADMIN">ADMIN</option><option value="MANAGER">MANAGER</option><option value="SELLER">SELLER</option><option value="SUPPORT">SUPPORT</option></select></label></div>
-        <div className="role-inheritance-note"><Icon name="users" size={17}/><span>O perfil <strong>MANAGER</strong> herda automaticamente todos os acessos operacionais de <strong>SELLER</strong>.</span></div>
+        <div className="modal-row"><label>Nome completo<input required value={form.nome} onChange={(event) => updateField("nome", event.target.value)} placeholder="Nome e sobrenome"/></label><label>Telefone / WhatsApp<input value={form.telefone} onChange={(event) => updateField("telefone", event.target.value)} placeholder="(00) 00000-0000"/></label></div>
+        <div className="modal-row"><label>E-mail de acesso<input required type="email" value={form.email} readOnly={Boolean(editingId)} onChange={(event) => updateField("email", event.target.value)} placeholder="usuario@empresa.com.br"/></label><label>Perfil<select value={form.perfil} onChange={(event) => updateField("perfil", event.target.value)}><option value="ADMIN">ADMIN</option><option value="MANAGER">MANAGER</option><option value="SELLER">SELLER</option><option value="SUPPORT">SUPPORT</option></select></label></div>
+        {editingId && <div className="role-inheritance-note"><Icon name="settings" size={17}/><span>O e-mail é fixo. Ao salvar, uma senha temporária será enviada para esse endereço e deverá ser trocada no primeiro acesso.</span></div>}
+        <div className="modal-row"><label>Status<select value={form.status} onChange={(event) => updateField("status", event.target.value)}><option value="ativo">Ativo</option><option value="inativo">Inativo</option></select></label><label>Loja<select value={form.lojaId} onChange={(event) => updateField("lojaId", Number(event.target.value))}>{stores.map((store) => <option key={store.id} value={store.id}>{store.nome}</option>)}</select></label></div>
         <div className="form-section-title">Endereço completo</div>
-        <div className="cep-row"><label>CEP<input value={cep} onChange={(event) => setCep(event.target.value)} onBlur={lookupCep} placeholder="00000-000"/></label><button type="button" onClick={lookupCep}><Icon name="search" size={15}/>Buscar CEP</button><span>{cepStatus}</span></div>
-        <div className="modal-row address-main"><label>Logradouro<input value={address.street} onChange={(event) => setAddress({ ...address, street: event.target.value })}/></label><label>Número<input placeholder="Nº"/></label></div>
-        <div className="modal-row"><label>Complemento<input placeholder="Apto, bloco ou referência"/></label><label>Bairro<input value={address.neighborhood} onChange={(event) => setAddress({ ...address, neighborhood: event.target.value })}/></label></div>
-        <div className="modal-row city-row"><label>Cidade<input value={address.city} onChange={(event) => setAddress({ ...address, city: event.target.value })}/></label><label>Estado<input value={address.state} onChange={(event) => setAddress({ ...address, state: event.target.value })}/></label></div>
-        <div className="modal-actions"><button type="button" onClick={() => setShowForm(false)}>Cancelar</button><button type="submit" className="primary-button">{editingUserId === null ? "Cadastrar e enviar acesso" : "Salvar alterações"}</button></div>
+        <div className="cep-row"><label>CEP<input value={form.cep} onChange={(event) => updateField("cep", event.target.value)} onBlur={() => { if (form.cep.replace(/\D/g, "").length === 8) void lookupCep(); }} placeholder="00000-000"/></label><button type="button" onClick={() => void lookupCep()}><Icon name="search" size={15}/>Buscar CEP</button><span>{cepStatus}</span></div>
+        <div className="modal-row address-main"><label>Logradouro<input value={form.logradouro} onChange={(event) => updateField("logradouro", event.target.value)}/></label><label>Número<input value={form.numero} onChange={(event) => updateField("numero", event.target.value)} placeholder="Nº"/></label></div>
+        <div className="modal-row"><label>Complemento<input value={form.complemento} onChange={(event) => updateField("complemento", event.target.value)} placeholder="Apto, bloco ou referência"/></label><label>Bairro<input value={form.bairro} onChange={(event) => updateField("bairro", event.target.value)}/></label></div>
+        <div className="modal-row city-row"><label>Cidade<input value={form.cidade} onChange={(event) => updateField("cidade", event.target.value)}/></label><label>Estado<input maxLength={2} value={form.estado} onChange={(event) => updateField("estado", event.target.value.toUpperCase())}/></label></div>
+        {error && <div className="auth-notice">{error}</div>}
+        <div className="modal-actions"><button type="button" onClick={() => setShowForm(false)}>Cancelar</button><button className="primary-button" disabled={saving}>{saving ? "Salvando..." : editingId ? "Salvar alterações" : "Cadastrar e gerar acesso"}</button></div>
       </form></div>}
     </div>
   );
 }
 
 type VehicleStatus = "AVAILABLE" | "IN_NEGOTIATION" | "SOLD";
-
-type VehicleRecord = {
-  id: number;
-  name: string;
-  detail: string;
-  years: string;
-  fipe: string;
-  suggested: string;
-  minimum: string;
-  status: VehicleStatus;
-  simulations: number;
+type InventoryVehicle = {
+  id: number; marca: string; modelo: string; placa?: string; anoFabricacao: number; anoModelo: number;
+  codigoFipe?: string; valorFipe: number; precoSugerido: number; precoMinimo: number;
+  status: VehicleStatus; simulacoesAtivas: number; fotos?: Record<string, string>; videoUrl?: string;
 };
+type VehicleForm = {
+  marca: string; modelo: string; placa: string; anoFabricacao: string; anoModelo: string; codigoFipe: string;
+  valorFipe: string; precoSugerido: string; precoMinimo: string;
+  fotos: { right: string; left: string; front: string; rear: string; interior: string };
+  videoUrl: string; videoDuracaoSegundos: string;
+};
+const emptyVehicleForm: VehicleForm = {
+  marca: "", modelo: "", placa: "", anoFabricacao: "", anoModelo: "", codigoFipe: "",
+  valorFipe: "", precoSugerido: "", precoMinimo: "",
+  fotos: { right: "", left: "", front: "", rear: "", interior: "" }, videoUrl: "", videoDuracaoSegundos: "",
+};
+const moneyLabel = (value: number) => value ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value) : "—";
 
-function VehiclesPage() {
+function VehiclesPage({ authToken, profile }: { authToken: string; profile: string }) {
+  const [vehicles, setVehicles] = useState<InventoryVehicle[]>([]);
   const [showForm, setShowForm] = useState(false);
-  const [editingVehicleId, setEditingVehicleId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState("ALL");
-  const [vehicleQuery, setVehicleQuery] = useState("");
-  const [form, setForm] = useState({
-    name: "",
-    detail: "",
-    years: "",
-    fipe: "",
-    suggested: "",
-    minimum: "",
-    status: "AVAILABLE" as VehicleStatus,
-    simulations: 0,
-  });
-  const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
-
-  const normalizeVehicle = (vehicle: any): VehicleRecord => {
-    const nextStatus: VehicleStatus = vehicle.status === "vendido" ? "SOLD" : vehicle.status === "em_negociacao" ? "IN_NEGOTIATION" : "AVAILABLE";
-    return {
-      id: vehicle.id,
-      name: `${vehicle.marca || "Veículo"} ${vehicle.modelo || ""}`.trim(),
-      detail: `${vehicle.placa || "Placa não informada"} · ${vehicle.observacoes || "Flex · Automático"}`,
-      years: `${vehicle.ano || new Date().getFullYear()} / ${vehicle.ano || new Date().getFullYear()}`,
-      fipe: `R$ ${Number(vehicle.valor || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      suggested: `R$ ${Number(vehicle.valor || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      minimum: `R$ ${(Number(vehicle.valor || 0) * 0.96).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      status: nextStatus,
-      simulations: 0,
-    };
+  const [mfgYearFilter, setMfgYearFilter] = useState("ALL");
+  const [modelYearFilter, setModelYearFilter] = useState("ALL");
+  const [brandFilter, setBrandFilter] = useState("ALL");
+  const [search, setSearch] = useState("");
+  const [form, setForm] = useState<VehicleForm>(emptyVehicleForm);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [lookingUpFipe, setLookingUpFipe] = useState(false);
+  const [uploading, setUploading] = useState("");
+  const canManage = ["ADMIN", "MANAGER", "SUPPORT"].includes(profile);
+  const apiRequest = async (path: string, options: RequestInit = {}) => {
+    const headers = new Headers(options.headers);
+    headers.set("Authorization", `Bearer ${authToken}`);
+    if (options.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+    const response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(payload?.message || "Não foi possível concluir a operação.");
+    return payload?.data;
   };
-
   const loadVehicles = async () => {
+    setLoading(true); setError("");
+    const params = new URLSearchParams();
+    if (search.trim()) params.set("search", search.trim());
+    if (brandFilter !== "ALL") params.set("brand", brandFilter);
+    if (mfgYearFilter !== "ALL") params.set("mfg_year", mfgYearFilter);
+    if (modelYearFilter !== "ALL") params.set("model_year", modelYearFilter);
+    if (statusFilter !== "ALL") params.set("status", statusFilter);
     try {
-      const result = await apiRequest("/veiculos");
-      const data = Array.isArray(result?.data) ? result.data : [];
-      setVehicles(data.map(normalizeVehicle));
-    } catch {
-      setVehicles([]);
-    }
+      const records = await apiRequest(`/veiculos?${params.toString()}`);
+      setVehicles(Array.isArray(records) ? records : []);
+    } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Falha ao carregar veículos."); }
+    finally { setLoading(false); }
   };
-
-  useEffect(() => {
-    void loadVehicles();
-  }, []);
-
-  const statusLabel = { AVAILABLE: "Disponível", IN_NEGOTIATION: "Em negociação", SOLD: "Vendido" };
-
-  const visible = vehicles.filter((vehicle) => {
-    const matchesFilter = statusFilter === "ALL" || vehicle.status === statusFilter;
-    const matchesQuery = `${vehicle.name} ${vehicle.detail} ${vehicle.years}`.toLowerCase().includes(vehicleQuery.toLowerCase());
-    return matchesFilter && matchesQuery;
+  useEffect(() => { void loadVehicles(); }, [authToken, search, brandFilter, mfgYearFilter, modelYearFilter, statusFilter]);
+  const uploadMedia = async (file: File, kind: "photo" | "video") => {
+    setError(""); setUploading(kind);
+    try {
+      const body = new FormData(); body.append("file", file);
+      const response = await fetch(`${API_BASE_URL}/veiculos/media/${kind}`, { method: "POST", headers: { Authorization: `Bearer ${authToken}` }, body });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(payload?.message || "Falha ao enviar arquivo.");
+      return String(payload?.data?.url || "");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Falha ao enviar arquivo.");
+      return "";
+    } finally { setUploading(""); }
+  };
+  const inspectVideoDuration = (file: File) => new Promise<number>((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    const cleanup = () => URL.revokeObjectURL(objectUrl);
+    video.onloadedmetadata = () => { const duration = video.duration; cleanup(); resolve(duration); };
+    video.onerror = () => { cleanup(); reject(new Error("Não foi possível ler a duração do vídeo.")); };
+    video.src = objectUrl;
   });
-
-  const openForm = (vehicle?: VehicleRecord) => {
-    setEditingVehicleId(vehicle ? vehicle.id : null);
-    setForm({
-      name: vehicle?.name ?? "",
-      detail: vehicle?.detail ?? "",
-      years: vehicle?.years ?? "",
-      fipe: vehicle?.fipe ?? "",
-      suggested: vehicle?.suggested ?? "",
-      minimum: vehicle?.minimum ?? "",
-      status: vehicle?.status ?? "AVAILABLE",
-      simulations: vehicle?.simulations ?? 0,
-    });
-    setShowForm(true);
+  const choosePhoto = async (key: keyof VehicleForm["fotos"], file?: File) => {
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { setError("Cada foto deve ter no máximo 10 MB."); return; }
+    const url = await uploadMedia(file, "photo");
+    if (url) setForm((current) => ({ ...current, fotos: { ...current.fotos, [key]: url } }));
   };
-
-  const saveVehicle = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!form.name.trim() || !form.suggested.trim()) return;
-
-    const [marca = "", modelo = ""] = form.name.trim().split(/\s+(?=[A-Z].*$)/);
-    const payload = {
-      marca: marca || "Veículo",
-      modelo: modelo || form.name.trim(),
-      ano: Number(form.years.split("/")[0].trim()) || new Date().getFullYear(),
-      placa: form.detail.split("·")[0]?.trim() || "SEM-PLACA",
-      valor: Number(form.suggested.replace(/[^\d,.-]/g, "").replace(".", "").replace(",", ".")) || 0,
-      status: form.status === "AVAILABLE" ? "disponivel" : form.status === "IN_NEGOTIATION" ? "em_negociacao" : "vendido",
-      observacoes: form.detail || "Veículo cadastrado no sistema",
+  const chooseVideo = async (file?: File) => {
+    if (!file) return;
+    try {
+      const duration = await inspectVideoDuration(file);
+      if (!Number.isFinite(duration) || duration <= 0 || duration > 60) { setError("O vídeo deve ter no máximo 60 segundos."); return; }
+      const url = await uploadMedia(file, "video");
+      if (url) setForm((current) => ({ ...current, videoUrl: url, videoDuracaoSegundos: String(Math.ceil(duration)) }));
+    } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Não foi possível validar o vídeo."); }
+  };
+  const allBrands = [...new Set(vehicles.map((vehicle) => vehicle.marca).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const statusLabel: Record<VehicleStatus, string> = { AVAILABLE: "Disponível", IN_NEGOTIATION: "Em negociação", SOLD: "Vendido" };
+  const submitVehicle = async (event: React.FormEvent) => {
+    event.preventDefault(); setSaving(true); setError(""); setNotice("");
+    const body = {
+      ...form, anoFabricacao: Number(form.anoFabricacao), anoModelo: Number(form.anoModelo),
+      valorFipe: Number(form.valorFipe), precoSugerido: Number(form.precoSugerido), precoMinimo: Number(form.precoMinimo),
+      videoDuracaoSegundos: form.videoUrl ? Number(form.videoDuracaoSegundos) : 0, status: "AVAILABLE",
     };
-
     try {
-      if (editingVehicleId === null) {
-        const result = await apiRequest("/veiculos", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-        setVehicles((current) => [normalizeVehicle(result.data), ...current]);
-      } else {
-        const result = await apiRequest(`/veiculos/${editingVehicleId}`, {
-          method: "PUT",
-          body: JSON.stringify(payload),
-        });
-        setVehicles((current) => current.map((vehicle) => vehicle.id === editingVehicleId ? normalizeVehicle(result.data) : vehicle));
-      }
-      setShowForm(false);
-    } catch {
-      setShowForm(false);
-    }
+      await apiRequest("/veiculos", { method: "POST", body: JSON.stringify(body) });
+      setShowForm(false); setForm(emptyVehicleForm); setNotice("Veículo cadastrado no estoque."); await loadVehicles();
+    } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Falha ao cadastrar veículo."); }
+    finally { setSaving(false); }
   };
-
-  const toggleVehicleStatus = async (id: number) => {
-    const vehicle = vehicles.find((item) => item.id === id);
-    if (!vehicle) return;
-
-    const nextStatus = vehicle.status === "AVAILABLE" ? "em_negociacao" : "disponivel";
-
+  const lookupFipe = async () => {
+    setLookingUpFipe(true); setError("");
     try {
-      const result = await apiRequest(`/veiculos/${id}`, {
-        method: "PUT",
-        body: JSON.stringify({ status: nextStatus }),
-      });
-      setVehicles((current) => current.map((item) => item.id === id ? normalizeVehicle(result.data) : item));
-    } catch {
-      setVehicles((current) => current.map((item) => item.id === id ? { ...item, status: vehicle.status === "AVAILABLE" ? "IN_NEGOTIATION" : "AVAILABLE" } : item));
-    }
+      const result = await apiRequest(`/veiculos/fipe/${encodeURIComponent(form.codigoFipe)}`);
+      setForm((current) => ({ ...current, marca: result.marca || current.marca, modelo: result.modelo || current.modelo,
+        anoModelo: String(result.anoModelo || current.anoModelo), valorFipe: String(result.valorNumerico || current.valorFipe), codigoFipe: result.codigoFipe || current.codigoFipe }));
+      setNotice(`Valor FIPE atualizado${result.mesReferencia ? ` (${String(result.mesReferencia).trim()})` : ""}.`);
+    } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Falha ao consultar a FIPE."); }
+    finally { setLookingUpFipe(false); }
   };
+  const closeForm = () => { setShowForm(false); setError(""); setForm(emptyVehicleForm); };
 
-  return (
-    <div className="content module-content">
-      <section className="module-heading"><div><p>GESTÃO DE ESTOQUE</p><h1>Veículos</h1><span>Controle preços, mídia e disponibilidade do estoque.</span></div><button className="primary-button" onClick={() => openForm()}><Icon name="plus" size={18}/>Cadastrar veículo</button></section>
-      <section className="module-summary"><div><span>Disponíveis</span><strong>{vehicles.filter((vehicle) => vehicle.status === "AVAILABLE").length}</strong></div><div><span>Em negociação</span><strong>{vehicles.filter((vehicle) => vehicle.status === "IN_NEGOTIATION").length}</strong></div><div><span>Vendidos no mês</span><strong>{vehicles.filter((vehicle) => vehicle.status === "SOLD").length}</strong></div></section>
-      <section className="panel module-table">
-        <div className="module-toolbar vehicle-toolbar"><div className="search-box"><Icon name="search" size={17}/><input value={vehicleQuery} onChange={(event) => setVehicleQuery(event.target.value)} placeholder="Buscar marca, modelo ou placa..."/></div><div className="filter-fields"><select><option>Todos os anos</option><option>2025</option><option>2024</option><option>2023</option></select><select><option>Todas as marcas</option><option>Jeep</option><option>Volkswagen</option><option>Hyundai</option></select><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="ALL">Todos os status</option><option value="AVAILABLE">Disponível</option><option value="IN_NEGOTIATION">Em negociação</option><option value="SOLD">Vendido</option></select></div></div>
-        <div className="table-wrap"><table><thead><tr><th>VEÍCULO</th><th>ANO FAB. / MOD.</th><th>VALOR FIPE</th><th>PREÇO SUGERIDO</th><th>PREÇO MÍNIMO</th><th>SIMULAÇÕES ATIVAS</th><th>STATUS</th><th>AÇÃO</th></tr></thead><tbody>{visible.map((vehicle) => <tr key={vehicle.id}><td><div className="vehicle-cell"><div><Icon name="car" size={20}/></div><span><strong>{vehicle.name}</strong><small>{vehicle.detail}</small></span></div></td><td>{vehicle.years}</td><td>{vehicle.fipe}</td><td><strong>{vehicle.suggested}</strong></td><td>{vehicle.minimum}</td><td><span className={`simulation-count ${vehicle.simulations ? "has-count" : ""}`}>{vehicle.simulations}</span></td><td><span className={`status ${vehicle.status === "AVAILABLE" ? "green" : vehicle.status === "SOLD" ? "red" : "yellow"}`}>{statusLabel[vehicle.status]}</span></td><td><div className="row-actions"><button className="edit-link" onClick={() => openForm(vehicle)}>Editar</button><button className="row-status-toggle" onClick={() => toggleVehicleStatus(vehicle.id)}>{vehicle.status === "AVAILABLE" ? "Reservar" : "Disponibilizar"}</button></div></td></tr>)}</tbody></table></div>
-      </section>
-      {showForm && <div className="page-form-layer"><form onSubmit={saveVehicle} className="modal-card wide-modal vehicle-modal page-form-card">
-        <button type="button" className="page-back" onClick={() => setShowForm(false)}><Icon name="arrow" size={16}/>Voltar para veículos</button>
-        <div className="modal-title"><div><span>{editingVehicleId === null ? "NOVO ITEM DO ESTOQUE" : "EDIÇÃO DE VEÍCULO"}</span><h2>{editingVehicleId === null ? "Cadastrar veículo" : form.name || "Editar veículo"}</h2><p>Adicione ou atualize os dados, valores e arquivos de mídia do veículo.</p></div></div>
-        <div className="form-section-title">Identificação</div>
-        <div className="modal-row"><label>Marca/Modelo<input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="Ex.: Jeep Compass Limited"/></label><label>Detalhes<input value={form.detail} onChange={(event) => setForm((current) => ({ ...current, detail: event.target.value }))} placeholder="Ex.: RZY-4J82 · Flex · Automático"/></label></div>
-        <div className="modal-row"><label>Ano de fabricação / modelo<input value={form.years} onChange={(event) => setForm((current) => ({ ...current, years: event.target.value }))} placeholder="2024 / 2025"/></label><label>Status<select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as VehicleStatus }))}><option value="AVAILABLE">Disponível</option><option value="IN_NEGOTIATION">Em negociação</option><option value="SOLD">Vendido</option></select></label></div>
-        <div className="form-section-title">Precificação</div>
-        <div className="pricing-grid"><label>Valor FIPE<input value={form.fipe} onChange={(event) => setForm((current) => ({ ...current, fipe: event.target.value }))} placeholder="R$ 0,00"/></label><label>Preço sugerido<input value={form.suggested} onChange={(event) => setForm((current) => ({ ...current, suggested: event.target.value }))} placeholder="R$ 0,00"/></label><label>Preço mínimo<input value={form.minimum} onChange={(event) => setForm((current) => ({ ...current, minimum: event.target.value }))} placeholder="R$ 0,00"/></label></div>
-        <div className="form-section-title">Simulações</div>
-        <div className="modal-row"><label>Simulações ativas<input type="number" min={0} value={form.simulations} onChange={(event) => setForm((current) => ({ ...current, simulations: Number(event.target.value) }))} placeholder="0"/></label></div>
-        <div className="form-section-title">Fotos e vídeo</div>
-        <div className="media-grid">{["Frente", "Lateral direita", "Lateral esquerda", "Traseira", "Interior"].map((label) => <label key={label}><input type="file" accept="image/*"/><Icon name="plus" size={18}/><span>{label}</span></label>)}<label className="video-upload"><input type="file" accept="video/*"/><Icon name="plus" size={18}/><span>Vídeo · máx. 1 min</span></label></div>
-        <div className="modal-actions"><button type="button" onClick={() => setShowForm(false)}>Cancelar</button><button type="submit" className="primary-button">{editingVehicleId === null ? "Cadastrar veículo" : "Salvar alterações"}</button></div>
-      </form></div>}
-    </div>
-  );
+  return <div className="content module-content">
+    <section className="module-heading"><div><p>GESTÃO DE ESTOQUE</p><h1>Veículos</h1><span>Controle preços, mídias e disponibilidade do estoque.</span></div>{canManage && <button className="primary-button" onClick={() => { setError(""); setShowForm(true); }}><Icon name="plus" size={18}/>Cadastrar veículo</button>}</section>
+    {notice && <div className="auth-notice success">{notice}</div>}{error && !showForm && <div className="auth-notice">{error}</div>}
+    <section className="module-summary"><div><span>Disponíveis</span><strong>{vehicles.filter((v) => v.status === "AVAILABLE").length}</strong></div><div><span>Em negociação</span><strong>{vehicles.filter((v) => v.status === "IN_NEGOTIATION").length}</strong></div><div><span>Vendidos</span><strong>{vehicles.filter((v) => v.status === "SOLD").length}</strong></div></section>
+    <section className="panel module-table">
+      <div className="module-toolbar vehicle-toolbar"><div className="search-box"><Icon name="search" size={17}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar marca, modelo ou placa..."/></div><div className="filter-fields"><select value={mfgYearFilter} onChange={(event) => setMfgYearFilter(event.target.value)}><option value="ALL">Todos os anos fab.</option>{[...new Set(vehicles.map((v) => v.anoFabricacao).filter(Boolean))].sort((a, b) => b - a).map((year) => <option key={year}>{year}</option>)}</select><select value={modelYearFilter} onChange={(event) => setModelYearFilter(event.target.value)}><option value="ALL">Todos os anos mod.</option>{[...new Set(vehicles.map((v) => v.anoModelo).filter(Boolean))].sort((a, b) => b - a).map((year) => <option key={year}>{year}</option>)}</select><select value={brandFilter} onChange={(event) => setBrandFilter(event.target.value)}><option value="ALL">Todas as marcas</option>{allBrands.map((brand) => <option key={brand}>{brand}</option>)}</select><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="ALL">Todos os status</option><option value="AVAILABLE">Disponível</option><option value="IN_NEGOTIATION">Em negociação</option><option value="SOLD">Vendido</option></select></div></div>
+      <div className="table-wrap"><table><thead><tr><th>VEÍCULO</th><th>ANO FAB. / MOD.</th><th>VALOR FIPE</th><th>PREÇO SUGERIDO</th><th>PREÇO MÍNIMO</th><th>SIMULAÇÕES ATIVAS</th><th>STATUS</th></tr></thead><tbody>
+        {loading ? <tr><td colSpan={7}>Carregando estoque...</td></tr> : vehicles.map((vehicle) => <tr key={vehicle.id}><td><div className="vehicle-cell"><div><Icon name="car" size={20}/></div><span><strong>{vehicle.marca} {vehicle.modelo}</strong><small>{vehicle.placa || vehicle.codigoFipe || ""}</small></span></div></td><td>{vehicle.anoFabricacao} / {vehicle.anoModelo}</td><td>{moneyLabel(vehicle.valorFipe)}</td><td><strong>{moneyLabel(vehicle.precoSugerido)}</strong></td><td>{moneyLabel(vehicle.precoMinimo)}</td><td><span className={`simulation-count ${vehicle.simulacoesAtivas ? "has-count" : ""}`}>{vehicle.simulacoesAtivas}</span></td><td><span className={`status ${vehicle.status === "AVAILABLE" ? "green" : vehicle.status === "SOLD" ? "red" : "yellow"}`}>{statusLabel[vehicle.status]}</span></td></tr>)}
+        {!loading && !vehicles.length && <tr><td colSpan={7}>Nenhum veículo encontrado para esses filtros.</td></tr>}
+      </tbody></table></div>
+    </section>
+    {showForm && <div className="page-form-layer"><form onSubmit={submitVehicle} className="modal-card wide-modal vehicle-modal page-form-card">
+      <button type="button" className="page-back" onClick={closeForm}><Icon name="arrow" size={16}/>Voltar para veículos</button>
+      <div className="modal-title"><div><span>NOVO ITEM DO ESTOQUE</span><h2>Cadastrar veículo</h2><p>Informe os dados e URLs das cinco fotos obrigatórias.</p></div></div>
+      <div className="form-section-title">Identificação</div>
+      <div className="modal-row"><label>Marca<input required value={form.marca} onChange={(event) => setForm({ ...form, marca: event.target.value })} placeholder="Ex.: Jeep"/></label><label>Modelo<input required value={form.modelo} onChange={(event) => setForm({ ...form, modelo: event.target.value })} placeholder="Ex.: Compass Limited"/></label></div>
+      <div className="modal-row"><label>Ano de fabricação<input required type="number" min="1900" max={new Date().getFullYear() + 2} value={form.anoFabricacao} onChange={(event) => setForm({ ...form, anoFabricacao: event.target.value })}/></label><label>Ano do modelo<input required type="number" min="1900" max={new Date().getFullYear() + 2} value={form.anoModelo} onChange={(event) => setForm({ ...form, anoModelo: event.target.value })}/></label></div>
+      <div className="modal-row"><label>Código FIPE<input value={form.codigoFipe} onChange={(event) => setForm({ ...form, codigoFipe: event.target.value })} placeholder="000000-0"/></label><label>Placa<input value={form.placa} onChange={(event) => setForm({ ...form, placa: event.target.value.toUpperCase() })} placeholder="ABC1D23"/></label></div>
+      <div className="form-section-title">Precificação</div>
+      <div className="pricing-grid"><label>Valor FIPE<div className="input-action"><input required type="number" min="0" step="0.01" value={form.valorFipe} onChange={(event) => setForm({ ...form, valorFipe: event.target.value })} placeholder="R$ 0,00"/><button type="button" disabled={lookingUpFipe || !form.codigoFipe} onClick={() => void lookupFipe()}>{lookingUpFipe ? "Consultando..." : "Consultar FIPE"}</button></div></label><label>Preço sugerido<input required type="number" min="0.01" step="0.01" value={form.precoSugerido} onChange={(event) => setForm({ ...form, precoSugerido: event.target.value })} placeholder="R$ 0,00"/></label><label>Preço mínimo<input required type="number" min="0.01" step="0.01" value={form.precoMinimo} onChange={(event) => setForm({ ...form, precoMinimo: event.target.value })} placeholder="R$ 0,00"/></label></div>
+      <div className="form-section-title">Fotos obrigatórias · até 10 MB cada</div>
+      <div className="media-grid vehicle-upload-grid">
+        {([{ key: "front", label: "Frente" }, { key: "right", label: "Lateral direita" }, { key: "left", label: "Lateral esquerda" }, { key: "rear", label: "Traseira" }, { key: "interior", label: "Interior" }] as const).map(({ key, label }) => <label className={form.fotos[key] ? "uploaded" : ""} key={key}><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void choosePhoto(key, event.target.files?.[0])}/><Icon name={form.fotos[key] ? "check" : "plus"} size={18}/><span>{uploading === "photo" ? "Enviando foto..." : form.fotos[key] ? `${label} enviada` : label}</span></label>)}
+        <label className={`video-upload ${form.videoUrl ? "uploaded" : ""}`}><input type="file" accept="video/mp4,video/webm,video/quicktime" onChange={(event) => void chooseVideo(event.target.files?.[0])}/><Icon name={form.videoUrl ? "check" : "plus"} size={18}/><span>{uploading === "video" ? "Enviando vídeo..." : form.videoUrl ? "Vídeo enviado" : "Vídeo · até 60 s"}</span></label>
+      </div>
+      {form.videoUrl && <p className="table-subcopy">Duração validada: {form.videoDuracaoSegundos} segundos.</p>}
+      {error && <div className="auth-notice">{error}</div>}
+      <div className="modal-actions"><button type="button" onClick={closeForm}>Cancelar</button><button type="submit" className="primary-button" disabled={saving || Boolean(uploading)}>{saving ? "Salvando..." : "Cadastrar veículo"}</button></div>
+    </form></div>}
+  </div>;
 }
 
-function ModulePage({ name }: { name: string }) {
+function ModulePage({ name, profile, userName }: { name: string; profile: string; userName: string }) {
+  const teamByManager: Record<string, string[]> = {
+    "Amanda Silva": ["Amanda Silva", "Marcos Costa", "Rafael Lima"],
+    "Bruno Tavares": ["Bruno Tavares", "Juliana Castro"],
+    "Patrícia Melo": ["Patrícia Melo"],
+  };
+  const scope = profile === "MANAGER" ? teamByManager[userName] || [userName] : [userName];
+  const sourceProposals = profile === "ADMIN" || profile === "SUPPORT"
+    ? proposals
+    : proposals.filter((proposal) => scope.includes(proposal.seller));
   const data = moduleData[name] ?? {
     title: name, subtitle: "Consulte e gerencie os registros deste módulo.", action: `Novo registro`,
     columns: ["REGISTRO", "RESPONSÁVEL", "DATA", "VALOR", "STATUS"],
-    rows: proposals.map((p) => [p.id, p.client, p.seller, p.value, p.status]),
+    rows: sourceProposals.map((p) => [p.id, p.client, p.seller, p.value, p.status]),
   };
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -751,208 +651,107 @@ function ModulePage({ name }: { name: string }) {
   );
 }
 
-function CustomersPage({ customerHistoryMap, onAddCustomerHistory }: { customerHistoryMap: Record<number, CustomerHistoryEntry[]>; onAddCustomerHistory: (customerName: string, title: string, detail: string, tone?: string, icon?: IconName) => void }) {
+type CustomerRecord = {
+  id: number; tipoPessoa: "pf" | "pj"; nome: string; razaoSocial: string; nomeFantasia: string;
+  documento: string; email: string; telefone: string; cep: string; logradouro: string; numero: string;
+  complemento: string; bairro: string; cidade: string; estado: string; rendaMensal: number; ocupacao: string;
+  status: string; vendedorId?: number;
+};
+type CustomerForm = Omit<CustomerRecord, "id" | "status" | "vendedorId">;
+const emptyCustomerForm: CustomerForm = {
+  tipoPessoa: "pf", nome: "", razaoSocial: "", nomeFantasia: "", documento: "", email: "", telefone: "",
+  cep: "", logradouro: "", numero: "", complemento: "", bairro: "", cidade: "", estado: "", rendaMensal: 0, ocupacao: "",
+};
+
+function CustomersPage({ profile, userName, authToken }: { profile: string; userName: string; authToken: string }) {
+  const [customers, setCustomers] = useState<CustomerRecord[]>([]);
+  const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
-  const [cpf, setCpf] = useState("");
-  const [editingCustomerId, setEditingCustomerId] = useState<number | null>(null);
-  const [customerQuery, setCustomerQuery] = useState("");
-  const [customerStatus, setCustomerStatus] = useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
-  const [customerCep, setCustomerCep] = useState("");
-  const [customerAddress, setCustomerAddress] = useState({ street: "", neighborhood: "", city: "", state: "" });
-  const [customerCepStatus, setCustomerCepStatus] = useState("");
-  const [creditResult, setCreditResult] = useState<"idle" | "loading" | "approved">("idle");
-  const [form, setForm] = useState({
-    name: "",
-    cpf: "",
-    email: "",
-    phone: "",
-    income: "R$ 0,00",
-    seller: "Marcos Costa",
-    status: "Em atendimento",
-    active: true,
-  });
-  const [customers, setCustomers] = useState<Array<{ id: number; name: string; cpf: string; email: string; phone: string; income: string; seller: string; status: string; active: boolean }>>([]);
+  const [editingCustomer, setEditingCustomer] = useState<CustomerRecord | null>(null);
+  const [form, setForm] = useState<CustomerForm>(emptyCustomerForm);
+  const [cepStatus, setCepStatus] = useState("");
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const normalizeCustomer = (customer: any) => ({
-    id: customer.id,
-    name: customer.nome || customer.name || "Cliente",
-    cpf: customer.documento || customer.cpf || "",
-    email: customer.email || "",
-    phone: customer.telefone || customer.phone || "",
-    income: customer.rendaMensal ? `R$ ${Number(customer.rendaMensal).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "R$ 0,00",
-    seller: customer.vendedor || customer.seller || "Marcos Costa",
-    status: customer.status === "inativo" ? "Inativo" : customer.status || "Em atendimento",
-    active: customer.status !== "inativo" && customer.active !== false,
-  });
-
+  const apiRequest = async (path: string, options: RequestInit = {}) => {
+    const headers = new Headers(options.headers);
+    headers.set("Authorization", `Bearer ${authToken}`);
+    if (options.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+    const response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(payload?.message || "Não foi possível concluir a operação.");
+    return payload?.data;
+  };
   const loadCustomers = async () => {
+    setLoading(true); setError("");
     try {
-      const result = await apiRequest("/clientes");
-      const data = Array.isArray(result?.data) ? result.data : [];
-      setCustomers(data.map(normalizeCustomer));
-    } catch {
-      setCustomers([]);
-    }
+      const query = search.trim() ? `?search=${encodeURIComponent(search.trim())}` : "";
+      const records = await apiRequest(`/clientes${query}`);
+      setCustomers(Array.isArray(records) ? records : []);
+    } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Falha ao carregar clientes."); }
+    finally { setLoading(false); }
   };
+  useEffect(() => { void loadCustomers(); }, [authToken, search]);
 
-  useEffect(() => {
-    void loadCustomers();
-  }, []);
-
-  const filteredCustomers = customers.filter((customer) => {
-    const matchesQuery = `${customer.name} ${customer.cpf} ${customer.seller}`.toLowerCase().includes(customerQuery.toLowerCase());
-    const matchesStatus = customerStatus === "ALL" || (customerStatus === "ACTIVE" ? customer.active : !customer.active);
-    return matchesQuery && matchesStatus;
-  });
-
-  const checkCredit = () => {
-    setCreditResult("loading");
-    window.setTimeout(() => setCreditResult("approved"), 700);
+  const openCustomerForm = (customer: CustomerRecord | null) => {
+    setEditingCustomer(customer);
+    setForm(customer ? { ...emptyCustomerForm, ...customer } : { ...emptyCustomerForm });
+    setCepStatus(""); setNotice(""); setError(""); setShowForm(true);
   };
-  const openCustomerForm = (customer?: typeof customers[number]) => {
-    setEditingCustomerId(customer ? customer.id : null);
-    setForm({
-      name: customer?.name ?? "",
-      cpf: customer?.cpf ?? "",
-      email: customer?.email ?? "",
-      phone: customer?.phone ?? "",
-      income: customer?.income ?? "R$ 0,00",
-      seller: customer?.seller ?? "Marcos Costa",
-      status: customer?.status ?? "Em atendimento",
-      active: customer?.active ?? true,
-    });
-    setCpf(customer?.cpf ?? "");
-    setCustomerCep(customer ? "01310-100" : "");
-    setCustomerAddress(customer ? { street: "Avenida Paulista", neighborhood: "Bela Vista", city: "São Paulo", state: "SP" } : { street: "", neighborhood: "", city: "", state: "" });
-    setCustomerCepStatus("");
-    setCreditResult("idle");
-    setShowForm(true);
-  };
-
-  const saveCustomer = async (event: React.FormEvent) => {
-    event.preventDefault();
-    const nextName = form.name.trim();
-    const nextCpf = form.cpf.trim();
-    if (!nextName || !nextCpf) return;
-
-    const payload = {
-      nome: nextName,
-      documento: nextCpf,
-      email: form.email,
-      telefone: form.phone,
-      tipoPessoa: "pf",
-      rendaMensal: Number(form.income.replace(/[^\d,.-]/g, "").replace(".", "").replace(",", ".")) || 0,
-      status: form.active ? "ativo" : "inativo",
-      vendedor: form.seller,
-    };
-
+  const lookupCep = async () => {
+    const cep = form.cep.replace(/\D/g, "");
+    if (cep.length !== 8) { setCepStatus("Informe um CEP com 8 dígitos."); return; }
+    setCepStatus("Consultando ViaCEP...");
     try {
-      if (editingCustomerId === null) {
-        const result = await apiRequest("/clientes", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-        setCustomers((current) => [normalizeCustomer(result.data), ...current]);
-      } else {
-        const result = await apiRequest(`/clientes/${editingCustomerId}`, {
-          method: "PUT",
-          body: JSON.stringify(payload),
-        });
-        setCustomers((current) => current.map((customer) => customer.id === editingCustomerId ? normalizeCustomer(result.data) : customer));
-      }
-      setShowForm(false);
-    } catch {
-      setShowForm(false);
-    }
+      const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+      const address = await response.json();
+      if (!response.ok || address.erro) throw new Error("CEP não encontrado.");
+      setForm((current) => ({ ...current, cep, logradouro: address.logradouro || current.logradouro, bairro: address.bairro || current.bairro, cidade: address.localidade || current.cidade, estado: address.uf || current.estado }));
+      setCepStatus("Endereço encontrado e preenchido.");
+    } catch (requestError) { setCepStatus(requestError instanceof Error ? requestError.message : "Não foi possível consultar o CEP. Preencha o endereço manualmente."); }
   };
-
-  const toggleCustomerStatus = async (id: number) => {
-    const customer = customers.find((item) => item.id === id);
-    if (!customer) return;
-
+  const saveCustomer = async () => {
+    setSaving(true); setError(""); setNotice("");
     try {
-      const result = await apiRequest(`/clientes/${id}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          status: customer.active ? "inativo" : "ativo",
-        }),
-      });
-      setCustomers((current) => current.map((item) => item.id === id ? normalizeCustomer(result.data) : item));
-    } catch {
-      setCustomers((current) => current.map((item) => item.id === id ? { ...item, active: !item.active, status: item.active ? "Inativo" : "Em atendimento" } : item));
-    }
+      const path = editingCustomer ? `/clientes/${editingCustomer.id}` : "/clientes";
+      await apiRequest(path, { method: editingCustomer ? "PUT" : "POST", body: JSON.stringify(form) });
+      setNotice(editingCustomer ? "Cadastro atualizado." : "Cliente cadastrado.");
+      setShowForm(false); await loadCustomers();
+    } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Falha ao salvar cliente."); }
+    finally { setSaving(false); }
   };
-
-  const lookupCustomerCep = async () => {
-    const normalized = customerCep.replace(/\D/g, "");
-    if (normalized.length !== 8) {
-      setCustomerCepStatus("Informe um CEP com 8 dígitos.");
-      return;
-    }
-    setCustomerCepStatus("Consultando ViaCEP...");
-    try {
-      const response = await fetch(`https://viacep.com.br/ws/${normalized}/json/`);
-      const result = await response.json();
-      if (result.erro) throw new Error();
-      setCustomerAddress({ street: result.logradouro, neighborhood: result.bairro, city: result.localidade, state: result.uf });
-      setCustomerCepStatus("Endereço encontrado e preenchido.");
-    } catch {
-      setCustomerCepStatus("CEP não encontrado. Preencha o endereço manualmente.");
-    }
+  const removeCustomer = async (customer: CustomerRecord) => {
+    if (!window.confirm(`Arquivar o cadastro de ${customer.nome}?`)) return;
+    try { await apiRequest(`/clientes/${customer.id}`, { method: "DELETE" }); await loadCustomers(); }
+    catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Falha ao arquivar cliente."); }
   };
-  const customerHistory = customerHistoryMap[editingCustomerId ?? 0] ?? [
-    { date: "12/06/2025 · 14:32", title: "Simulação realizada", detail: "Jeep Compass Limited · Entrada de R$ 50.000 · 48 parcelas", tone: "blue", icon: "proposal" as IconName },
-    { date: "10/06/2025 · 09:18", title: "Consulta de crédito", detail: "Score 782 · Risco baixo · Cliente sem restrições ativas", tone: "green", icon: "search" as IconName },
-    { date: "22/03/2024 · 16:45", title: "Veículo adquirido", detail: "Honda City EXL 2023 · Contrato #CONT-2024-0148", tone: "purple", icon: "car" as IconName },
-    { date: "18/03/2024 · 11:20", title: "Contrato de recuperação de crédito", detail: "Acordo concluído e baixado em 02/04/2024", tone: "orange", icon: "contract" as IconName },
-  ];
+  const formatDocument = (customer: CustomerRecord) => customer.tipoPessoa === "pj" ? customer.documento : customer.documento;
+  const money = (value: number) => value ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(value) : "—";
 
-  return (
-    <div className="content module-content">
-      <section className="module-heading">
-        <div><p>OPERAÇÃO COMERCIAL</p><h1>Clientes</h1><span>Cadastre clientes e acompanhe o responsável por cada atendimento.</span></div>
-        <button className="primary-button" onClick={() => openCustomerForm()}><Icon name="plus" size={18}/>Novo cliente</button>
-      </section>
-      <section className="module-summary">
-        <div><span>Clientes ativos</span><strong>{customers.filter((customer) => customer.active).length}</strong></div><div><span>Novos esta semana</span><strong>12</strong></div><div><span>Em negociação</span><strong>{customers.filter((customer) => customer.status !== "Inativo").length}</strong></div>
-      </section>
-      <section className="panel module-table">
-        <div className="module-toolbar">
-          <div className="search-box"><Icon name="search" size={17}/><input value={customerQuery} onChange={(event) => setCustomerQuery(event.target.value)} placeholder="Buscar por nome ou CPF..."/></div>
-          <select value={customerStatus} onChange={(event) => setCustomerStatus(event.target.value as "ALL" | "ACTIVE" | "INACTIVE")} className="status-filter-select">
-            <option value="ALL">Todos os clientes</option>
-            <option value="ACTIVE">Ativos</option>
-            <option value="INACTIVE">Inativos</option>
-          </select>
-        </div>
-        <div className="table-wrap"><table><thead><tr><th>CLIENTE</th><th>CPF</th><th>CONTATO</th><th>RENDA</th><th>VENDEDOR RESPONSÁVEL</th><th>STATUS</th><th>AÇÃO</th></tr></thead>
-          <tbody>{filteredCustomers.map((customer) => <tr key={customer.id}><td>{customer.name}</td><td>{customer.cpf}</td><td>{customer.phone}</td><td>{customer.income}</td><td>{customer.seller}</td><td><span className={`status ${customer.active ? "blue" : "red"}`}>{customer.status}</span></td><td><div className="row-actions"><button className="edit-customer-button" onClick={() => openCustomerForm(customer)}>Editar <Icon name="arrow" size={14}/></button><button className="row-status-toggle" onClick={() => toggleCustomerStatus(customer.id)}>{customer.active ? "Desativar" : "Ativar"}</button></div></td></tr>)}</tbody>
-        </table></div>
-      </section>
-      {showForm && <div className="page-form-layer"><form onSubmit={saveCustomer} className="modal-card wide-modal page-form-card">
-        <button type="button" className="page-back" onClick={() => setShowForm(false)}><Icon name="arrow" size={16}/>Voltar para clientes</button>
-        <div className="modal-title"><div><span>{editingCustomerId === null ? "CADASTRO COMERCIAL" : "EDIÇÃO E RELACIONAMENTO"}</span><h2>{editingCustomerId === null ? "Novo cliente" : form.name || "Editar cliente"}</h2><p>{editingCustomerId === null ? "Informe os dados necessários para contratos e análise de crédito." : "Atualize os dados cadastrais e consulte o histórico de relacionamento."}</p></div></div>
-        <div className="form-section-title">Dados pessoais</div>
-        <div className="modal-row"><label>Nome completo<input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} placeholder="Nome conforme documento"/></label><label>CPF<input value={cpf} onChange={(event) => { setCpf(event.target.value); setForm((current) => ({ ...current, cpf: event.target.value })); setCreditResult("idle"); }} placeholder="000.000.000-00"/></label></div>
-        <div className="modal-row"><label>E-mail<input type="email" value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} placeholder="cliente@email.com"/></label><label>Telefone<input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} placeholder="(00) 00000-0000"/></label></div>
-        <div className="form-section-title">Endereço completo</div>
-        <div className="cep-row"><label>CEP<input value={customerCep} onChange={(event) => setCustomerCep(event.target.value)} onBlur={lookupCustomerCep} placeholder="00000-000"/></label><button type="button" onClick={lookupCustomerCep}><Icon name="search" size={15}/>Buscar ViaCEP</button><span>{customerCepStatus}</span></div>
-        <div className="modal-row address-main"><label>Logradouro<input value={customerAddress.street} onChange={(event) => setCustomerAddress({ ...customerAddress, street: event.target.value })} placeholder="Rua, avenida ou travessa"/></label><label>Número<input placeholder="Nº"/></label></div>
-        <div className="modal-row"><label>Complemento<input placeholder="Apto, bloco ou referência"/></label><label>Bairro<input value={customerAddress.neighborhood} onChange={(event) => setCustomerAddress({ ...customerAddress, neighborhood: event.target.value })}/></label></div>
-        <div className="modal-row city-row"><label>Cidade<input value={customerAddress.city} onChange={(event) => setCustomerAddress({ ...customerAddress, city: event.target.value })}/></label><label>Estado<input value={customerAddress.state} onChange={(event) => setCustomerAddress({ ...customerAddress, state: event.target.value })}/></label></div>
-        <div className="form-section-title">Renda e ocupação</div>
-        <div className="modal-row"><label>Renda mensal<input value={form.income} onChange={(event) => setForm((current) => ({ ...current, income: event.target.value }))} placeholder="R$ 0,00"/></label><label>Vendedor responsável<select value={form.seller} onChange={(event) => setForm((current) => ({ ...current, seller: event.target.value }))}><option>Marcos Costa</option><option>Juliana Castro</option><option>Rafael Lima</option><option>Amanda Silva</option></select></label></div>
-        <div className="modal-row"><label>Status<select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}><option>Em atendimento</option><option>Em proposta</option><option>Em simulação</option><option>Inativo</option></select></label><label>Ativo<input type="checkbox" checked={form.active} onChange={(event) => setForm((current) => ({ ...current, active: event.target.checked }))}/></label></div>
-        <div className="credit-check">
-          <div className="credit-icon"><Icon name={creditResult === "approved" ? "check" : "search"} size={19}/></div>
-          <div><strong>Consulta de crédito</strong><span>{creditResult === "approved" ? "CPF consultado · Score 782 · Risco baixo" : "Consulte o CPF nos bureaus de proteção ao crédito."}</span></div>
-          <button type="button" onClick={checkCredit} disabled={!cpf || creditResult === "loading"}>{creditResult === "loading" ? "Consultando..." : creditResult === "approved" ? "Consultar novamente" : "Consultar CPF"}</button>
-        </div>
-        {editingCustomerId !== null && <div className="customer-history"><div className="form-section-title">Histórico de relacionamento</div><div className="timeline">{customerHistory.map((event) => <div className="timeline-event" key={event.date}><div className={`timeline-icon ${event.tone}`}><Icon name={event.icon} size={16}/></div><div><span>{event.date}</span><strong>{event.title}</strong><p>{event.detail}</p></div></div>)}</div></div>}
-        <div className="modal-actions"><button type="button" onClick={() => setShowForm(false)}>Cancelar</button><button type="submit" className="primary-button">{editingCustomerId === null ? "Cadastrar cliente" : "Salvar alterações"}</button></div>
-      </form></div>}
-    </div>
-  );
+  return <div className="content module-content">
+    <section className="module-heading"><div><p>OPERAÇÃO COMERCIAL</p><h1>Clientes</h1><span>Cadastre clientes pessoa física ou jurídica e acompanhe os atendimentos de {userName}.</span></div><button className="primary-button" onClick={() => openCustomerForm(null)}><Icon name="plus" size={18}/>Novo cliente</button></section>
+    <section className="module-summary"><div><span>Clientes visíveis</span><strong>{customers.length}</strong></div><div><span>Pessoa física</span><strong>{customers.filter((c) => c.tipoPessoa === "pf").length}</strong></div><div><span>Pessoa jurídica</span><strong>{customers.filter((c) => c.tipoPessoa === "pj").length}</strong></div></section>
+    {error && <div className="auth-notice">{error}</div>}{notice && <div className="auth-notice success">{notice}</div>}
+    <section className="panel module-table"><div className="module-toolbar"><div className="search-box"><Icon name="search" size={17}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar por nome, CPF/CNPJ ou e-mail..."/></div><button onClick={() => void loadCustomers()}><Icon name="search" size={16}/>Atualizar</button></div>
+      <div className="table-wrap"><table><thead><tr><th>CLIENTE</th><th>CPF/CNPJ</th><th>CONTATO</th><th>RENDA</th><th>LOCALIDADE</th><th>TIPO</th><th></th></tr></thead><tbody>
+        {loading ? <tr><td colSpan={7}>Carregando clientes...</td></tr> : customers.length ? customers.map((customer) => <tr key={customer.id}><td>{customer.nome}</td><td>{formatDocument(customer)}</td><td>{customer.telefone}<br/><small>{customer.email}</small></td><td>{money(customer.rendaMensal)}</td><td>{customer.cidade}/{customer.estado}</td><td><span className="status blue">{customer.tipoPessoa.toUpperCase()}</span></td><td><button className="edit-customer-button" onClick={() => openCustomerForm(customer)}>Editar <Icon name="arrow" size={14}/></button><button className="edit-customer-button" onClick={() => void removeCustomer(customer)}>Arquivar</button></td></tr>) : <tr><td colSpan={7}>Nenhum cliente encontrado.</td></tr>}
+      </tbody></table></div>
+    </section>
+    {showForm && <div className="page-form-layer"><div className="modal-card wide-modal page-form-card"><button className="page-back" onClick={() => setShowForm(false)}><Icon name="arrow" size={16}/>Voltar para clientes</button>
+      <div className="modal-title"><div><span>CADASTRO COMERCIAL</span><h2>{editingCustomer ? "Editar cliente" : "Novo cliente"}</h2><p>Dados pessoais, documento e endereço necessários para propostas e contratos.</p></div></div>
+      <div className="form-section-title">Identificação</div><div className="modal-row"><label>Tipo de pessoa<select value={form.tipoPessoa} onChange={(event) => setForm({ ...form, tipoPessoa: event.target.value as "pf" | "pj", documento: "" })}><option value="pf">Pessoa física</option><option value="pj">Pessoa jurídica</option></select></label><label>{form.tipoPessoa === "pf" ? "CPF" : "CNPJ"}<input value={form.documento} onChange={(event) => setForm({ ...form, documento: event.target.value })} placeholder={form.tipoPessoa === "pf" ? "000.000.000-00" : "00.000.000/0000-00"}/></label></div>
+      {form.tipoPessoa === "pf" ? <div className="modal-row"><label>Nome completo<input value={form.nome} onChange={(event) => setForm({ ...form, nome: event.target.value })} placeholder="Nome conforme documento"/></label><label>Ocupação<input value={form.ocupacao} onChange={(event) => setForm({ ...form, ocupacao: event.target.value })} placeholder="Profissão ou atividade"/></label></div> : <div className="modal-row"><label>Razão social<input value={form.razaoSocial} onChange={(event) => setForm({ ...form, razaoSocial: event.target.value })} placeholder="Razão social registrada"/></label><label>Nome fantasia<input value={form.nomeFantasia} onChange={(event) => setForm({ ...form, nomeFantasia: event.target.value })} placeholder="Nome fantasia"/></label></div>}
+      <div className="modal-row"><label>E-mail<input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} placeholder="cliente@email.com"/></label><label>Telefone<input value={form.telefone} onChange={(event) => setForm({ ...form, telefone: event.target.value })} placeholder="(00) 00000-0000"/></label></div>
+      <div className="form-section-title">Endereço completo</div><div className="cep-row"><label>CEP<input value={form.cep} onChange={(event) => setForm({ ...form, cep: event.target.value })} onBlur={() => void lookupCep()} placeholder="00000-000"/></label><button type="button" onClick={() => void lookupCep()}><Icon name="search" size={15}/>Buscar ViaCEP</button><span>{cepStatus}</span></div>
+      <div className="modal-row address-main"><label>Logradouro<input value={form.logradouro} onChange={(event) => setForm({ ...form, logradouro: event.target.value })} placeholder="Rua, avenida ou travessa"/></label><label>Número<input value={form.numero} onChange={(event) => setForm({ ...form, numero: event.target.value })} placeholder="Nº"/></label></div>
+      <div className="modal-row"><label>Complemento<input value={form.complemento} onChange={(event) => setForm({ ...form, complemento: event.target.value })} placeholder="Apto, bloco ou referência"/></label><label>Bairro<input value={form.bairro} onChange={(event) => setForm({ ...form, bairro: event.target.value })} placeholder="Bairro"/></label></div>
+      <div className="modal-row city-row"><label>Cidade<input value={form.cidade} onChange={(event) => setForm({ ...form, cidade: event.target.value })} placeholder="Cidade"/></label><label>Estado<input maxLength={2} value={form.estado} onChange={(event) => setForm({ ...form, estado: event.target.value.toUpperCase() })} placeholder="UF"/></label></div>
+      <div className="form-section-title">Informações comerciais</div><div className="modal-row"><label>Renda mensal<input type="number" min="0" value={form.rendaMensal || ""} onChange={(event) => setForm({ ...form, rendaMensal: Number(event.target.value) })} placeholder="0,00"/></label><label>Status do atendimento<input value={editingCustomer?.status || "Ativo"} disabled/></label></div>
+      {error && <div className="auth-notice">{error}</div>}<div className="modal-actions"><button onClick={() => setShowForm(false)}>Cancelar</button><button className="primary-button" disabled={saving} onClick={() => void saveCustomer()}>{saving ? "Salvando..." : editingCustomer ? "Salvar alterações" : "Cadastrar cliente"}</button></div>
+    </div></div>}
+  </div>;
 }
 
 const classifiedVehicles = [
@@ -1099,114 +898,81 @@ function ClassifiedsPage({ onSimulate }: { onSimulate: () => void }) {
   );
 }
 
-function SimulationPage({ onAddCustomerHistory }: { onAddCustomerHistory: (customerName: string, title: string, detail: string, tone?: string, icon?: IconName) => void }) {
-  const [customer, setCustomer] = useState("");
-  const [currentStep, setCurrentStep] = useState(1);
-  const [vehicle, setVehicle] = useState("169000");
-  const [salePrice, setSalePrice] = useState("168900");
-  const [downPayment, setDownPayment] = useState("50000");
+type SaleVehicle = { id: number; marca: string; modelo: string; anoFabricacao: number; anoModelo: number; precoSugerido: number; precoMinimo: number; status: string; simulacoesAtivas: number };
+type SaleCustomer = { id: number; nome: string; tipoPessoa: string; documento: string; status: string };
+function SimulationPage({ profile, userName, authToken }: { profile: string; userName: string; authToken: string }) {
+  const [customers, setCustomers] = useState<SaleCustomer[]>([]);
+  const [vehicles, setVehicles] = useState<SaleVehicle[]>([]);
+  const [customerId, setCustomerId] = useState("");
+  const [vehicleId, setVehicleId] = useState("");
+  const [salePrice, setSalePrice] = useState("");
+  const [downPayment, setDownPayment] = useState("0");
   const [months, setMonths] = useState("48");
   const [rate, setRate] = useState("1.39");
-  const [conflict, setConflict] = useState("");
-  const [benefits, setBenefits] = useState<string[]>(["Transferência"]);
-  const [stage, setStage] = useState<SalesStage>("SIMULATION");
-  const vehicleRules: Record<string, { minimum: number; simulations: number; status: VehicleStatus }> = {
-    "169000": { minimum: 160000, simulations: 4, status: "IN_NEGOTIATION" },
-    "134900": { minimum: 128500, simulations: 0, status: "AVAILABLE" },
-    "98500": { minimum: 93000, simulations: 2, status: "IN_NEGOTIATION" },
+  const [benefits, setBenefits] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  const apiRequest = async (path: string, options: RequestInit = {}) => {
+    const headers = new Headers(options.headers); headers.set("Authorization", `Bearer ${authToken}`);
+    if (options.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+    const response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(payload?.message || "Não foi possível concluir a operação.");
+    return payload?.data;
   };
-  const currentVehicle = vehicleRules[vehicle];
-  const isBelowMinimum = Number(salePrice) < currentVehicle.minimum;
-  const principal = Math.max(Number(salePrice) - Number(downPayment || 0), 0);
-  const monthlyRate = Number(rate) / 100;
-  const count = Number(months);
-  const installment = monthlyRate > 0 ? principal * (monthlyRate * (1 + monthlyRate) ** count) / ((1 + monthlyRate) ** count - 1) : principal / count;
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true); setError("");
+    Promise.all([apiRequest("/clientes"), apiRequest("/veiculos")]).then(([clientRows, vehicleRows]) => {
+      if (cancelled) return;
+      const availableClients = Array.isArray(clientRows) ? clientRows.filter((item) => !item.deletedAt) : [];
+      const availableVehicles = Array.isArray(vehicleRows) ? vehicleRows.filter((item) => !item.deletedAt && item.status !== "SOLD") : [];
+      setCustomers(availableClients); setVehicles(availableVehicles);
+      if (availableClients.length) setCustomerId(String(availableClients[0].id));
+      if (availableVehicles.length) { setVehicleId(String(availableVehicles[0].id)); setSalePrice(String(availableVehicles[0].precoSugerido || "")); }
+    }).catch((loadError) => { if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Falha ao carregar dados para simulação."); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [authToken]);
+  const currentVehicle = vehicles.find((item) => String(item.id) === vehicleId);
+  const isBelowMinimum = Boolean(currentVehicle && Number(salePrice) < Number(currentVehicle.precoMinimo || 0));
+  const principal = Math.max(Number(salePrice || 0) - Number(downPayment || 0), 0);
+  const monthlyRate = Number(rate) / 100; const count = Number(months);
+  const installment = monthlyRate > 0 && count > 0 ? principal * (monthlyRate * (1 + monthlyRate) ** count) / ((1 + monthlyRate) ** count - 1) : count ? principal / count : 0;
   const brl = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-
-  const selectCustomer = (value: string) => {
-    setCustomer(value);
-    setCurrentStep(1);
-    setConflict(value === "Henrique Alves" ? "O cliente está sendo atendido por Juliana Castro desde 09/06/2025." : "");
-  };
   const toggleBenefit = (benefit: string) => setBenefits((current) => current.includes(benefit) ? current.filter((item) => item !== benefit) : [...current, benefit]);
-  const completeSimulation = () => {
-    if (!customer) return;
-    const timestamp = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date());
-    const detail = `${months} parcelas • Entrada ${brl(Number(downPayment || 0))} • Valor ${brl(Number(salePrice))}`;
-    onAddCustomerHistory(customer, "Simulação criada", `${timestamp} • ${detail}`, "blue", "proposal");
-    setStage((current) => transitionSalesStage(current, "PROPOSAL"));
+  const submitSimulation = async () => {
+    setSaving(true); setError(""); setNotice("");
+    try {
+      const proposal = await apiRequest("/propostas", { method: "POST", body: JSON.stringify({ clienteId: Number(customerId), veiculoId: Number(vehicleId), valorProposta: Number(salePrice), entrada: Number(downPayment), parcelas: count, taxaJuros: Number(rate), observacoes: benefits.length ? `Benefícios: ${benefits.join(", ")}` : "" }) });
+      setNotice(`Proposta #${proposal.id} criada. Parcela estimada: ${brl(proposal.valorParcela)}.`);
+      setVehicles((current) => current.map((item) => item.id === Number(vehicleId) ? { ...item, status: "IN_NEGOTIATION", simulacoesAtivas: item.simulacoesAtivas + 1 } : item));
+    } catch (saveError) { setError(saveError instanceof Error ? saveError.message : "Falha ao gerar proposta."); }
+    finally { setSaving(false); }
   };
-
-  return (
-    <div className="content module-content">
-      <section className="module-heading"><div><p>OPERAÇÃO COMERCIAL</p><h1>Nova simulação</h1><span>Configure os dados da negociação e calcule o financiamento.</span></div><button className="secondary-button">Salvar rascunho</button></section>
-      <div className="simulation-steps" aria-label="Fluxo em 3 etapas">
-        {[
-          { step: 1, label: "Cliente" },
-          { step: 2, label: "Veículo" },
-          { step: 3, label: "Resumo" },
-        ].map((item) => (
-          <button key={item.step} type="button" className={currentStep === item.step ? "active" : ""} onClick={() => setCurrentStep(item.step)}>
-            <span>{item.step}</span>
-            {item.label}
-          </button>
-        ))}
-      </div>
-      <div className="simulation-layout">
-        <div className="simulation-form">
-          <section className="panel form-panel">
-            <div className="step-title"><span>1</span><div><h3>Cliente</h3><p>Selecione o cliente desta negociação.</p></div></div>
-            <label>Cliente cadastrado<select value={customer} onChange={(e) => selectCustomer(e.target.value)}><option value="">Selecione um cliente</option><option>Ricardo Nunes</option><option>Camila Rocha</option><option>Henrique Alves</option></select></label>
-            {conflict && <div className="conflict-alert"><strong>Atendimento em andamento</strong><span>{conflict}</span><small>Para prosseguir, solicite a transferência ao gerente.</small></div>}
-            {customer && <button type="button" className="secondary-button" onClick={() => setCurrentStep(2)}>Avançar para veículo</button>}
-          </section>
-          <section className="panel form-panel">
-            <div className="step-title"><span>2</span><div><h3>Veículo</h3><p>Apenas veículos disponíveis podem ser selecionados.</p></div></div>
-            <label>Veículo do estoque<select value={vehicle} onChange={(e) => { setVehicle(e.target.value); setSalePrice(e.target.value === "169000" ? "168900" : e.target.value); }}><option value="169000">Jeep Compass Limited · Em negociação · 4 simulações</option><option value="134900">VW T-Cross Highline · Disponível · 0 simulações</option><option value="98500">Hyundai Creta Platinum · Em negociação · 2 simulações</option></select></label>
-            <div className="vehicle-selection-meta"><span><Icon name="check" size={15}/> Aceita novas simulações</span><span><Icon name="proposal" size={15}/> {currentVehicle.simulations} simulações ativas</span><span>Status: <strong>{currentVehicle.status === "AVAILABLE" ? "Disponível" : "Em negociação"}</strong></span></div>
-            <label className="sale-price-field">Preço negociado<input type="number" value={salePrice} onChange={(event) => setSalePrice(event.target.value)}/><small>Preço mínimo autorizado: {brl(currentVehicle.minimum)}</small></label>
-            {isBelowMinimum && <div className="price-alert">O valor de venda não pode ser menor que o preço mínimo cadastrado.</div>}
-            <button type="button" className="secondary-button" onClick={() => setCurrentStep(3)}>Avançar para resumo</button>
-          </section>
-          <section className="panel form-panel">
-            <div className="step-title"><span>3</span><div><h3>Benefícios</h3><p>Escolha os benefícios autorizados para esta proposta.</p></div></div>
-            <div className="benefit-grid">{["IPVA pago", "Tanque cheio", "Transferência", "Seguro 3 meses"].map((benefit) => <button type="button" className={benefits.includes(benefit) ? "selected" : ""} onClick={() => toggleBenefit(benefit)} key={benefit}><span><Icon name="gift" size={18}/>{benefit}</span><i>{benefits.includes(benefit) ? "✓" : "+"}</i></button>)}</div>
-            <button type="button" className="auth-submit" onClick={completeSimulation} disabled={!customer || Boolean(conflict) || isBelowMinimum || stage !== "SIMULATION"}>{stage === "PROPOSAL" ? "Proposta gerada" : "Gerar proposta"} <Icon name={stage === "PROPOSAL" ? "check" : "arrow"} size={16}/></button>
-          </section>
-        </div>
-        <aside className="finance-card">
-          <span className="finance-kicker">RESUMO DO FINANCIAMENTO</span><h2>{brl(Number(salePrice))}</h2><p>Valor negociado do veículo</p>
-          <div className="finance-fields">
-            <label>Valor de entrada<input type="number" value={downPayment} onChange={(e) => setDownPayment(e.target.value)}/></label>
-            <div className="finance-row"><label>Parcelas<select value={months} onChange={(e) => setMonths(e.target.value)}><option value="24">24x</option><option value="36">36x</option><option value="48">48x</option><option value="60">60x</option></select></label><label>Taxa a.m.<select value={rate} onChange={(e) => setRate(e.target.value)}><option value="0.99">0,99%</option><option value="1.39">1,39%</option><option value="1.59">1,59%</option></select></label></div>
-          </div>
-          <div className="finance-result"><span>Financiamento em {months}x de</span><strong>{brl(installment)}</strong><small>Valor financiado: {brl(principal)}</small></div>
-          <div className="finance-breakdown"><span><em>Total financiado</em><strong>{brl(installment * count)}</strong></span><span><em>Custo efetivo estimado</em><strong>{brl(installment * count + Number(downPayment || 0))}</strong></span><span><em>Benefícios incluídos</em><strong>{benefits.length}</strong></span></div>
-          <button
-            disabled={!customer || Boolean(conflict) || isBelowMinimum || stage !== "SIMULATION"}
-            className="auth-submit"
-            onClick={completeSimulation}
-          >
-            {stage === "PROPOSAL" ? "Proposta gerada" : "Gerar proposta"} <Icon name={stage === "PROPOSAL" ? "check" : "arrow"} size={16}/>
-          </button>
-          {stage === "PROPOSAL" && <small className="lifecycle-copy">Etapa atual: PROPOSAL · Aguardando análise bancária.</small>}
-          {conflict && <small className="blocked-copy">Resolva o conflito de atendimento para continuar.</small>}
-        </aside>
-      </div>
-    </div>
-  );
+  return <div className="content module-content">
+    <section className="module-heading"><div><p>OPERAÇÃO COMERCIAL</p><h1>Nova simulação</h1><span>Negociação vinculada à carteira de {userName}; preço mínimo validado no servidor.</span></div></section>
+    {loading && <div className="support-note">Carregando clientes e estoque...</div>}{error && <div className="auth-notice">{error}</div>}{notice && <div className="auth-notice success">{notice}</div>}
+    <div className="simulation-layout"><div className="simulation-form">
+      <section className="panel form-panel"><div className="step-title"><span>1</span><div><h3>Cliente</h3><p>Selecione um cliente autorizado na sua carteira.</p></div></div><label>Cliente cadastrado<select value={customerId} onChange={(event) => setCustomerId(event.target.value)}><option value="">Selecione um cliente</option>{customers.map((item) => <option key={item.id} value={item.id}>{item.nome} · {item.tipoPessoa.toUpperCase()} · {item.documento}</option>)}</select></label>{customers.length === 0 && <small>Nenhum cliente disponível. Cadastre um cliente antes.</small>}</section>
+      <section className="panel form-panel"><div className="step-title"><span>2</span><div><h3>Veículo</h3><p>Estoque real com propostas ativas.</p></div></div><label>Veículo do estoque<select value={vehicleId} onChange={(event) => { const selected = vehicles.find((item) => String(item.id) === event.target.value); setVehicleId(event.target.value); setSalePrice(String(selected?.precoSugerido || "")); }}><option value="">Selecione um veículo</option>{vehicles.map((item) => <option key={item.id} value={item.id}>{item.marca} {item.modelo} · {item.anoFabricacao}/{item.anoModelo} · {item.status === "AVAILABLE" ? "Disponível" : "Em negociação"} · {item.simulacoesAtivas} simulações</option>)}</select></label>{currentVehicle && <div className="vehicle-selection-meta"><span><Icon name="check" size={15}/> Aceita simulações</span><span><Icon name="proposal" size={15}/> {currentVehicle.simulacoesAtivas} simulações ativas</span><span>Status: <strong>{currentVehicle.status === "AVAILABLE" ? "Disponível" : "Em negociação"}</strong></span></div>}<label className="sale-price-field">Preço negociado<input type="number" min="0" value={salePrice} onChange={(event) => setSalePrice(event.target.value)}/><small>Preço mínimo autorizado: {brl(Number(currentVehicle?.precoMinimo || 0))}</small></label>{isBelowMinimum && <div className="price-alert">O valor não pode ser menor que o preço mínimo.</div>}</section>
+      <section className="panel form-panel"><div className="step-title"><span>3</span><div><h3>Benefícios</h3><p>Registre os benefícios negociados.</p></div></div><div className="benefit-grid">{["IPVA pago", "Tanque cheio", "Transferência", "Seguro 3 meses"].map((benefit) => <button type="button" className={benefits.includes(benefit) ? "selected" : ""} onClick={() => toggleBenefit(benefit)} key={benefit}><span><Icon name="gift" size={18}/>{benefit}</span><i>{benefits.includes(benefit) ? "✓" : "+"}</i></button>)}</div></section>
+    </div><aside className="finance-card"><span className="finance-kicker">RESUMO DO FINANCIAMENTO</span><h2>{brl(Number(salePrice || 0))}</h2><p>Valor negociado do veículo</p><div className="finance-fields"><label>Valor de entrada<input type="number" min="0" value={downPayment} onChange={(event) => setDownPayment(event.target.value)}/></label><div className="finance-row"><label>Parcelas<select value={months} onChange={(event) => setMonths(event.target.value)}><option value="24">24x</option><option value="36">36x</option><option value="48">48x</option><option value="60">60x</option></select></label><label>Taxa a.m.<select value={rate} onChange={(event) => setRate(event.target.value)}><option value="0.99">0,99%</option><option value="1.39">1,39%</option><option value="1.59">1,59%</option></select></label></div></div><div className="finance-result"><span>Financiamento em {months}x de</span><strong>{brl(installment)}</strong><small>Valor financiado: {brl(principal)}</small></div><div className="finance-breakdown"><span><em>Total financiado</em><strong>{brl(installment * count)}</strong></span><span><em>Custo efetivo estimado</em><strong>{brl(installment * count + Number(downPayment || 0))}</strong></span><span><em>Benefícios incluídos</em><strong>{benefits.length}</strong></span></div><button disabled={loading || saving || !customerId || !vehicleId || !salePrice || isBelowMinimum} className="auth-submit" onClick={() => void submitSimulation()}>{saving ? "Salvando..." : "Gerar proposta"} <Icon name="arrow" size={16}/></button></aside></div>
+  </div>;
 }
 
 function SupportDashboard() {
   const teams = [
-    { name: `Equipe ${clientCompany}`, manager: "Amanda Silva", contracts: 18, sales: "R$ 2,48 mi", goal: 92 },
+    { name: "Equipe Horizonte", manager: "Amanda Silva", contracts: 18, sales: "R$ 2,48 mi", goal: 92 },
     { name: "Equipe Impulso", manager: "Bruno Tavares", contracts: 15, sales: "R$ 1,96 mi", goal: 81 },
     { name: "Equipe Vértice", manager: "Patrícia Melo", contracts: 12, sales: "R$ 1,54 mi", goal: 74 },
   ];
   const sellers = [
-    { initials: "MC", name: "Marcos Costa", team: clientCompany, contracts: 8, sales: "R$ 986 mil" },
+    { initials: "MC", name: "Marcos Costa", team: "Horizonte", contracts: 8, sales: "R$ 986 mil" },
     { initials: "JC", name: "Juliana Castro", team: "Impulso", contracts: 7, sales: "R$ 842 mil" },
-    { initials: "RL", name: "Rafael Lima", team: clientCompany, contracts: 6, sales: "R$ 728 mil" },
+    { initials: "RL", name: "Rafael Lima", team: "Horizonte", contracts: 6, sales: "R$ 728 mil" },
   ];
   return (
     <div className="content module-content">
@@ -1231,844 +997,78 @@ function SupportDashboard() {
   );
 }
 
-type ReviewStatus = "PENDING" | "BANK_ANALYSIS" | "APPROVED" | "REJECTED" | "CONTRACT_EFFECTIVE";
-
-function ProposalReviewPage({ onAddCustomerHistory }: { onAddCustomerHistory: (customerName: string, title: string, detail: string, tone?: string, icon?: IconName) => void }) {
-  const staticReviewRows = [
-    { id: "#0842", apiId: 842, customer: "Ricardo Nunes", seller: "Marcos Costa", bank: "Banco Alfa", amount: "R$ 118.900", score: "782", status: "PENDING" as ReviewStatus },
-    { id: "#0841", apiId: 841, customer: "Camila Rocha", seller: "Rafael Lima", bank: "Banco Capital", amount: "R$ 92.500", score: "714", status: "BANK_ANALYSIS" as ReviewStatus },
-    { id: "#0838", apiId: 838, customer: "Pedro Azevedo", seller: "Juliana Castro", bank: "Banco União", amount: "R$ 106.200", score: "698", status: "CONTRACT_EFFECTIVE" as ReviewStatus },
-    { id: "#0837", apiId: 837, customer: "Fernanda Dias", seller: "Amanda Silva", bank: "Bradesco", amount: "R$ 132.400", score: "744", status: "REJECTED" as ReviewStatus },
-  ];
-
-  const [submitted, setSubmitted] = useState<string[]>([]);
-  const [query, setQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<ReviewStatus | "ALL">("ALL");
-  const [selectedProposalId, setSelectedProposalId] = useState<string>("#0842");
-  const [documentChecklist, setDocumentChecklist] = useState<Record<string, Record<string, boolean>>>({
-    "#0842": { "RG/CPF": true, "Comprovante residencial": true, "Contrato digital": false, "Assinatura do cliente": false },
-    "#0841": { "RG/CPF": true, "Comprovante residencial": false, "Contrato digital": false, "Assinatura do cliente": false },
-    "#0838": { "RG/CPF": true, "Comprovante residencial": true, "Contrato digital": true, "Assinatura do cliente": true },
-    "#0837": { "RG/CPF": false, "Comprovante residencial": false, "Contrato digital": false, "Assinatura do cliente": false },
-  });
-  const [reviewRows, setReviewRows] = useState<typeof staticReviewRows>(staticReviewRows);
-
-  useEffect(() => {
-    const loadReviewRows = async () => {
-      try {
-        const result = await apiRequest("/propostas");
-        const nextRows = Array.isArray(result?.data) ? result.data : [];
-
-        if (!nextRows.length) return;
-
-        const mappedRows = nextRows.map((item: any) => {
-          const statusMap: Record<string, ReviewStatus> = {
-            pendente: "PENDING",
-            aguardando: "PENDING",
-            em_analise: "BANK_ANALYSIS",
-            emAnalise: "BANK_ANALYSIS",
-            analisando: "BANK_ANALYSIS",
-            aprovado: "APPROVED",
-            aprovada: "APPROVED",
-            recusado: "REJECTED",
-            recusada: "REJECTED",
-            contrato_ativo: "CONTRACT_EFFECTIVE",
-            ativo: "CONTRACT_EFFECTIVE",
-          };
-
-          const normalizedStatus = statusMap[String(item.status ?? "").toLowerCase()] ?? "PENDING";
-          const proposalId = `#${String(item.id).padStart(4, "0")}`;
-
-          return {
-            id: proposalId,
-            apiId: item.id,
-            customer: item.cliente?.nome || item.cliente?.name || "Cliente",
-            seller: item.vendedor?.nome || item.vendedor?.name || "Vendedor",
-            bank: item.banco || "Banco VFC",
-            amount: formatCurrency(item.valorProposta || item.valor || 0),
-            score: item.score || "780",
-            status: normalizedStatus,
-          };
-        });
-
-        setReviewRows(mappedRows.length ? mappedRows : staticReviewRows);
-        if (mappedRows.length) {
-          setSelectedProposalId(mappedRows[0].id);
-        }
-      } catch {
-        setReviewRows(staticReviewRows);
-      }
-    };
-
-    void loadReviewRows();
-  }, []);
-
-  const tabs: Array<{ key: ReviewStatus | "ALL"; label: string }> = [
-    { key: "ALL", label: "Todas" },
-    { key: "PENDING", label: "Aguardando envio" },
-    { key: "BANK_ANALYSIS", label: "Em análise bancária" },
-    { key: "APPROVED", label: "Aprovadas" },
-    { key: "CONTRACT_EFFECTIVE", label: "Contratos ativos" },
-    { key: "REJECTED", label: "Recusadas" },
-  ];
-
-  const visibleRows = reviewRows.filter((row) => {
-    const matchesTab = activeTab === "ALL" || row.status === activeTab;
-    const matchesQuery = `${row.id} ${row.customer} ${row.seller} ${row.bank}`.toLowerCase().includes(query.toLowerCase());
-    return matchesTab && matchesQuery;
-  });
-
-  const statusLabel: Record<ReviewStatus, string> = {
-    PENDING: "Aguardando envio",
-    BANK_ANALYSIS: "Em análise",
-    APPROVED: "Aprovada",
-    REJECTED: "Recusada",
-    CONTRACT_EFFECTIVE: "Contrato ativo",
-  };
-
-  const statusTone: Record<ReviewStatus, string> = {
-    PENDING: "yellow",
-    BANK_ANALYSIS: "blue",
-    APPROVED: "green",
-    REJECTED: "red",
-    CONTRACT_EFFECTIVE: "green",
-  };
-
-  const addHistoryForCustomer = (customer: string, eventName: string, note: string, tone: string = "blue", icon: IconName = "proposal") => {
-    onAddCustomerHistory(customer, eventName, note, tone, icon);
-  };
-
-  const handleSendToBank = async (row: typeof reviewRows[number]) => {
-    const nextStatusMap: Record<ReviewStatus, string> = {
-      PENDING: "pendente",
-      BANK_ANALYSIS: "em_analise",
-      APPROVED: "aprovado",
-      REJECTED: "recusado",
-      CONTRACT_EFFECTIVE: "contrato_ativo",
-    };
-
+type ProposalRecord = { id: number; clienteId: number; vendedorId: number; veiculoId: number; valorProposta: number; valorParcela?: number; parcelas?: number; status: string; createdAt: string; cliente?: SaleCustomer; vendedor?: { nome: string }; veiculo?: SaleVehicle };
+function SellerProposalsPage({ profile, userName, authToken }: { profile: string; userName: string; authToken: string }) {
+  const [rows, setRows] = useState<ProposalRecord[]>([]); const [error, setError] = useState(""); const [loading, setLoading] = useState(true);
+  useEffect(() => { let cancelled = false; const load = async () => { try { const response = await fetch(`${API_BASE_URL}/propostas`, { headers: { Authorization: `Bearer ${authToken}` } }); const payload = await response.json(); if (!response.ok) throw new Error(payload?.message || "Não foi possível carregar propostas."); if (!cancelled) setRows(Array.isArray(payload?.data) ? payload.data : []); } catch (requestError) { if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Falha ao carregar propostas."); } finally { if (!cancelled) setLoading(false); } }; void load(); return () => { cancelled = true; }; }, [authToken]);
+  const money = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
+  const downloadProposalPdf = async (id: number) => {
     try {
-      if (row.status === "PENDING") {
-        await apiRequest(`/propostas/${row.apiId}/status`, {
-          method: "PATCH",
-          body: JSON.stringify({ status: nextStatusMap.BANK_ANALYSIS }),
-        });
-        setReviewRows((current) => current.map((item) => item.id === row.id ? { ...item, status: "BANK_ANALYSIS" } : item));
-        addHistoryForCustomer(row.customer, "Proposta enviada ao banco", `${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date())} • ${row.bank} • Valor ${row.amount}`, "blue", "file");
-        return;
-      }
-      if (row.status === "BANK_ANALYSIS") {
-        await apiRequest(`/propostas/${row.apiId}/status`, {
-          method: "PATCH",
-          body: JSON.stringify({ status: nextStatusMap.APPROVED }),
-        });
-        setReviewRows((current) => current.map((item) => item.id === row.id ? { ...item, status: "APPROVED" } : item));
-        addHistoryForCustomer(row.customer, "Proposta aprovada", `${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date())} • ${row.bank} • Documento aprovado e liberado para contratação`, "green", "check");
-        return;
-      }
-      if (row.status === "APPROVED") {
-        await apiRequest(`/propostas/${row.apiId}/status`, {
-          method: "PATCH",
-          body: JSON.stringify({ status: nextStatusMap.CONTRACT_EFFECTIVE }),
-        });
-        setReviewRows((current) => current.map((item) => item.id === row.id ? { ...item, status: "CONTRACT_EFFECTIVE" } : item));
-        addHistoryForCustomer(row.customer, "Contrato efetivado", `${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date())} • ${row.amount} • Documento assinado e contrato ativo`, "purple", "contract");
-        return;
-      }
-      if (row.status === "REJECTED") {
-        await apiRequest(`/propostas/${row.apiId}/status`, {
-          method: "PATCH",
-          body: JSON.stringify({ status: nextStatusMap.PENDING }),
-        });
-        setReviewRows((current) => current.map((item) => item.id === row.id ? { ...item, status: "PENDING" } : item));
-        addHistoryForCustomer(row.customer, "Nova proposta aberta", `${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date())} • Revisão reaberta para ajuste de documentação`, "orange", "proposal");
-      }
-    } catch {
-      setSubmitted((current) => (current.includes(row.id) ? current : [...current, row.id]));
-    }
+      const response = await fetch(`${API_BASE_URL}/propostas/${id}/pdf`, { headers: { Authorization: `Bearer ${authToken}` } });
+      if (!response.ok) throw new Error("Não foi possível gerar o PDF da proposta.");
+      const url = URL.createObjectURL(await response.blob()); const anchor = document.createElement("a"); anchor.href = url; anchor.download = `proposta-${id}.pdf`; anchor.click(); URL.revokeObjectURL(url);
+    } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Falha ao baixar PDF."); }
   };
-
-  const selectedProposal = reviewRows.find((row) => row.id === selectedProposalId) ?? reviewRows[0];
-  const selectedDocuments = documentChecklist[selectedProposal.id] ?? { "RG/CPF": false, "Comprovante residencial": false, "Contrato digital": false, "Assinatura do cliente": false };
-
-  const toggleDocument = (documentName: string) => {
-    setDocumentChecklist((current) => ({
-      ...current,
-      [selectedProposal.id]: {
-        ...(current[selectedProposal.id] ?? {}),
-        [documentName]: !(current[selectedProposal.id]?.[documentName] ?? false),
-      },
-    }));
-  };
-
-  const completeContract = () => {
-    if (!selectedProposal) return;
-    setReviewRows((current) => current.map((row) => row.id === selectedProposal.id ? { ...row, status: "CONTRACT_EFFECTIVE" } : row));
-    addHistoryForCustomer(selectedProposal.customer, "Contrato assinado digitalmente", `${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date())} • Checklist concluída com assinatura eletrônica`, "purple", "contract");
-  };
-
-  const getActionLabel = (status: ReviewStatus) => {
-    switch (status) {
-      case "PENDING":
-        return "Revisar e enviar";
-      case "BANK_ANALYSIS":
-        return "Aprovar proposta";
-      case "APPROVED":
-        return "Ativar contrato";
-      case "CONTRACT_EFFECTIVE":
-        return "Contrato ativo";
-      case "REJECTED":
-        return "Reabrir proposta";
-      default:
-        return "Ação";
-    }
-  };
-
-  return (
-    <div className="content module-content">
-      <section className="module-heading"><div><p>OPERAÇÃO BANCÁRIA</p><h1>Análise de propostas</h1><span>Revise a documentação e envie propostas para aprovação bancária.</span></div></section>
-      <div className="review-tabs">
-        {tabs.map((tab) => {
-          const count = tab.key === "ALL" ? reviewRows.length : reviewRows.filter((row) => row.status === tab.key).length;
-          return (
-            <button key={tab.key} className={activeTab === tab.key ? "active" : ""} onClick={() => setActiveTab(tab.key)}>
-              {tab.label} <span>{count}</span>
-            </button>
-          );
-        })}
-      </div>
-      <section className="panel module-table">
-        <div className="module-toolbar"><div className="search-box"><Icon name="search" size={17}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar proposta, cliente ou banco..."/></div><button><Icon name="settings" size={16}/>Filtros</button></div>
-        <div className="table-wrap"><table><thead><tr><th>PROPOSTA</th><th>CLIENTE</th><th>VENDEDOR</th><th>BANCO SELECIONADO</th><th>FINANCIADO</th><th>SCORE</th><th>STATUS</th><th>AÇÃO</th></tr></thead>
-          <tbody>{visibleRows.map((row) => <tr key={row.id} className={selectedProposalId === row.id ? "selected-row" : ""} onClick={() => setSelectedProposalId(row.id)}><td><strong>{row.id}</strong></td><td>{row.customer}</td><td>{row.seller}</td><td>{row.bank}</td><td><strong>{row.amount}</strong></td><td><span className="score-pill">{row.score}</span></td><td><span className={`status ${statusTone[row.status]}`}>{statusLabel[row.status]}</span></td><td><button className={`submit-bank ${submitted.includes(row.id) ? "done" : ""}`} onClick={(event) => { event.stopPropagation(); handleSendToBank(row); }} disabled={row.status === "CONTRACT_EFFECTIVE"}>{getActionLabel(row.status)}</button></td></tr>)}</tbody>
-        </table></div>
-      </section>
-      <section className="panel support-note contract-panel">
-        <div className="panel-header"><div><h3>Checklist de documentos</h3><p>Proposta selecionada: {selectedProposal.id} · {selectedProposal.customer}</p></div><button className="primary-button" onClick={completeContract}>Assinar digitalmente</button></div>
-        <div className="document-list">
-          {Object.entries(selectedDocuments).map(([documentName, checked]) => (
-            <button key={documentName} type="button" className={checked ? "document-item complete" : "document-item"} onClick={() => toggleDocument(documentName)}>
-              <span className="document-check"><Icon name={checked ? "check" : "file"} size={16}/></span>
-              <span>{documentName}</span>
-            </button>
-          ))}
-        </div>
-      </section>
-      <div className="support-note"><Icon name="settings" size={18}/><div><strong>Integração com portais bancários</strong><span>O envio está em modo demonstrativo. Em produção, cada banco utilizará seu conector de API ou portal homologado.</span></div></div>
-    </div>
-  );
+  return <div className="content module-content"><section className="module-heading"><div><p>{profile === "MANAGER" ? "CARTEIRA DA EQUIPE" : "MINHA CARTEIRA"}</p><h1>{profile === "MANAGER" ? "Propostas da equipe" : "Minhas propostas"}</h1><span>Propostas vinculadas à carteira de {userName}.</span></div></section>{error && <div className="auth-notice">{error}</div>}<section className="panel module-table"><div className="table-wrap"><table><thead><tr><th>PROPOSTA</th><th>CLIENTE</th><th>VEÍCULO</th><th>VALOR</th><th>PARCELAS</th><th>STATUS</th><th>DOCUMENTO</th></tr></thead><tbody>{loading ? <tr><td colSpan={7}>Carregando propostas...</td></tr> : rows.length ? rows.map((row) => <tr key={row.id}><td>#{String(row.id).padStart(4, "0")}</td><td>{row.cliente?.nome || "Cliente"}</td><td>{row.veiculo ? `${row.veiculo.marca} ${row.veiculo.modelo}` : "—"}</td><td>{money(row.valorProposta)}</td><td>{row.parcelas ? `${row.parcelas}x ${money(row.valorParcela || 0)}` : "—"}</td><td><span className={`status ${["CONTRACT_EFFECTIVE", "approved"].includes(row.status) ? "green" : ["CREDIT_REJECTED", "REJECTED", "CANCELLED"].includes(row.status) ? "red" : "blue"}`}>{row.status}</span></td><td><button className="submit-bank" onClick={() => void downloadProposalPdf(row.id)}>Baixar PDF</button></td></tr>) : <tr><td colSpan={7}>Nenhuma proposta vinculada a esta carteira.</td></tr>}</tbody></table></div></section></div>;
 }
 
-function ContractManagementPage() {
-  const [selectedContractId, setSelectedContractId] = useState("#CONT-2025-0318");
-  const [selectedRecoveryContractId, setSelectedRecoveryContractId] = useState("#REC-2025-0101");
-  const [proposalSent, setProposalSent] = useState(false);
-  const [proposalAccepted, setProposalAccepted] = useState(false);
-  const [observation, setObservation] = useState("Cliente possui análise documental concluída e perfil adequado para acompanhamento financeiro. Encaminhar proposta com foco em melhores condições de enquadramento bancário.");
-  const [signedDocuments, setSignedDocuments] = useState<Record<string, { fileName: string; signedAt: string; eGovSignature: string; status: string; stored: boolean }>>({
-    "#REC-2025-0101": { fileName: "consultoria-recuperacao-camila-rocha.pdf", signedAt: "24/09/2026 · 14:20", eGovSignature: "e-Gov • Assinatura válida", status: "Arquivo armazenado com validade jurídica", stored: true },
-    "#REC-2025-0104": { fileName: "consultoria-recuperacao-ricardo-nunes.pdf", signedAt: "24/09/2026 · 09:45", eGovSignature: "e-Gov • Assinatura válida", status: "Arquivo armazenado com validade jurídica", stored: true },
-  });
-  const [contracts, setContracts] = useState<Array<{ id: string; customer: string; vehicle: string; value: string; status: string; completion: number; nextStep: string; docs: number; due: string }>>([
-    { id: "#CONT-2025-0318", customer: "Pedro Azevedo", vehicle: "Toyota Corolla Cross XRE", value: "R$ 159.800", status: "Em assinatura", completion: 82, nextStep: "Assinatura do cliente", docs: 5, due: "12/07/2025" },
-    { id: "#CONT-2025-0315", customer: "Camila Rocha", vehicle: "Jeep Compass Limited", value: "R$ 168.900", status: "Documentação", completion: 64, nextStep: "Validação de renda", docs: 3, due: "18/07/2025" },
-    { id: "#CONT-2025-0306", customer: "Ricardo Nunes", vehicle: "Hyundai Creta Platinum", value: "R$ 98.500", status: "Aprovado", completion: 100, nextStep: "Agendar entrega", docs: 6, due: "21/07/2025" },
-  ]);
-
-  useEffect(() => {
-    const loadContracts = async () => {
-      try {
-        const result = await apiRequest("/contratos");
-        const data = Array.isArray(result?.data) ? result.data : [];
-
-        if (!data.length) return;
-
-        const mappedContracts = data.map((item: any) => ({
-          id: `#CONT-${String(item.id).padStart(4, "0")}`,
-          customer: item.cliente?.nome || item.cliente?.name || "Cliente",
-          vehicle: item.proposta?.veiculo?.modelo || item.proposta?.veiculo?.name || "Veículo",
-          value: formatCurrency(item.valorTotal || item.valor || 0),
-          status: item.status === "ativo" ? "Aprovado" : item.status === "pendente" ? "Documentação" : "Em assinatura",
-          completion: item.status === "ativo" ? 100 : item.status === "pendente" ? 64 : 82,
-          nextStep: item.status === "ativo" ? "Agendar entrega" : "Validação documental",
-          docs: item.status === "ativo" ? 6 : 4,
-          due: item.dataAssinatura ? new Intl.DateTimeFormat("pt-BR").format(new Date(item.dataAssinatura)) : "—",
-        }));
-
-        setContracts(mappedContracts);
-        if (mappedContracts[0]) setSelectedContractId(mappedContracts[0].id);
-      } catch {
-        setContracts((current) => current);
-      }
-    };
-
-    void loadContracts();
-  }, []);
-  const creditRecoveryContracts = [
-    { id: "#REC-2025-0101", customer: "Camila Rocha", vehicle: "Jeep Compass Limited", financingStatus: "Não recusado", value: "R$ 2.400", status: "Elegível", nextStep: "Emitir contrato de consultoria" },
-    { id: "#REC-2025-0104", customer: "Ricardo Nunes", vehicle: "Hyundai Creta Platinum", financingStatus: "Aprovado", value: "R$ 2.400", status: "Elegível", nextStep: "Enviar proposta de consultoria" },
-    { id: "#REC-2025-0107", customer: "Fernanda Dias", vehicle: "Honda HR-V Touring", financingStatus: "Recusado", value: "R$ 0", status: "Não elegível", nextStep: "Financiamento recusado - sem contratação" },
-  ].filter((entry) => entry.financingStatus !== "Recusado");
-
-  const selectedContract = contracts.find((contract) => contract.id === selectedContractId) ?? contracts[0];
-  const selectedRecoveryContract = creditRecoveryContracts.find((entry) => entry.id === selectedRecoveryContractId) ?? creditRecoveryContracts[0];
-  const selectedSignedDocument = signedDocuments[selectedRecoveryContract.id] ?? {
-    fileName: `consultoria-recuperacao-${selectedRecoveryContract.customer.toLowerCase().replace(/\s+/g, "-")}.pdf`,
-    signedAt: "Aguardando assinatura",
-    eGovSignature: "e-Gov • pendente",
-    status: "Arquivo ainda não armazenado",
-    stored: false,
+function ProposalReviewPage({ authToken }: { authToken: string }) {
+  const [rows, setRows] = useState<ProposalRecord[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [busyId, setBusyId] = useState<number | null>(null);
+  const load = async () => { setLoading(true); setError(""); try { const response = await fetch(`${API_BASE_URL}/propostas`, { headers: { Authorization: `Bearer ${authToken}` } }); const payload = await response.json(); if (!response.ok) throw new Error(payload?.message || "Não foi possível carregar propostas."); setRows(Array.isArray(payload?.data) ? payload.data : []); } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Falha ao carregar propostas."); } finally { setLoading(false); } };
+  useEffect(() => { void load(); }, [authToken]);
+  const changeStatus = async (id: number, status: string) => { setBusyId(id); setError(""); try { const response = await fetch(`${API_BASE_URL}/propostas/${id}/status`, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` }, body: JSON.stringify({ status }) }); const payload = await response.json(); if (!response.ok) throw new Error(payload?.message || "Não foi possível atualizar o status."); await load(); } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Falha ao atualizar proposta."); } finally { setBusyId(null); } };
+  const review = rows.filter((row) => ["pendente", "em análise", "em analise", "aguardando", "proposal", "PROPOSAL", "SIMULATION"].includes(row.status));
+  const downloadPdf = async (id: number) => {
+    try { const response = await fetch(`${API_BASE_URL}/propostas/${id}/pdf`, { headers: { Authorization: `Bearer ${authToken}` } }); if (!response.ok) throw new Error("Não foi possível gerar o PDF da proposta."); const url = URL.createObjectURL(await response.blob()); const anchor = document.createElement("a"); anchor.href = url; anchor.download = `proposta-${id}.pdf`; anchor.click(); URL.revokeObjectURL(url); }
+    catch (downloadError) { setError(downloadError instanceof Error ? downloadError.message : "Falha ao baixar PDF."); }
   };
-
-  const archiveEntries = [
-    { id: "#DOC-3021", client: "Camila Rocha", document: "Proposta de consultoria", file: "consultoria-recuperacao-camila-rocha.pdf", status: "Arquivado", channel: "e-Gov", date: "24/09/2026" },
-    { id: "#DOC-3022", client: "Ricardo Nunes", document: "Contratação de acompanhamento financeiro", file: "consultoria-recuperacao-ricardo-nunes.pdf", status: "Arquivado", channel: "e-Gov", date: "24/09/2026" },
-    { id: "#DOC-3023", client: "Fernanda Dias", document: "Análise documental inicial", file: "documentacao-fernanda-dias.pdf", status: "Rascunho", channel: "Manual", date: "Em revisão" },
-  ];
-
-  const clientDocuments = [
-    { id: "DOC-001", name: "Proposta comercial", version: "v2.1", status: "Assinado", date: "24/09/2026", channel: "e-Gov" },
-    { id: "DOC-002", name: "Análise documental", version: "v1.4", status: "Validado", date: "23/09/2026", channel: "Coleta interna" },
-    { id: "DOC-003", name: "Comprovante de renda", version: "v1.0", status: "Conferido", date: "22/09/2026", channel: "Cliente" },
-    { id: "DOC-004", name: "Checklist bancária", version: "v3.0", status: "Pendência", date: "21/09/2026", channel: "Operação" },
-  ];
-
-  const legalHistory = [
-    { date: "24/09/2026 · 14:20", title: "PDF assinado armazenado", detail: "Arquivo legal registrado para Camila Rocha com assinatura válida do e-Gov.", tone: "green", icon: "check" as IconName },
-    { date: "24/09/2026 · 09:45", title: "Proposta aceita", detail: "Ricardo Nunes confirmou ciência e aceite da proposta de consultoria.", tone: "blue", icon: "file" as IconName },
-    { date: "23/09/2026 · 16:35", title: "Análise documental concluída", detail: "Checklist de renda e histórico cadastral validada para revisão jurídica.", tone: "purple", icon: "contract" as IconName },
-  ];
-
-  const billingRows = [
-    { id: "INV-001", client: "Camila Rocha", amount: "R$ 7.000,00", status: "Pendente", dueDate: "30/09/2026", channel: "Boleto", progress: 38 },
-    { id: "INV-002", client: "Ricardo Nunes", amount: "R$ 7.000,00", status: "Pago", dueDate: "18/09/2026", channel: "Pix", progress: 100 },
-    { id: "INV-003", client: "Fernanda Dias", amount: "R$ 7.000,00", status: "Em análise", dueDate: "02/10/2026", channel: "Cartão", progress: 62 },
-  ];
-
-  const deliveryChannels = [
-    { id: "MSG-001", client: "Camila Rocha", channel: "WhatsApp", status: "Entregue", recipient: "+55 (11) 9 9123-4455", sentAt: "24/09/2026 · 12:10", deliveryState: "Aceite em andamento" },
-    { id: "MSG-002", client: "Ricardo Nunes", channel: "E-mail", status: "Lido", recipient: "ricardo.nunes@gmail.com", sentAt: "24/09/2026 · 09:40", deliveryState: "Aceite confirmado" },
-    { id: "MSG-003", client: "Fernanda Dias", channel: "SMS", status: "Pendente", recipient: "+55 (11) 9 8824-7710", sentAt: "Aguardando envio", deliveryState: "Não entregue" },
-  ];
-
-  const approvalDashboard = [
-    { seller: "Marcos Costa", proposals: 11, sent: 9, accepted: 6, pending: 3, revenue: "R$ 84.000" },
-    { seller: "Juliana Castro", proposals: 8, sent: 7, accepted: 5, pending: 2, revenue: "R$ 67.500" },
-    { seller: "Rafael Lima", proposals: 10, sent: 8, accepted: 4, pending: 4, revenue: "R$ 59.000" },
-    { seller: "Amanda Silva", proposals: 7, sent: 6, accepted: 5, pending: 1, revenue: "R$ 52.000" },
-  ];
-
-  const approvalChecklist = [
-    { label: "Cobrança enviada", status: "Concluído" },
-    { label: "Proposta entregue", status: "Concluído" },
-    { label: "Cliente recebeu e leu", status: "Concluído" },
-    { label: "Aceite confirmado", status: "Em revisão" },
-    { label: "Arquivo jurídico arquivado", status: "Pendente" },
-  ];
-
-  const registerSignedProposal = () => {
-    const signedAt = new Intl.DateTimeFormat("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date());
-
-    setSignedDocuments((current) => ({
-      ...current,
-      [selectedRecoveryContract.id]: {
-        fileName: `consultoria-recuperacao-${selectedRecoveryContract.customer.toLowerCase().replace(/\s+/g, "-")}.pdf`,
-        signedAt,
-        eGovSignature: "e-Gov • assinatura validada",
-        status: "Arquivo arquivado em cópia jurídica",
-        stored: true,
-      },
-    }));
-    setProposalSent(true);
-    setProposalAccepted(true);
-  };
-
-  const recoveryProposalText = `COMO VAMOS CONDUZIR SUA LIBERAÇÃO
-
-Um passo a passo técnico e transparente, pensado para elevar suas chances reais de aprovação.
-
-A ESPECIALIZA PRO assume por você todo o trabalho técnico de aprovação de crédito, com agilidade, transparência e acompanhamento personalizado do início ao fim.
-
-Analisamos seu histórico cadastral dos últimos dois anos, identificamos os pontos de atenção e aplicamos estratégias comprovadas para fortalecer seu perfil junto às instituições financeiras.
-
-Cuidamos da atualização de renda junto à Receita Federal, oferecemos consultoria financeira estratégica e negociamos diretamente com os bancos as melhores taxas e condições do mercado.
-
-O resultado: mais segurança, mais agilidade e mais chances reais de aprovação, com suporte contínuo até a conclusão da sua aquisição.
-
-FLUXO DE ATENDIMENTO
-1. Análise documental
-Levantamento e conferência da documentação e do histórico de crédito.
-
-2. Simulações
-Simulações personalizadas com as condições mais vantajosas para o seu perfil.
-
-3. Estratégia Financeira Personalizada
-Orientações sob medida para fortalecer seu cadastro e elevar suas chances.
-
-4. Enquadramento bancário
-Direcionamento do seu perfil ao banco e às condições mais favoráveis ao seu caso.
-
-5. Suporte com setor especializado
-Equipe especializada te acompanha em todas as etapas, com segurança e agilidade.
-
-Pagamento pelos serviços prestados
-Para a execução da prestação de serviço constante nesta proposta comercial, o contratante pagará à empresa os honorários profissionais correspondentes a R$ 7.000,00, a serem pagos via boleto, após o envio da presente proposta.
-
-CONFIRMAÇÃO DE ACEITE
-Ao validar o aceite pelo link enviado, o contratante confirma ciência das condições apresentadas e autoriza a continuidade do atendimento.
-
-_______________________________
-CONTRATANTE ${selectedRecoveryContract.customer.toUpperCase()}
-_______________________________
-CONTRATADA ESPECIALIZA PRO
-
-CONDIÇÃO ESPECIAL: Proposta estruturada com condições diferenciadas de negociação, e acompanhamento especializado para busca das melhores condições bancárias disponíveis, conforme perfil e análise de crédito do contratante.`;
-
-  return (
-    <div className="content module-content">
-      <section className="module-heading"><div><p>GESTÃO DE VENDAS</p><h1>Contratos em execução</h1><span>Controles do ciclo após aprovação e antes da entrega do veículo.</span></div><button className="primary-button"><Icon name="plus" size={18}/>Novo contrato</button></section>
-      <section className="stats-grid">
-        <article className="stat-card"><div className="stat-icon blue"><Icon name="contract" /></div><div className="stat-title"><span>Contratos ativos</span><strong className="up">+12%</strong></div><h2>18</h2><p>em análise ou assinatura</p></article>
-        <article className="stat-card"><div className="stat-icon green"><Icon name="check" /></div><div className="stat-title"><span>Assinaturas concluídas</span><strong className="up">92%</strong></div><h2>14</h2><p>atributos digitais validados</p></article>
-        <article className="stat-card"><div className="stat-icon purple"><Icon name="calendar" /></div><div className="stat-title"><span>Entregas previstas</span><strong>7 dias</strong></div><h2>6</h2><p>veículos para liberação</p></article>
-        <article className="stat-card"><div className="stat-icon orange"><Icon name="file" /></div><div className="stat-title"><span>Documentação pendente</span><strong>3 itens</strong></div><h2>11</h2><p>pendências em revisão</p></article>
-      </section>
-      <div className="contract-stream">
-        <section className="panel module-table">
-          <div className="panel-header"><div><h3>Contratos em andamento</h3><p>Fluxo de pós-aprovação e entrega</p></div></div>
-          <div className="table-wrap"><table><thead><tr><th>CONTRATO</th><th>CLIENTE</th><th>VEÍCULO</th><th>VALOR</th><th>STATUS</th><th>PRÓXIMO PASSO</th></tr></thead>
-            <tbody>{contracts.map((contract) => (
-              <tr key={contract.id} className={selectedContractId === contract.id ? "selected-row" : ""} onClick={() => setSelectedContractId(contract.id)}>
-                <td><strong>{contract.id}</strong></td>
-                <td>{contract.customer}</td>
-                <td>{contract.vehicle}</td>
-                <td><strong>{contract.value}</strong></td>
-                <td><span className={`status ${contract.status === "Aprovado" ? "green" : contract.status === "Documentação" ? "yellow" : "blue"}`}>{contract.status}</span></td>
-                <td>{contract.nextStep}</td>
-              </tr>
-            ))}</tbody></table></div>
-        </section>
-        <aside className="panel contract-summary">
-          <div className="panel-header"><div><h3>Detalhes do contrato</h3><p>{selectedContract.id}</p></div></div>
-          <div className="contract-summary-card">
-            <div className="contract-title"><strong>{selectedContract.customer}</strong><span>{selectedContract.vehicle}</span></div>
-            <div className="contract-metric"><label>Progresso</label><strong>{selectedContract.completion}%</strong><div className="progress-bar"><i style={{ width: `${selectedContract.completion}%` }} /></div></div>
-            <div className="contract-metric"><label>Valor do contrato</label><strong>{selectedContract.value}</strong></div>
-            <div className="contract-metric"><label>Próximo evento</label><strong>{selectedContract.nextStep}</strong></div>
-            <div className="contract-metric"><label>Vencimento da documentação</label><strong>{selectedContract.due}</strong></div>
-            <div className="document-list compact-list">
-              {[
-                "Contrato digital",
-                "Boletim de financiamento",
-                "Comprovante de renda",
-                "Assinatura eletrônica",
-                "Entrega do veículo",
-              ].map((item, index) => (
-                <button key={item} type="button" className={index < selectedContract.docs ? "document-item complete" : "document-item"}>
-                  <span className="document-check"><Icon name={index < selectedContract.docs ? "check" : "file"} size={16} /></span>
-                  <span>{item}</span>
-                </button>
-              ))}
-            </div>
-            <button className="primary-button">Acompanhar entrega</button>
-          </div>
-        </aside>
-      </div>
-      <section className="panel module-table">
-        <div className="panel-header"><div><h3>Consultoria de recuperação de crédito</h3><p>Oferecida somente para clientes cujo financiamento não foi recusado.</p></div></div>
-        <div className="table-wrap"><table><thead><tr><th>CONTRATO</th><th>CLIENTE</th><th>VEÍCULO</th><th>FINANCIAMENTO</th><th>VALOR</th><th>STATUS</th><th>PRÓXIMO PASSO</th></tr></thead>
-          <tbody>{creditRecoveryContracts.map((entry) => (
-            <tr key={entry.id} className={selectedRecoveryContractId === entry.id ? "selected-row" : ""} onClick={() => setSelectedRecoveryContractId(entry.id)}>
-              <td><strong>{entry.id}</strong></td>
-              <td>{entry.customer}</td>
-              <td>{entry.vehicle}</td>
-              <td><span className="status green">{entry.financingStatus}</span></td>
-              <td><strong>{entry.value}</strong></td>
-              <td><span className={`status ${entry.status === "Elegível" ? "blue" : "green"}`}>{entry.status}</span></td>
-              <td>{entry.nextStep}</td>
-            </tr>
-          ))}</tbody></table></div>
-      </section>
-
-      <section className="panel support-note contract-panel" style={{ display: "grid", gap: "1rem" }}>
-        <div className="panel-header"><div><h3>Proposta comercial simulada</h3><p>Cliente selecionado: {selectedRecoveryContract.customer} · {selectedRecoveryContract.id}</p></div></div>
-        <div style={{ display: "grid", gridTemplateColumns: "1.6fr 0.9fr", gap: "1rem" }}>
-          <div style={{ background: "#f6f8fc", border: "1px solid #dfe7f4", borderRadius: "16px", padding: "1rem 1.1rem", lineHeight: "1.7", whiteSpace: "pre-line", fontSize: "0.9rem", color: "#1f2a37" }}>
-            {recoveryProposalText}
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
-            <label style={{ display: "flex", flexDirection: "column", gap: "0.4rem", fontWeight: 600, color: "#1f2a37" }}>
-              Observação do atendimento
-              <textarea value={observation} onChange={(event) => setObservation(event.target.value)} rows={8} style={{ border: "1px solid #dfe7f4", borderRadius: "12px", padding: "0.8rem", resize: "vertical", fontFamily: "inherit" }} />
-            </label>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
-              <button className="primary-button" type="button" onClick={() => setProposalSent(true)}>{proposalSent ? "Proposta enviada" : "Simular envio"}</button>
-              <button className="secondary-button" type="button" onClick={registerSignedProposal}>{proposalAccepted ? "Arquivo arquivado" : "Salvar PDF assinado"}</button>
-            </div>
-            <div className="support-note" style={{ margin: 0 }}>
-              <Icon name="check" size={18}/>
-              <div>
-                <strong>Status</strong>
-                <span>{proposalAccepted ? `${selectedSignedDocument.status} · ${selectedSignedDocument.eGovSignature}` : proposalSent ? "Proposta enviada para análise e aceite do cliente." : "Aguardando envio da proposta para o cliente."}</span>
-              </div>
-            </div>
-            <div style={{ border: "1px solid #dfe7f4", borderRadius: "12px", padding: "0.8rem 0.9rem", background: "#f9fbff", display: "grid", gap: "0.35rem" }}>
-              <strong style={{ fontSize: "0.85rem", color: "#1f2a37" }}>Arquivo jurídico</strong>
-              <span style={{ fontSize: "0.8rem", color: "#53627a" }}>{selectedSignedDocument.fileName}</span>
-              <span style={{ fontSize: "0.8rem", color: "#53627a" }}>{selectedSignedDocument.signedAt}</span>
-              <span style={{ fontSize: "0.8rem", color: selectedSignedDocument.stored ? "#0d7a62" : "#8d5b00", fontWeight: 600 }}>{selectedSignedDocument.eGovSignature}</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="panel module-table">
-        <div className="panel-header"><div><h3>Caixa documental</h3><p>Arquivos jurídicos e históricos de assinatura digital</p></div></div>
-        <div className="table-wrap"><table><thead><tr><th>ID</th><th>CLIENTE</th><th>DOCUMENTO</th><th>ARQUIVO</th><th>CANAL</th><th>STATUS</th><th>DATA</th></tr></thead>
-          <tbody>{archiveEntries.map((entry) => (
-            <tr key={entry.id}>
-              <td><strong>{entry.id}</strong></td>
-              <td>{entry.client}</td>
-              <td>{entry.document}</td>
-              <td>{entry.file}</td>
-              <td>{entry.channel}</td>
-              <td><span className={`status ${entry.status === "Arquivado" ? "green" : "yellow"}`}>{entry.status}</span></td>
-              <td>{entry.date}</td>
-            </tr>
-          ))}</tbody></table></div>
-      </section>
-
-      <section className="panel contract-panel" style={{ display: "grid", gap: "1rem" }}>
-        <div className="panel-header"><div><h3>Gestão documental por cliente</h3><p>Documentos, versões e arquivamento da consultoria para {selectedRecoveryContract.customer}</p></div><button className="primary-button" type="button">+ Novo anexo</button></div>
-        <div className="table-wrap"><table><thead><tr><th>ID</th><th>NOME</th><th>VERSÃO</th><th>STATUS</th><th>DATA</th><th>CANAL</th><th>AÇÃO</th></tr></thead>
-          <tbody>{clientDocuments.map((doc) => (
-            <tr key={doc.id}>
-              <td><strong>{doc.id}</strong></td>
-              <td>{doc.name}</td>
-              <td>{doc.version}</td>
-              <td><span className={`status ${doc.status === "Assinado" || doc.status === "Validado" ? "green" : doc.status === "Conferido" ? "blue" : "yellow"}`}>{doc.status}</span></td>
-              <td>{doc.date}</td>
-              <td>{doc.channel}</td>
-              <td><div style={{ display: "flex", gap: "0.5rem" }}><button className="secondary-button" type="button">Baixar</button><button className="secondary-button" type="button">Arquivar</button></div></td>
-            </tr>
-          ))}</tbody></table></div>
-      </section>
-
-      <section className="panel support-note contract-panel">
-        <div className="panel-header"><div><h3>Histórico jurídico</h3><p>Eventos vinculados ao aceite e entrega da proposta</p></div></div>
-        <div className="timeline">
-          {legalHistory.map((event) => (
-            <div className="timeline-event" key={`${event.date}-${event.title}`}>
-              <div className={`timeline-icon ${event.tone}`}><Icon name={event.icon} size={16}/></div>
-              <div>
-                <span>{event.date}</span>
-                <strong>{event.title}</strong>
-                <p>{event.detail}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel support-note contract-panel" style={{ display: "grid", gap: "1rem" }}>
-        <div className="panel-header"><div><h3>Honorários e cobrança</h3><p>Pagamento pelos serviços prestados conforme proposta comercial</p></div></div>
-        <div className="table-wrap"><table><thead><tr><th>FATURA</th><th>CLIENTE</th><th>VALOR</th><th>STATUS</th><th>VENCIMENTO</th><th>CANAL</th><th>PROGRESSO</th></tr></thead>
-          <tbody>{billingRows.map((row) => (
-            <tr key={row.id}>
-              <td><strong>{row.id}</strong></td>
-              <td>{row.client}</td>
-              <td>{row.amount}</td>
-              <td><span className={`status ${row.status === "Pago" ? "green" : row.status === "Pendente" ? "yellow" : "blue"}`}>{row.status}</span></td>
-              <td>{row.dueDate}</td>
-              <td>{row.channel}</td>
-              <td>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                  <div className="progress-bar" style={{ minWidth: "90px" }}><i style={{ width: `${row.progress}%` }} /></div>
-                  <small>{row.progress}%</small>
-                </div>
-              </td>
-            </tr>
-          ))}</tbody></table></div>
-      </section>
-
-      <section className="panel support-note contract-panel" style={{ display: "grid", gap: "1rem" }}>
-        <div className="panel-header"><div><h3>Entrega da proposta</h3><p>Envio por canal e rastreio do aceite do cliente</p></div></div>
-        <div className="table-wrap"><table><thead><tr><th>ID</th><th>CLIENTE</th><th>CANAL</th><th>CONTATO</th><th>STATUS</th><th>ENVIADO EM</th><th>ESTADO</th></tr></thead>
-          <tbody>{deliveryChannels.map((item) => (
-            <tr key={item.id}>
-              <td><strong>{item.id}</strong></td>
-              <td>{item.client}</td>
-              <td>{item.channel}</td>
-              <td>{item.recipient}</td>
-              <td><span className={`status ${item.status === "Entregue" || item.status === "Lido" ? "green" : item.status === "Pendente" ? "yellow" : "blue"}`}>{item.status}</span></td>
-              <td>{item.sentAt}</td>
-              <td>{item.deliveryState}</td>
-            </tr>
-          ))}</tbody></table></div>
-      </section>
-
-      <section className="panel support-note contract-panel" style={{ display: "grid", gap: "1rem" }}>
-        <div className="panel-header"><div><h3>Painel de aprovação</h3><p>Checklist operacional de cobrança, envio e aceite para gestão por gerente</p></div></div>
-        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "1rem" }}>
-          <div className="table-wrap"><table><thead><tr><th>ETAPA</th><th>STATUS</th></tr></thead><tbody>{approvalChecklist.map((step) => (
-            <tr key={step.label}>
-              <td>{step.label}</td>
-              <td><span className={`status ${step.status === "Concluído" ? "green" : step.status === "Em revisão" ? "yellow" : "blue"}`}>{step.status}</span></td>
-            </tr>
-          ))}</tbody></table></div>
-          <div style={{ display: "grid", gap: "0.8rem" }}>
-            <div style={{ background: "#f4f8ff", border: "1px solid #dfe7f4", borderRadius: "12px", padding: "0.9rem 1rem" }}>
-              <strong style={{ display: "block", marginBottom: "0.2rem" }}>Taxa de aprovação</strong>
-              <span style={{ fontSize: "1.9rem", fontWeight: 700, color: "#173d82" }}>68%</span>
-              <small style={{ color: "#53627a" }}>Média da equipe no mês</small>
-            </div>
-            <div style={{ background: "#f9fbff", border: "1px solid #dfe7f4", borderRadius: "12px", padding: "0.9rem 1rem" }}>
-              <strong style={{ display: "block", marginBottom: "0.2rem" }}>Receita potencial</strong>
-              <span style={{ fontSize: "1.8rem", fontWeight: 700, color: "#0d7a62" }}>R$ 263.500</span>
-              <small style={{ color: "#53627a" }}>Honorários em carteira</small>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="panel support-note contract-panel" style={{ display: "grid", gap: "1rem" }}>
-        <div className="panel-header"><div><h3>Dashboard por gerente</h3><p>Dados de propostas, envios e aceites por vendedor</p></div></div>
-        <div className="table-wrap"><table><thead><tr><th>VENDEDOR</th><th>PROPOSTAS</th><th>ENVIADAS</th><th>ACEITES</th><th>PENDENTES</th><th>RECEITA</th></tr></thead>
-          <tbody>{approvalDashboard.map((row) => (
-            <tr key={row.seller}>
-              <td><strong>{row.seller}</strong></td>
-              <td>{row.proposals}</td>
-              <td>{row.sent}</td>
-              <td>{row.accepted}</td>
-              <td>{row.pending}</td>
-              <td>{row.revenue}</td>
-            </tr>
-          ))}</tbody></table></div>
-      </section>
-    </div>
-  );
+  const money = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
+  return <div className="content module-content"><section className="module-heading"><div><p>OPERAÇÃO BANCÁRIA</p><h1>Análise de propostas</h1><span>Revise propostas pendentes e registre aprovação ou recusa.</span></div><button className="secondary-button" onClick={() => void load()}>Atualizar fila</button></section>{error && <div className="auth-notice">{error}</div>}<section className="review-tabs"><button className="active">Aguardando análise <span>{review.length}</span></button></section><section className="panel module-table"><div className="table-wrap"><table><thead><tr><th>PROPOSTA</th><th>CLIENTE</th><th>VENDEDOR</th><th>VEÍCULO</th><th>VALOR</th><th>STATUS</th><th>PDF</th><th>AÇÃO</th></tr></thead><tbody>{loading ? <tr><td colSpan={8}>Carregando fila...</td></tr> : review.length ? review.map((row) => <tr key={row.id}><td><strong>#{String(row.id).padStart(4, "0")}</strong></td><td>{row.cliente?.nome || "—"}</td><td>{row.vendedor?.nome || "—"}</td><td>{row.veiculo ? `${row.veiculo.marca} ${row.veiculo.modelo}` : "—"}</td><td><strong>{money(row.valorProposta)}</strong></td><td><span className="status blue">{row.status}</span></td><td><button className="submit-bank" onClick={() => void downloadPdf(row.id)}>Baixar PDF</button></td><td><button className="submit-bank done" disabled={busyId === row.id} onClick={() => void changeStatus(row.id, "CONTRACT_EFFECTIVE")}>{busyId === row.id ? "Salvando..." : "Aprovar"}</button> <button className="submit-bank" disabled={busyId === row.id} onClick={() => void changeStatus(row.id, "CREDIT_REJECTED")}>Recusar</button></td></tr>) : <tr><td colSpan={8}>Não há propostas aguardando análise.</td></tr>}</tbody></table></div></section></div>;
 }
 
-function DeliveryPage() {
-  const deliveries = [
-    { id: "#ENT-1042", customer: "Pedro Azevedo", vehicle: "Toyota Corolla Cross XRE", date: "12/07/2025", status: "Agendar entrega", progress: 72, seller: "Juliana Castro", plan: "Ajuste final de acessórios" },
-    { id: "#ENT-1041", customer: "Camila Rocha", vehicle: "Jeep Compass Limited", date: "18/07/2025", status: "Liberado", progress: 92, seller: "Rafael Lima", plan: "Entrega com documentação completa" },
-    { id: "#ENT-1039", customer: "Ricardo Nunes", vehicle: "Hyundai Creta Platinum", date: "21/07/2025", status: "Em revisão", progress: 58, seller: "Marcos Costa", plan: "Conferir acessórios e garantia" },
-  ];
-
-  const [selectedDeliveryId, setSelectedDeliveryId] = useState("#ENT-1042");
-  const selectedDelivery = deliveries.find((delivery) => delivery.id === selectedDeliveryId) ?? deliveries[0];
-  const deliveryChecklist = [
-    "Financiamento validado",
-    "Contrato assinado",
-    "Crédito liberado",
-    "Acessórios instalados",
-    "Entrega programada",
-    "Pós-venda confirmado",
-  ];
-
-  return (
-    <div className="content module-content">
-      <section className="module-heading"><div><p>PÓS-VENDA</p><h1>Entrega de veículos</h1><span>Acompanhe o preparo do veículo, a documentação e a data de entrega ao cliente.</span></div><button className="primary-button"><Icon name="plus" size={18}/>Nova entrega</button></section>
-      <section className="stats-grid">
-        <article className="stat-card"><div className="stat-icon blue"><Icon name="car" /></div><div className="stat-title"><span>Entregas no mês</span><strong className="up">+18%</strong></div><h2>21</h2><p>veículos programados</p></article>
-        <article className="stat-card"><div className="stat-icon green"><Icon name="check" /></div><div className="stat-title"><span>Liberações</span><strong className="up">92%</strong></div><h2>19</h2><p>documentação aprovada</p></article>
-        <article className="stat-card"><div className="stat-icon purple"><Icon name="calendar" /></div><div className="stat-title"><span>Próximas entregas</span><strong>7 dias</strong></div><h2>6</h2><p>agendadas para esta semana</p></article>
-        <article className="stat-card"><div className="stat-icon orange"><Icon name="gift" /></div><div className="stat-title"><span>Pós-venda ativo</span><strong>84%</strong></div><h2>17</h2><p>planos ativos no primeiro mês</p></article>
-      </section>
-      <div className="contract-stream">
-        <section className="panel module-table">
-          <div className="panel-header"><div><h3>Agenda de entregas</h3><p>Calendário do pós-venda e liberação do cliente</p></div></div>
-          <div className="table-wrap"><table><thead><tr><th>ENTREGA</th><th>CLIENTE</th><th>VEÍCULO</th><th>VENDEDOR</th><th>DATA</th><th>STATUS</th></tr></thead>
-            <tbody>{deliveries.map((delivery) => (
-              <tr key={delivery.id} className={selectedDeliveryId === delivery.id ? "selected-row" : ""} onClick={() => setSelectedDeliveryId(delivery.id)}>
-                <td><strong>{delivery.id}</strong></td>
-                <td>{delivery.customer}</td>
-                <td>{delivery.vehicle}</td>
-                <td>{delivery.seller}</td>
-                <td>{delivery.date}</td>
-                <td><span className={`status ${delivery.status === "Liberado" ? "green" : delivery.status === "Em revisão" ? "yellow" : "blue"}`}>{delivery.status}</span></td>
-              </tr>
-            ))}</tbody></table></div>
-        </section>
-        <aside className="panel contract-summary">
-          <div className="panel-header"><div><h3>Detalhes da entrega</h3><p>{selectedDelivery.id}</p></div></div>
-          <div className="contract-summary-card">
-            <div className="contract-title"><strong>{selectedDelivery.customer}</strong><span>{selectedDelivery.vehicle}</span></div>
-            <div className="contract-metric"><label>Progresso da entrega</label><strong>{selectedDelivery.progress}%</strong><div className="progress-bar"><i style={{ width: `${selectedDelivery.progress}%` }} /></div></div>
-            <div className="contract-metric"><label>Vendedor responsável</label><strong>{selectedDelivery.seller}</strong></div>
-            <div className="contract-metric"><label>Agenda prevista</label><strong>{selectedDelivery.date}</strong></div>
-            <div className="contract-metric"><label>Observação</label><strong>{selectedDelivery.plan}</strong></div>
-            <div className="document-list compact-list">
-              {deliveryChecklist.map((item, index) => (
-                <button key={item} type="button" className={index < 4 ? "document-item complete" : "document-item"}>
-                  <span className="document-check"><Icon name={index < 4 ? "check" : "file"} size={16} /></span>
-                  <span>{item}</span>
-                </button>
-              ))}
-            </div>
-            <button className="primary-button">Confirmar entrega</button>
-          </div>
-        </aside>
-      </div>
-    </div>
-  );
-}
-
-function AfterSalesPage() {
-  const jobs = [
-    { id: "#OS-2214", customer: "Pedro Azevedo", vehicle: "Toyota Corolla Cross XRE", type: "Revisão 1.000 km", status: "Agendada", progress: 74, date: "14/07/2025", technician: "Oficina VFC", warranty: "Garantia de fábrica" },
-    { id: "#OS-2211", customer: "Camila Rocha", vehicle: "Jeep Compass Limited", type: "Inspeção preventiva", status: "Em andamento", progress: 58, date: "16/07/2025", technician: "Check-up Premium", warranty: "Cobertura 24 meses" },
-    { id: "#OS-2208", customer: "Ricardo Nunes", vehicle: "Hyundai Creta Platinum", type: "Troca de óleo e filtros", status: "Concluída", progress: 100, date: "09/07/2025", technician: "Manutenção Rápida", warranty: "Serviço contratado" },
-  ];
-
-  const [selectedJobId, setSelectedJobId] = useState("#OS-2214");
-  const selectedJob = jobs.find((job) => job.id === selectedJobId) ?? jobs[0];
-
-  return (
-    <div className="content module-content">
-      <section className="module-heading"><div><p>ATENDIMENTO PÓS-VENDA</p><h1>Garantia e manutenção</h1><span>Gerencie revisões, garantias e inspeções após a entrega do veículo.</span></div><button className="primary-button"><Icon name="plus" size={18}/>Nova ordem</button></section>
-      <section className="stats-grid">
-        <article className="stat-card"><div className="stat-icon blue"><Icon name="gift" /></div><div className="stat-title"><span>Ordens ativas</span><strong className="up">+9%</strong></div><h2>34</h2><p>serviços em manutenção</p></article>
-        <article className="stat-card"><div className="stat-icon green"><Icon name="check" /></div><div className="stat-title"><span>Concluídas</span><strong className="up">88%</strong></div><h2>30</h2><p>em garantia ou revisões</p></article>
-        <article className="stat-card"><div className="stat-icon purple"><Icon name="calendar" /></div><div className="stat-title"><span>Próximos atendimentos</span><strong>5 dias</strong></div><h2>9</h2><p>agendados para a semana</p></article>
-        <article className="stat-card"><div className="stat-icon orange"><Icon name="settings" /></div><div className="stat-title"><span>Garantia em vigência</span><strong>24 meses</strong></div><h2>18</h2><p>veículos com cobertura ativa</p></article>
-      </section>
-      <div className="contract-stream">
-        <section className="panel module-table">
-          <div className="panel-header"><div><h3>Ordens de serviço</h3><p>Atendimentos e vigência de garantia</p></div></div>
-          <div className="table-wrap"><table><thead><tr><th>OS</th><th>CLIENTE</th><th>VEÍCULO</th><th>TIPO</th><th>DATA</th><th>STATUS</th></tr></thead>
-            <tbody>{jobs.map((job) => (
-              <tr key={job.id} className={selectedJobId === job.id ? "selected-row" : ""} onClick={() => setSelectedJobId(job.id)}>
-                <td><strong>{job.id}</strong></td>
-                <td>{job.customer}</td>
-                <td>{job.vehicle}</td>
-                <td>{job.type}</td>
-                <td>{job.date}</td>
-                <td><span className={`status ${job.status === "Concluída" ? "green" : job.status === "Em andamento" ? "yellow" : "blue"}`}>{job.status}</span></td>
-              </tr>
-            ))}</tbody></table></div>
-        </section>
-        <aside className="panel contract-summary">
-          <div className="panel-header"><div><h3>Detalhes da ordem</h3><p>{selectedJob.id}</p></div></div>
-          <div className="contract-summary-card">
-            <div className="contract-title"><strong>{selectedJob.customer}</strong><span>{selectedJob.vehicle}</span></div>
-            <div className="contract-metric"><label>Progresso</label><strong>{selectedJob.progress}%</strong><div className="progress-bar"><i style={{ width: `${selectedJob.progress}%` }} /></div></div>
-            <div className="contract-metric"><label>Tipo de serviço</label><strong>{selectedJob.type}</strong></div>
-            <div className="contract-metric"><label>Responsável</label><strong>{selectedJob.technician}</strong></div>
-            <div className="contract-metric"><label>Garantia</label><strong>{selectedJob.warranty}</strong></div>
-            <div className="document-list compact-list">
-              {[
-                "Checklist de inspeção",
-                "Acessórios revisados",
-                "Status de garantia",
-                "Feedback do cliente",
-                "Encerramento",
-              ].map((item, index) => (
-                <button key={item} type="button" className={index < 3 ? "document-item complete" : "document-item"}>
-                  <span className="document-check"><Icon name={index < 3 ? "check" : "file"} size={16} /></span>
-                  <span>{item}</span>
-                </button>
-              ))}
-            </div>
-            <button className="primary-button">Encerrar atendimento</button>
-          </div>
-        </aside>
-      </div>
-    </div>
-  );
-}
-
-function CustomerFollowUpPage() {
-  const followUps = [
-    { id: "#CRM-410", customer: "Pedro Azevedo", channel: "WhatsApp", status: "Agendado", nextAction: "Oferta de revisão 1.000 km", priority: "Alta", lastContact: "12/07/2025" },
-    { id: "#CRM-409", customer: "Camila Rocha", channel: "Telefone", status: "Pendente", nextAction: "Confirmar satisfação da entrega", priority: "Média", lastContact: "10/07/2025" },
-    { id: "#CRM-408", customer: "Ricardo Nunes", channel: "E-mail", status: "Concluído", nextAction: "Cliente passou em nova cotação", priority: "Baixa", lastContact: "08/07/2025" },
-    { id: "#CRM-407", customer: "Henrique Alves", channel: "SMS", status: "Agendado", nextAction: "Lembrete de revisão anual", priority: "Média", lastContact: "11/07/2025" },
-  ];
-
-  const [selectedFollowUpId, setSelectedFollowUpId] = useState("#CRM-410");
-  const selectedFollowUp = followUps.find((entry) => entry.id === selectedFollowUpId) ?? followUps[0];
-
-  return (
-    <div className="content module-content">
-      <section className="module-heading"><div><p>RELACIONAMENTO PÓS-VENDA</p><h1>CRM de clientes</h1><span>Acompanhe o relacionamento, lembretes e ações de retenção após a venda.</span></div><button className="primary-button"><Icon name="plus" size={18}/>Novo follow-up</button></section>
-      <section className="stats-grid">
-        <article className="stat-card"><div className="stat-icon blue"><Icon name="users" /></div><div className="stat-title"><span>Clientes ativos</span><strong className="up">96%</strong></div><h2>184</h2><p>em acompanhamento comercial</p></article>
-        <article className="stat-card"><div className="stat-icon green"><Icon name="check" /></div><div className="stat-title"><span>Follow-up concluído</span><strong className="up">72%</strong></div><h2>133</h2><p>ações de pós-venda concluídas</p></article>
-        <article className="stat-card"><div className="stat-icon purple"><Icon name="bell" /></div><div className="stat-title"><span>Próximos lembretes</span><strong>9 hoje</strong></div><h2>14</h2><p>ações agendadas esta semana</p></article>
-        <article className="stat-card"><div className="stat-icon orange"><Icon name="trend" /></div><div className="stat-title"><span>Retenção</span><strong>81%</strong></div><h2>149</h2><p>clientes com intenção de renovar</p></article>
-      </section>
-      <div className="contract-stream">
-        <section className="panel module-table">
-          <div className="panel-header"><div><h3>Follow-up de clientes</h3><p>Retenção, lembretes e ações pós-venda</p></div></div>
-          <div className="table-wrap"><table><thead><tr><th>ID</th><th>CLIENTE</th><th>CANAL</th><th>STATUS</th><th>PRÓXIMA AÇÃO</th><th>PRIORIDADE</th></tr></thead>
-            <tbody>{followUps.map((entry) => (
-              <tr key={entry.id} className={selectedFollowUpId === entry.id ? "selected-row" : ""} onClick={() => setSelectedFollowUpId(entry.id)}>
-                <td><strong>{entry.id}</strong></td>
-                <td>{entry.customer}</td>
-                <td>{entry.channel}</td>
-                <td><span className={`status ${entry.status === "Concluído" ? "green" : entry.status === "Pendente" ? "yellow" : "blue"}`}>{entry.status}</span></td>
-                <td>{entry.nextAction}</td>
-                <td><span className={`status ${entry.priority === "Alta" ? "red" : entry.priority === "Média" ? "yellow" : "green"}`}>{entry.priority}</span></td>
-              </tr>
-            ))}</tbody></table></div>
-        </section>
-        <aside className="panel contract-summary">
-          <div className="panel-header"><div><h3>Resumo do cliente</h3><p>{selectedFollowUp.id}</p></div></div>
-          <div className="contract-summary-card">
-            <div className="contract-title"><strong>{selectedFollowUp.customer}</strong><span>{selectedFollowUp.channel}</span></div>
-            <div className="contract-metric"><label>Status da atividade</label><strong>{selectedFollowUp.status}</strong></div>
-            <div className="contract-metric"><label>Próxima ação</label><strong>{selectedFollowUp.nextAction}</strong></div>
-            <div className="contract-metric"><label>Último contato</label><strong>{selectedFollowUp.lastContact}</strong></div>
-            <div className="contract-metric"><label>Prioridade</label><strong>{selectedFollowUp.priority}</strong></div>
-            <div className="document-list compact-list">
-              {[
-                "Lembrete de revisão",
-                "Pesquisa de satisfação",
-                "Oferta de acessórios",
-                "Retenção de cliente",
-                "Checklist de pós-venda",
-              ].map((item, index) => (
-                <button key={item} type="button" className={index < 2 ? "document-item complete" : "document-item"}>
-                  <span className="document-check"><Icon name={index < 2 ? "check" : "file"} size={16} /></span>
-                  <span>{item}</span>
-                </button>
-              ))}
-            </div>
-            <button className="primary-button">Enviar lembrete</button>
-          </div>
-        </aside>
-      </div>
-    </div>
-  );
-}
-
-function TeamsCommissionsPage() {
+function TeamsCommissionsPage({ profile, userName, authToken }: { profile: string; userName: string; authToken: string }) {
   const [sellerRate, setSellerRate] = useState("1.5");
   const [managerRate, setManagerRate] = useState("0.5");
-  const sales = 2480000;
+  const [commissionNotice, setCommissionNotice] = useState("");
+  const [commissionError, setCommissionError] = useState("");
+  const [savingRules, setSavingRules] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${API_BASE_URL}/reports/commission-rules`, { headers: { Authorization: `Bearer ${authToken}` } }).then(async (response) => {
+      const payload = await response.json(); if (!response.ok) throw new Error(payload?.message || "Não foi possível carregar as regras.");
+      if (!cancelled) { setSellerRate(String(payload.data.sellerPercent)); setManagerRate(String(payload.data.managerPercent)); }
+    }).catch((loadError) => { if (!cancelled) setCommissionError(loadError instanceof Error ? loadError.message : "Falha ao carregar regras."); });
+    return () => { cancelled = true; };
+  }, [authToken]);
+  const saveCommissionRules = async () => {
+    setSavingRules(true); setCommissionError(""); setCommissionNotice("");
+    try {
+      const response = await fetch(`${API_BASE_URL}/reports/commission-rules`, { method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` }, body: JSON.stringify({ sellerPercent: Number(sellerRate), managerPercent: Number(managerRate) }) });
+      const payload = await response.json(); if (!response.ok) throw new Error(payload?.message || "Não foi possível salvar as regras.");
+      setCommissionNotice(payload?.message || "Regras de comissão atualizadas.");
+    } catch (saveError) { setCommissionError(saveError instanceof Error ? saveError.message : "Falha ao salvar regras."); }
+    finally { setSavingRules(false); }
+  };
+  const allTeams = [["Horizonte", "Amanda Silva", "5 vendedores", "R$ 2,48 mi"], ["Impulso", "Bruno Tavares", "4 vendedores", "R$ 1,96 mi"], ["Vértice", "Patrícia Melo", "3 vendedores", "R$ 1,54 mi"]];
+  const visibleTeams = profile === "MANAGER" ? allTeams.filter((team) => team[1] === userName) : allTeams;
+  const salesByManager: Record<string, number> = { "Amanda Silva": 2480000, "Bruno Tavares": 1960000, "Patrícia Melo": 1540000 };
+  const sales = profile === "MANAGER" ? salesByManager[userName] || 0 : 2480000;
   return (
     <div className="content module-content">
       <section className="module-heading"><div><p>GESTÃO DE EQUIPES</p><h1>Equipes e comissões</h1><span>Organize a estrutura comercial e configure regras de remuneração.</span></div><button className="primary-button"><Icon name="plus" size={18}/>Nova equipe</button></section>
       <div className="commissions-layout">
         <section className="panel teams-list">
           <div className="panel-header"><div><h3>Equipes de vendas</h3><p>3 equipes · 12 vendedores ativos</p></div></div>
-          {[[clientCompany, "Amanda Silva", "5 vendedores", "R$ 2,48 mi"], ["Impulso", "Bruno Tavares", "4 vendedores", "R$ 1,96 mi"], ["Vértice", "Patrícia Melo", "3 vendedores", "R$ 1,54 mi"]].map((team, index) => <div className="team-card" key={team[0]}><div className={`team-icon team-${index + 1}`}><Icon name="users" size={19}/></div><div><strong>Equipe {team[0]}</strong><span>Gerente: {team[1]} · {team[2]}</span></div><div><strong>{team[3]}</strong><span>Vendas no período</span></div><button><Icon name="arrow" size={17}/></button></div>)}
+          {visibleTeams.map((team, index) => <div className="team-card" key={team[0]}><div className={`team-icon team-${index + 1}`}><Icon name="users" size={19}/></div><div><strong>Equipe {team[0]}</strong><span>Gerente: {team[1]} · {team[2]}</span></div><div><strong>{team[3]}</strong><span>Vendas no período</span></div><button><Icon name="arrow" size={17}/></button></div>)}
         </section>
         <section className="panel commission-config">
           <div className="panel-header"><div><h3>Regras de comissão</h3><p>Percentuais sobre contratos efetivados</p></div></div>
           <div className="commission-body">
             <label>Comissão do vendedor<div className="percent-input"><input type="number" step=".1" value={sellerRate} onChange={(e) => setSellerRate(e.target.value)}/><span>%</span></div><small>Aplicada sobre o valor total vendido pelo vendedor.</small></label>
             <label>Comissão do gerente<div className="percent-input"><input type="number" step=".1" value={managerRate} onChange={(e) => setManagerRate(e.target.value)}/><span>%</span></div><small>Aplicada sobre as vendas de toda a equipe gerenciada.</small></label>
-            <div className="commission-preview"><span>Simulação · Equipe {clientCompany}</span><div><p>Volume vendido<strong>R$ 2.480.000</strong></p><p>Vendedores<strong>R$ {(sales * Number(sellerRate) / 100).toLocaleString("pt-BR")}</strong></p><p>Gerência<strong>R$ {(sales * Number(managerRate) / 100).toLocaleString("pt-BR")}</strong></p></div></div>
-            <button className="auth-submit">Salvar regras de comissão</button>
+            {commissionError && <div className="auth-notice">{commissionError}</div>}{commissionNotice && <div className="auth-notice success">{commissionNotice}</div>}
+            <div className="commission-preview"><span>Simulação · Equipe Horizonte</span><div><p>Volume vendido<strong>R$ 2.480.000</strong></p><p>Vendedores<strong>R$ {(sales * Number(sellerRate) / 100).toLocaleString("pt-BR")}</strong></p><p>Gerência<strong>R$ {(sales * Number(managerRate) / 100).toLocaleString("pt-BR")}</strong></p></div></div>
+            <button className="auth-submit" disabled={savingRules || profile !== "ADMIN"} onClick={() => void saveCommissionRules()}>{savingRules ? "Salvando..." : profile === "ADMIN" ? "Salvar regras de comissão" : "Somente administrador pode alterar"}</button>
           </div>
         </section>
       </div>
@@ -2076,530 +1076,50 @@ function TeamsCommissionsPage() {
   );
 }
 
-function ReportHeader({ title }: { title: string }) {
-  const printedAt = new Date().toLocaleString("pt-BR");
-
-  return (
-    <>
-      <div className="report-print-header">
-        <div className="report-brand">
-          <span className="report-mark">VFC</span>
-          <span className="report-company">{clientCompany}</span>
-        </div>
-        <div className="report-title">{title}</div>
-      </div>
-      <div className="report-print-footer">Data e hora: {printedAt}</div>
-    </>
-  );
+type CommissionSummary = { items: { colaborador: string; perfil: string; contratos: number; baseCalculo: number; comissao: number }[]; summary: { totalComissoes: number; colaboradores: number; volumeVendido: number; contratos: number } };
+function CreditRecoveryPage({ authToken, profile }: { authToken: string; profile: string }) {
+  type RecoveryRow = { id: number; cliente: { id: number; nome: string; telefone?: string }; proposta?: { id: number; veiculo?: { marca: string; modelo: string } } | null; responsavel?: { nome: string } | null; tipo: string; status: string; motivo?: string; proximoContatoEm?: string; observacoes?: string };
+  type CustomerOption = { id: number; nome: string };
+  const [rows, setRows] = useState<RecoveryRow[]>([]); const [customers, setCustomers] = useState<CustomerOption[]>([]); const [customerId, setCustomerId] = useState(""); const [tipo, setTipo] = useState("REANALISE_CREDITO"); const [nextDate, setNextDate] = useState(""); const [notes, setNotes] = useState(""); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [notice, setNotice] = useState("");
+  const load = async () => { setLoading(true); setError(""); try { const opRes = await fetch(`${API_BASE_URL}/credit-recovery`, { headers: { Authorization: `Bearer ${authToken}` } }); const opPayload = await opRes.json(); if (!opRes.ok) throw new Error(opPayload.message || "Não foi possível carregar as oportunidades."); setRows(opPayload.data || []); if (profile !== "SUPPORT") { const clientRes = await fetch(`${API_BASE_URL}/clientes`, { headers: { Authorization: `Bearer ${authToken}` } }); const clientPayload = await clientRes.json(); if (!clientRes.ok) throw new Error(clientPayload.message || "Não foi possível carregar os clientes da carteira."); setCustomers(clientPayload.data || []); } } catch (e) { setError(e instanceof Error ? e.message : "Falha ao carregar oportunidades."); } finally { setLoading(false); } };
+  useEffect(() => { void load(); }, [authToken, profile]);
+  const create = async (event: FormEvent) => { event.preventDefault(); setError(""); setNotice(""); try { const response = await fetch(`${API_BASE_URL}/credit-recovery`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` }, body: JSON.stringify({ clienteId: Number(customerId), tipo, proximoContatoEm: nextDate || null, observacoes: notes }) }); const payload = await response.json(); if (!response.ok) throw new Error(payload.message || "Não foi possível registrar a oportunidade."); setNotice("Oportunidade registrada."); setCustomerId(""); setNotes(""); setNextDate(""); await load(); } catch (e) { setError(e instanceof Error ? e.message : "Falha ao salvar."); } };
+  const changeStatus = async (id: number, status: string) => { try { const response = await fetch(`${API_BASE_URL}/credit-recovery/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` }, body: JSON.stringify({ status }) }); const payload = await response.json(); if (!response.ok) throw new Error(payload.message || "Não foi possível atualizar o atendimento."); await load(); } catch (e) { setError(e instanceof Error ? e.message : "Falha ao atualizar."); } };
+  const closeConsultancy = async (proposalId: number) => { const rawValue = window.prompt("Valor da consultoria (ex.: 1250,00)"); if (rawValue === null) return; const valorConsultoria = Number(rawValue.trim().replace(",", ".")); if (!Number.isFinite(valorConsultoria) || valorConsultoria <= 0) { setError("Informe um valor válido para a consultoria."); return; } try { const response = await fetch(`${API_BASE_URL}/deals/${proposalId}/credit-consultancy`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` }, body: JSON.stringify({ valorConsultoria }) }); const payload = await response.json(); if (!response.ok) throw new Error(payload.message || "Não foi possível efetivar a consultoria."); setNotice("Contrato de consultoria efetivado e comissões registradas."); await load(); } catch (e) { setError(e instanceof Error ? e.message : "Falha ao efetivar consultoria."); } };
+  const labelFor = (value: string) => ({ REANALISE_CREDITO: "Reanálise de crédito", TROCA_VEICULO: "Alternativa de veículo", AUMENTO_ENTRADA: "Revisão de entrada", CONSORCIO: "Consórcio", OUTRO: "Outra alternativa", ABERTA: "Aberta", EM_CONTATO: "Em contato", EM_NEGOCIACAO: "Em negociação", CONVERTIDA: "Convertida", SEM_INTERESSE: "Sem interesse" } as Record<string, string>)[value] || value;
+  return <div className="content module-content"><section className="module-heading"><div><p>PÓS-ANÁLISE DE CRÉDITO</p><h1>Recuperação de crédito</h1><span>Acompanhe clientes com crédito recusado e registre alternativas comerciais.</span></div><button className="secondary-button" onClick={() => void load()}>Atualizar</button></section>{error && <div className="auth-notice">{error}</div>}{notice && <div className="auth-notice">{notice}</div>}{profile !== "SUPPORT" && <form className="panel form-panel" onSubmit={(event) => void create(event)}><div className="step-title"><span>+</span><div><h3>Nova oportunidade</h3><p>Registre um retorno de crédito ou uma venda cruzada para sua carteira.</p></div></div><div className="customer-form-grid"><label>Cliente<select required value={customerId} onChange={(event) => setCustomerId(event.target.value)}><option value="">Selecione</option>{customers.map((item) => <option key={item.id} value={item.id}>{item.nome}</option>)}</select></label><label>Alternativa<select value={tipo} onChange={(event) => setTipo(event.target.value)}><option value="REANALISE_CREDITO">Reanálise de crédito</option><option value="TROCA_VEICULO">Alternativa de veículo</option><option value="AUMENTO_ENTRADA">Revisão de entrada</option><option value="CONSORCIO">Consórcio</option><option value="OUTRO">Outra alternativa</option></select></label><label>Próximo contato<input type="date" value={nextDate} onChange={(event) => setNextDate(event.target.value)}/></label><label>Observações<input value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Contexto e próximo passo"/></label></div><button className="auth-submit" type="submit" disabled={!customerId}>Registrar oportunidade</button></form>}<section className="panel module-table"><div className="table-wrap"><table><thead><tr><th>CLIENTE</th><th>ORIGEM / ALTERNATIVA</th><th>RESPONSÁVEL</th><th>PRÓXIMO CONTATO</th><th>STATUS</th><th>ACOMPANHAMENTO</th></tr></thead><tbody>{loading ? <tr><td colSpan={6}>Carregando oportunidades...</td></tr> : rows.length ? rows.map((row) => <tr key={row.id}><td><strong>{row.cliente.nome}</strong><br/><small>{row.cliente.telefone || "Sem telefone"}</small></td><td>{row.proposta ? `Proposta #${row.proposta.id} · ${row.proposta.veiculo?.marca || ""} ${row.proposta.veiculo?.modelo || ""}` : "Cadastro manual"}<br/><small>{labelFor(row.tipo)}</small></td><td>{row.responsavel?.nome || "Equipe de suporte"}</td><td>{row.proximoContatoEm ? new Date(row.proximoContatoEm).toLocaleDateString("pt-BR") : "Não agendado"}</td><td><span className="status blue">{labelFor(row.status)}</span></td><td>{row.status === "ABERTA" ? <button className="submit-bank" onClick={() => void changeStatus(row.id, "EM_CONTATO")}>Iniciar contato</button> : row.status === "EM_CONTATO" ? <button className="submit-bank" onClick={() => void changeStatus(row.id, "EM_NEGOCIACAO")}>Em negociação</button> : row.status === "EM_NEGOCIACAO" ? <>{row.proposta && <button className="submit-bank done" onClick={() => void closeConsultancy(row.proposta!.id)}>Efetivar consultoria</button>} <button className="submit-bank" onClick={() => void changeStatus(row.id, "SEM_INTERESSE")}>Encerrar</button></> : "—"}</td></tr>) : <tr><td colSpan={6}>Nenhuma oportunidade registrada.</td></tr>}</tbody></table></div></section></div>;
 }
 
-function FinanceSystemPage() {
-  const exportPdf = () => {
-    if (typeof window === "undefined") return;
-    const previousTitle = document.title;
-    document.title = "Relatório financeiro VFC Multimarcas";
-    window.print();
-    document.title = previousTitle;
-  };
-
-  const [movements, setMovements] = useState<Array<{ id: string; client: string; type: string; value: string; status: string; due: string }>>([
-    { id: "FIN-2301", client: "Camila Rocha", type: "Honorários consultoria", value: "R$ 7.000", status: "Pendente", due: "30/09/2026" },
-    { id: "FIN-2302", client: "Ricardo Nunes", type: "Entrada de contrato", value: "R$ 18.400", status: "Recebido", due: "25/09/2026" },
-    { id: "FIN-2303", client: "Pedro Azevedo", type: "Complemento de veículo", value: "R$ 6.200", status: "Em revisão", due: "28/09/2026" },
-    { id: "FIN-2304", client: "Fernanda Dias", type: "Taxa de análise", value: "R$ 2.400", status: "Pendente", due: "02/10/2026" },
-  ]);
-
-  useEffect(() => {
-    const loadFinance = async () => {
-      try {
-        const result = await apiRequest("/financeiro");
-        const data = Array.isArray(result?.data) ? result.data : [];
-
-        if (!data.length) return;
-
-        const mappedMovements = data.map((item: any) => ({
-          id: `FIN-${String(item.id).padStart(4, "0")}`,
-          client: item.contrato?.cliente?.nome || item.contrato?.cliente?.name || "Cliente",
-          type: item.tipo || "Movimentação",
-          value: formatCurrency(item.valor || 0),
-          status: item.status === "pago" ? "Recebido" : item.status === "pendente" ? "Pendente" : "Em revisão",
-          due: item.dataVencimento ? new Intl.DateTimeFormat("pt-BR").format(new Date(item.dataVencimento)) : "—",
-        }));
-
-        setMovements(mappedMovements);
-      } catch {
-        setMovements((current) => current);
-      }
-    };
-
-    void loadFinance();
-  }, []);
-
-  const revenueSummary = [
-    { label: "Disponível em caixa", value: "R$ 1.428.300", tone: "green" },
-    { label: "Recebimentos previstos", value: "R$ 486.000", tone: "blue" },
-    { label: "Pagamentos pendentes", value: "R$ 198.500", tone: "yellow" },
-    { label: "Inadimplência ativa", value: "4,3%", tone: "red" },
-  ];
-
-  const bankFlow = [
-    { label: "Receitas do mês", value: "R$ 812.000" },
-    { label: "Despesas operacionais", value: "R$ 318.600" },
-    { label: "Fluxo líquido", value: "R$ 493.400" },
-    { label: "Conciliação bancária", value: "92%" },
-  ];
-
-  const sellerFinance = [
-    { seller: "Marcos Costa", volume: "R$ 186.500", comission: "R$ 12.400", balance: "R$ 42.800" },
-    { seller: "Juliana Castro", volume: "R$ 163.200", comission: "R$ 10.620", balance: "R$ 38.700" },
-    { seller: "Rafael Lima", volume: "R$ 142.900", comission: "R$ 9.100", balance: "R$ 31.200" },
-    { seller: "Amanda Silva", volume: "R$ 121.300", comission: "R$ 8.200", balance: "R$ 27.900" },
-  ];
-
-  const overdueReceivables = [
-    { customer: "Lívia Mendes", amount: "R$ 14.600", due: "10/09/2026", risk: "Alta" },
-    { customer: "Rogério Souza", amount: "R$ 11.300", due: "12/09/2026", risk: "Média" },
-    { customer: "Ana Cavalcanti", amount: "R$ 8.900", due: "15/09/2026", risk: "Alta" },
-    { customer: "Daniel Martins", amount: "R$ 5.700", due: "18/09/2026", risk: "Baixa" },
-  ];
-
-  const payableAccounts = [
-    { provider: "Seguradora VFC", value: "R$ 36.400", due: "27/09/2026", status: "Pendente" },
-    { provider: "Oficina Premium", value: "R$ 18.200", due: "28/09/2026", status: "Em revisão" },
-    { provider: "Logística e entrega", value: "R$ 12.750", due: "30/09/2026", status: "Agendado" },
-    { provider: "Imposto e contabilidade", value: "R$ 23.600", due: "04/10/2026", status: "Pendente" },
-  ];
-
-  const cashFlowTrend = [
-    { month: "Jan", value: 58 },
-    { month: "Fev", value: 62 },
-    { month: "Mar", value: 71 },
-    { month: "Abr", value: 68 },
-    { month: "Mai", value: 81 },
-    { month: "Jun", value: 94 },
-  ];
-
-  const approvalQueue = [
-    { label: "Pagamento de comissão", type: "Vendedor", amount: "R$ 42.800", owner: "Marcos Costa", status: "Aguardando", risk: "Baixa" },
-    { label: "Rescisão de contrato", type: "Operação", amount: "R$ 18.650", owner: "Financeiro", status: "Em revisão", risk: "Média" },
-    { label: "Fatura de logística", type: "Fornecedor", amount: "R$ 12.750", owner: "Compras", status: "Aprovado", risk: "Baixa" },
-    { label: "Multa tributária", type: "Tributos", amount: "R$ 23.600", owner: "Contábil", status: "Pendente", risk: "Alta" },
-  ];
-
-  const payablesByCategory = [
-    { category: "Tributos", amount: "R$ 96.400", share: "32%" },
-    { category: "Logística", amount: "R$ 74.200", share: "24%" },
-    { category: "Seguros", amount: "R$ 58.600", share: "19%" },
-    { category: "Comissões", amount: "R$ 48.300", share: "16%" },
-    { category: "Outros", amount: "R$ 27.500", share: "9%" },
-  ];
-
-  const activeCollection = [
-    { client: "Carla Moreira", amount: "R$ 21.800", stage: "Contato 2/3", owner: "Cecília", status: "Negociação" },
-    { client: "Paulo Rocha", amount: "R$ 15.600", stage: "Acordo firmado", owner: "Thiago", status: "Em dia" },
-    { client: "Nina Costa", amount: "R$ 13.250", stage: "Cobrança ativa", owner: "Luan", status: "Em atraso" },
-    { client: "Lucas Mendes", amount: "R$ 9.400", stage: "Documentação", owner: "Beatriz", status: "Em revisão" },
-  ];
-
-  const profitability = [
-    { line: "Vendas de veículos", margin: "31,6%", revenue: "R$ 2.480.000", cost: "R$ 1.700.000" },
-    { line: "Consultoria crédito", margin: "28,9%", revenue: "R$ 360.000", cost: "R$ 256.000" },
-    { line: "Pós-venda e serviços", margin: "22,4%", revenue: "R$ 540.000", cost: "R$ 419.000" },
-    { line: "Financiamento", margin: "18,7%", revenue: "R$ 210.000", cost: "R$ 171.000" },
-  ];
-
-  const approvalCenter = [
-    { id: "AP-9041", title: "Comissão de vendedores", amount: "R$ 42.800", department: "Vendas", approver: "Amanda Silva", status: "Pendência" },
-    { id: "AP-9042", title: "Pagamento de fornecedores", amount: "R$ 18.650", department: "Operações", approver: "Financeiro", status: "Em revisão" },
-    { id: "AP-9043", title: "Tributos do mês", amount: "R$ 23.600", department: "Contábil", approver: "Diretoria", status: "Aprovado" },
-    { id: "AP-9044", title: "Seguro de frota", amount: "R$ 36.400", department: "Seguros", approver: "Compras", status: "Agendado" },
-  ];
-
-  const managerView = [
-    { manager: "Amanda Silva", collection: "R$ 742.000", approvals: "14", risk: "Baixo", margin: "31,2%" },
-    { manager: "Marcos Costa", collection: "R$ 621.300", approvals: "11", risk: "Médio", margin: "28,7%" },
-    { manager: "Juliana Castro", collection: "R$ 594.500", approvals: "9", risk: "Baixo", margin: "30,8%" },
-    { manager: "Rafael Lima", collection: "R$ 508.200", approvals: "8", risk: "Médio", margin: "26,4%" },
-  ];
-
-  const monthlyClosing = [
-    { item: "Receitas operacionais", value: "R$ 812.000", status: "Fechado" },
-    { item: "Despesas fixas", value: "R$ 318.600", status: "Fechado" },
-    { item: "Comissões", value: "R$ 74.800", status: "Em revisão" },
-    { item: "Tributos", value: "R$ 94.300", status: "Aguardando" },
-  ];
-
-  const financeChecklist = [
-    "Conciliação bancária validada",
-    "Contratos com pagamento confirmado",
-    "Faturas de fornecedores aprovadas",
-    "Códigos de contabilidade ajustados",
-    "Fechamento do mês enviado a diretoria",
-  ];
-
-  const approvalHierarchy = [
-    { role: "Vendedor", maxValue: "R$ 5.000", owner: "Marcos Costa" },
-    { role: "Gerente", maxValue: "R$ 20.000", owner: "Amanda Silva" },
-    { role: "Diretoria", maxValue: "R$ 100.000", owner: "Comitê financeiro" },
-    { role: "Presidência", maxValue: "> R$ 100.000", owner: "Diretoria executiva" },
-  ];
-
-  const unitResults = [
-    { unit: "São Paulo", revenue: "R$ 1.280.000", margin: "29,7%", roi: "14,8%" },
-    { unit: "Rio de Janeiro", revenue: "R$ 968.400", margin: "27,5%", roi: "12,9%" },
-    { unit: "Belo Horizonte", revenue: "R$ 812.900", margin: "26,1%", roi: "11,7%" },
-    { unit: "Curitiba", revenue: "R$ 740.200", margin: "25,8%", roi: "10,6%" },
-  ];
-
-  const costCenters = [
-    { center: "Vendas", budget: "R$ 420.000", spend: "R$ 311.200", variance: "-26%" },
-    { center: "Operações", budget: "R$ 290.000", spend: "R$ 264.700", variance: "-9%" },
-    { center: "Marketing", budget: "R$ 180.000", spend: "R$ 152.300", variance: "-15%" },
-    { center: "Pós-venda", budget: "R$ 240.000", spend: "R$ 217.500", variance: "-9%" },
-  ];
-
-  const resultByMonth = [
-    { month: "Jan", result: "R$ 324.000" },
-    { month: "Fev", result: "R$ 346.000" },
-    { month: "Mar", result: "R$ 381.000" },
-    { month: "Abr", result: "R$ 408.000" },
-    { month: "Mai", result: "R$ 462.000" },
-    { month: "Jun", result: "R$ 493.400" },
-  ];
-
-  return (
-    <div className="content module-content report-page">
-      <ReportHeader title="Fluxo financeiro" />
-      <section className="module-heading"><div><p>SISTEMA FINANCEIRO</p><h1>Fluxo financeiro</h1><span>Controle de caixa, cobrança, recebimentos e operações do negócio.</span></div><div className="heading-actions"><button className="primary-button" onClick={exportPdf}><Icon name="file" size={17}/>Exportar PDF</button><button className="primary-button"><Icon name="plus" size={18}/>Nova movimentação</button></div></section>
-
-      <section className="stats-grid">
-        {revenueSummary.map((item) => (
-          <article className="stat-card" key={item.label}>
-            <div className={`stat-icon ${item.tone}`}><Icon name={item.tone === "green" ? "check" : item.tone === "blue" ? "file" : item.tone === "yellow" ? "calendar" : "close"} /></div>
-            <div className="stat-title"><span>{item.label}</span><strong className={item.tone === "green" ? "up" : item.tone === "red" ? "down" : "up"}>{item.tone === "red" ? "-0,4%" : "+8,2%"}</strong></div>
-            <h2>{item.value}</h2><p>{item.tone === "red" ? "em comparação ao mês anterior" : "em alta no período"}</p>
-          </article>
-        ))}
-      </section>
-
-      <div className="contract-stream">
-        <section className="panel module-table">
-          <div className="panel-header"><div><h3>Movimentações financeiras</h3><p>Fluxo de recebimentos, pagamentos e pendências</p></div></div>
-          <div className="table-wrap"><table><thead><tr><th>ID</th><th>CLIENTE</th><th>TIPO</th><th>VALOR</th><th>STATUS</th><th>VENCIMENTO</th></tr></thead>
-            <tbody>{movements.map((row) => (
-              <tr key={row.id}>
-                <td><strong>{row.id}</strong></td>
-                <td>{row.client}</td>
-                <td>{row.type}</td>
-                <td><strong>{row.value}</strong></td>
-                <td><span className={`status ${row.status === "Recebido" ? "green" : row.status === "Pendente" ? "yellow" : "blue"}`}>{row.status}</span></td>
-                <td>{row.due}</td>
-              </tr>
-            ))}</tbody></table></div>
-        </section>
-
-        <aside className="panel contract-summary">
-          <div className="panel-header"><div><h3>Resumo bancário</h3><p>Fluxo e conciliação</p></div></div>
-          <div className="contract-summary-card">
-            {bankFlow.map((row, index) => (
-              <div key={row.label} className="contract-metric">
-                <label>{row.label}</label>
-                <strong>{row.value}</strong>
-                {index < bankFlow.length - 1 && <div className="progress-bar"><i style={{ width: index === 0 ? "78%" : index === 1 ? "42%" : index === 2 ? "86%" : "92%" }} /></div>}
-              </div>
-            ))}
-            <button className="primary-button" onClick={exportPdf}>Consolidar saldos</button>
-          </div>
-        </aside>
-      </div>
-
-      <section className="panel module-table">
-        <div className="panel-header"><div><h3>Financeiro por vendedor</h3><p>Volume, comissões e saldo líquido</p></div></div>
-        <div className="table-wrap"><table><thead><tr><th>VENDEDOR</th><th>VOLUME</th><th>COMISSÃO</th><th>SALDO</th></tr></thead>
-          <tbody>{sellerFinance.map((row) => (
-            <tr key={row.seller}>
-              <td><strong>{row.seller}</strong></td>
-              <td>{row.volume}</td>
-              <td>{row.comission}</td>
-              <td>{row.balance}</td>
-            </tr>
-          ))}</tbody></table></div>
-      </section>
-
-      <div className="contract-stream" style={{ gridTemplateColumns: "1.2fr 1fr" }}>
-        <section className="panel module-table">
-          <div className="panel-header"><div><h3>Cobrança e inadimplência</h3><p>Recebíveis em atraso e risco de carteira</p></div></div>
-          <div className="table-wrap"><table><thead><tr><th>CLIENTE</th><th>VALOR</th><th>VENCIMENTO</th><th>RISCO</th></tr></thead>
-            <tbody>{overdueReceivables.map((row) => (
-              <tr key={row.customer}>
-                <td><strong>{row.customer}</strong></td>
-                <td>{row.amount}</td>
-                <td>{row.due}</td>
-                <td><span className={`status ${row.risk === "Alta" ? "red" : row.risk === "Média" ? "yellow" : "green"}`}>{row.risk}</span></td>
-              </tr>
-            ))}</tbody></table></div>
-        </section>
-
-        <aside className="panel contract-summary">
-          <div className="panel-header"><div><h3>Alerta financeiro</h3><p>Monitoramento da carteira</p></div></div>
-          <div className="contract-summary-card">
-            <div className="contract-metric"><label>Dias em atraso</label><strong>19 dias</strong></div>
-            <div className="contract-metric"><label>Valores em risco</label><strong>R$ 68.300</strong></div>
-            <div className="contract-metric"><label>Taxa de recuperação</label><strong>61%</strong></div>
-            <div className="contract-metric"><label>Última ação</label><strong>Contato com gerente</strong></div>
-            <button className="primary-button">Acompanhar cobrança</button>
-          </div>
-        </aside>
-      </div>
-
-      <section className="panel module-table">
-        <div className="panel-header"><div><h3>Contas a pagar</h3><p>Pagamentos programados e envio para aprovação</p></div></div>
-        <div className="table-wrap"><table><thead><tr><th>FORNECEDOR</th><th>VALOR</th><th>VENCIMENTO</th><th>STATUS</th></tr></thead>
-          <tbody>{payableAccounts.map((row) => (
-            <tr key={row.provider}>
-              <td><strong>{row.provider}</strong></td>
-              <td>{row.value}</td>
-              <td>{row.due}</td>
-              <td><span className={`status ${row.status === "Pendente" ? "yellow" : row.status === "Em revisão" ? "blue" : "green"}`}>{row.status}</span></td>
-            </tr>
-          ))}</tbody></table></div>
-      </section>
-
-      <div className="contract-stream" style={{ gridTemplateColumns: "1.2fr 1fr" }}>
-        <section className="panel support-note contract-panel" style={{ display: "grid", gap: "1rem" }}>
-          <div className="panel-header"><div><h3>Fluxo de caixa por mês</h3><p>Evolução do saldo líquido em comparação ao período anterior</p></div></div>
-          <div style={{ display: "flex", alignItems: "end", gap: "0.9rem", height: "170px", padding: "0.5rem 0.2rem 0" }}>
-            {cashFlowTrend.map((bar) => (
-              <div key={bar.month} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "0.6rem" }}>
-                <div style={{ width: "100%", maxWidth: "52px", height: "110px", display: "flex", alignItems: "end", justifyContent: "center" }}>
-                  <div style={{ width: "100%", height: `${bar.value}%`, background: "linear-gradient(180deg, #9bc0ff, #1d78ff)", borderRadius: "10px 10px 4px 4px", boxShadow: "inset 0 -10px 15px rgba(0,0,0,0.08)" }} />
-                </div>
-                <small style={{ color: "#53627a", fontWeight: 600 }}>{bar.month}</small>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <aside className="panel contract-summary">
-          <div className="panel-header"><div><h3>Dashboard executivo</h3><p>Visão consolidada do financeiro</p></div></div>
-          <div className="contract-summary-card">
-            <div className="contract-metric"><label>Saldo em caixa</label><strong>R$ 1.428.300</strong></div>
-            <div className="contract-metric"><label>Receitas x despesas</label><strong>+26,8%</strong></div>
-            <div className="contract-metric"><label>Prazo médio de recebimento</label><strong>19 dias</strong></div>
-            <div className="contract-metric"><label>Margem operacional</label><strong>31,4%</strong></div>
-            <button className="primary-button" onClick={exportPdf}>Exportar painel</button>
-          </div>
-        </aside>
-      </div>
-
-      <section className="panel module-table">
-        <div className="panel-header"><div><h3>Fila de aprovação financeira</h3><p>Pagamentos e pendências com risco de operação</p></div></div>
-        <div className="table-wrap"><table><thead><tr><th>ITEM</th><th>TIPO</th><th>VALOR</th><th>RESPONSÁVEL</th><th>STATUS</th><th>RISCO</th></tr></thead>
-          <tbody>{approvalQueue.map((row) => (
-            <tr key={row.label}>
-              <td><strong>{row.label}</strong></td>
-              <td>{row.type}</td>
-              <td>{row.amount}</td>
-              <td>{row.owner}</td>
-              <td><span className={`status ${row.status === "Aprovado" ? "green" : row.status === "Em revisão" ? "blue" : "yellow"}`}>{row.status}</span></td>
-              <td><span className={`status ${row.risk === "Alta" ? "red" : row.risk === "Média" ? "yellow" : "green"}`}>{row.risk}</span></td>
-            </tr>
-          ))}</tbody></table></div>
-      </section>
-
-      <div className="contract-stream" style={{ gridTemplateColumns: "1.1fr 1.1fr" }}>
-        <section className="panel module-table">
-          <div className="panel-header"><div><h3>Despesas por categoria</h3><p>Distribuição dos desembolsos por tipo de gasto</p></div></div>
-          <div className="table-wrap"><table><thead><tr><th>CATEGORIA</th><th>VALOR</th><th>PARTICIPAÇÃO</th></tr></thead>
-            <tbody>{payablesByCategory.map((row) => (
-              <tr key={row.category}>
-                <td><strong>{row.category}</strong></td>
-                <td>{row.amount}</td>
-                <td>{row.share}</td>
-              </tr>
-            ))}</tbody></table></div>
-        </section>
-
-        <section className="panel module-table">
-          <div className="panel-header"><div><h3>Cobrança ativa</h3><p>Clientes com acompanhamento financeiro em andamento</p></div></div>
-          <div className="table-wrap"><table><thead><tr><th>CLIENTE</th><th>VALOR</th><th>ETAPA</th><th>STATUS</th></tr></thead>
-            <tbody>{activeCollection.map((row) => (
-              <tr key={row.client}>
-                <td><strong>{row.client}</strong></td>
-                <td>{row.amount}</td>
-                <td>{row.stage}</td>
-                <td><span className={`status ${row.status === "Em atraso" ? "red" : row.status === "Negociação" ? "yellow" : row.status === "Em revisão" ? "blue" : "green"}`}>{row.status}</span></td>
-              </tr>
-            ))}</tbody></table></div>
-        </section>
-      </div>
-
-      <section className="panel module-table">
-        <div className="panel-header"><div><h3>Rentabilidade por linha de negócio</h3><p>Receita, custo e margem dos segmentos principais</p></div></div>
-        <div className="table-wrap"><table><thead><tr><th>LINHA</th><th>MARGEM</th><th>RECEITA</th><th>CUSTO</th></tr></thead>
-          <tbody>{profitability.map((row) => (
-            <tr key={row.line}>
-              <td><strong>{row.line}</strong></td>
-              <td>{row.margin}</td>
-              <td>{row.revenue}</td>
-              <td>{row.cost}</td>
-            </tr>
-          ))}</tbody></table></div>
-      </section>
-
-      <div className="contract-stream" style={{ gridTemplateColumns: "1.2fr 1fr" }}>
-        <section className="panel module-table">
-          <div className="panel-header"><div><h3>Centro de aprovação</h3><p>Pagamentos e solicitações aguardando liberação</p></div></div>
-          <div className="table-wrap"><table><thead><tr><th>ID</th><th>DESCRICAO</th><th>VALOR</th><th>DEPARTAMENTO</th><th>STATUS</th></tr></thead>
-            <tbody>{approvalCenter.map((row) => (
-              <tr key={row.id}>
-                <td><strong>{row.id}</strong></td>
-                <td>{row.title}</td>
-                <td>{row.amount}</td>
-                <td>{row.department}</td>
-                <td><span className={`status ${row.status === "Aprovado" ? "green" : row.status === "Pendência" ? "yellow" : row.status === "Em revisão" ? "blue" : "green"}`}>{row.status}</span></td>
-              </tr>
-            ))}</tbody></table></div>
-        </section>
-
-        <aside className="panel contract-summary">
-          <div className="panel-header"><div><h3>Indicadores da diretoria</h3><p>Visão executiva consolidada</p></div></div>
-          <div className="contract-summary-card">
-            <div className="contract-metric"><label>Capital disponível</label><strong>R$ 1.428.300</strong></div>
-            <div className="contract-metric"><label>Taxa de aprovação</label><strong>89%</strong></div>
-            <div className="contract-metric"><label>Margem consolidada</label><strong>27,5%</strong></div>
-            <div className="contract-metric"><label>Risco financeiro</label><strong>Moderado</strong></div>
-            <button className="primary-button" onClick={exportPdf}>Enviar relatório</button>
-          </div>
-        </aside>
-      </div>
-
-      <section className="panel module-table">
-        <div className="panel-header"><div><h3>Dashboard por gerente</h3><p>Receita captada, aprovações e desempenho do time</p></div></div>
-        <div className="table-wrap"><table><thead><tr><th>GERENTE</th><th>COBRANÇA</th><th>APROVAÇÕES</th><th>RISCO</th><th>MARGEM</th></tr></thead>
-          <tbody>{managerView.map((row) => (
-            <tr key={row.manager}>
-              <td><strong>{row.manager}</strong></td>
-              <td>{row.collection}</td>
-              <td>{row.approvals}</td>
-              <td><span className={`status ${row.risk === "Baixo" ? "green" : "yellow"}`}>{row.risk}</span></td>
-              <td>{row.margin}</td>
-            </tr>
-          ))}</tbody></table></div>
-      </section>
-
-      <div className="contract-stream" style={{ gridTemplateColumns: "1.15fr 0.85fr" }}>
-        <section className="panel module-table">
-          <div className="panel-header"><div><h3>Fechamento mensal</h3><p>Resumo dos indicadores enviados para a gestão</p></div></div>
-          <div className="table-wrap"><table><thead><tr><th>ITEM</th><th>VALOR</th><th>STATUS</th></tr></thead>
-            <tbody>{monthlyClosing.map((row) => (
-              <tr key={row.item}>
-                <td><strong>{row.item}</strong></td>
-                <td>{row.value}</td>
-                <td><span className={`status ${row.status === "Fechado" ? "green" : row.status === "Em revisão" ? "blue" : "yellow"}`}>{row.status}</span></td>
-              </tr>
-            ))}</tbody></table></div>
-        </section>
-
-        <aside className="panel contract-summary">
-          <div className="panel-header"><div><h3>Checklist de gestão</h3><p>Etapas do fechamento financeiro</p></div></div>
-          <div className="contract-summary-card">
-            <div className="document-list compact-list">
-              {financeChecklist.map((item, index) => (
-                <button key={item} type="button" className={index < 4 ? "document-item complete" : "document-item"}>
-                  <span className="document-check"><Icon name={index < 4 ? "check" : "file"} size={16} /></span>
-                  <span>{item}</span>
-                </button>
-              ))}
-            </div>
-            <button className="primary-button">Encerrar mês</button>
-          </div>
-        </aside>
-      </div>
-
-      <div className="contract-stream" style={{ gridTemplateColumns: "1fr 1fr" }}>
-        <section className="panel module-table">
-          <div className="panel-header"><div><h3>Hierarquia de aprovação</h3><p>Limites por cargo para liberação de pagamentos</p></div></div>
-          <div className="table-wrap"><table><thead><tr><th>CARGO</th><th>LIMITE</th><th>RESPONSÁVEL</th></tr></thead>
-            <tbody>{approvalHierarchy.map((row) => (
-              <tr key={row.role}>
-                <td><strong>{row.role}</strong></td>
-                <td>{row.maxValue}</td>
-                <td>{row.owner}</td>
-              </tr>
-            ))}</tbody></table></div>
-        </section>
-
-        <section className="panel module-table">
-          <div className="panel-header"><div><h3>Resultado por unidade</h3><p>Desempenho de cada filial em resultado e eficiência</p></div></div>
-          <div className="table-wrap"><table><thead><tr><th>UNIDADE</th><th>RECEITA</th><th>MARGEM</th><th>ROI</th></tr></thead>
-            <tbody>{unitResults.map((row) => (
-              <tr key={row.unit}>
-                <td><strong>{row.unit}</strong></td>
-                <td>{row.revenue}</td>
-                <td>{row.margin}</td>
-                <td>{row.roi}</td>
-              </tr>
-            ))}</tbody></table></div>
-        </section>
-      </div>
-
-      <div className="contract-stream" style={{ gridTemplateColumns: "1.2fr 1fr" }}>
-        <section className="panel module-table">
-          <div className="panel-header"><div><h3>Centro de custo</h3><p>Orçamento x execução por departamento</p></div></div>
-          <div className="table-wrap"><table><thead><tr><th>DEPARTAMENTO</th><th>ORÇAMENTO</th><th>GASTO</th><th>VARIAÇÃO</th></tr></thead>
-            <tbody>{costCenters.map((row) => (
-              <tr key={row.center}>
-                <td><strong>{row.center}</strong></td>
-                <td>{row.budget}</td>
-                <td>{row.spend}</td>
-                <td>{row.variance}</td>
-              </tr>
-            ))}</tbody></table></div>
-        </section>
-
-        <aside className="panel contract-summary">
-          <div className="panel-header"><div><h3>Resultado por mês</h3><p>Lucro líquido consolidado</p></div></div>
-          <div className="contract-summary-card">
-            {resultByMonth.map((row) => (
-              <div key={row.month} className="contract-metric">
-                <label>{row.month}</label>
-                <strong>{row.result}</strong>
-              </div>
-            ))}
-            <button className="primary-button" onClick={exportPdf}>Exportar indicadores</button>
-          </div>
-        </aside>
-      </div>
-    </div>
-  );
-}
-
-function ReportsPage() {
-  const payouts = [["Marcos Costa", "Vendedor", "8", "R$ 986.000", "R$ 14.790"], ["Juliana Castro", "Vendedor", "7", "R$ 842.000", "R$ 12.630"], ["Amanda Silva", "Gerente", "18", "R$ 2.480.000", "R$ 12.400"], ["Rafael Lima", "Vendedor", "6", "R$ 728.000", "R$ 10.920"]];
+function ReportsPage({ profile, userName, authToken }: { profile: string; userName: string; authToken: string }) {
+  const [report, setReport] = useState<CommissionSummary | null>(null);
+  const [loadingReport, setLoadingReport] = useState(true);
+  const [reportError, setReportError] = useState("");
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    const query = new URLSearchParams({ startDate: toApiDate(currentWeek.startDate), endDate: toApiDate(currentWeek.endDate) });
+    fetch(`${API_BASE_URL}/reports/commissions?${query}`, { headers: { Authorization: `Bearer ${authToken}` } }).then(async (response) => {
+      const payload = await response.json(); if (!response.ok) throw new Error(payload?.message || "Não foi possível carregar o relatório.");
+      if (!cancelled) setReport(payload.data);
+    }).catch((requestError) => { if (!cancelled) setReportError(requestError instanceof Error ? requestError.message : "Falha ao carregar o relatório."); })
+      .finally(() => { if (!cancelled) setLoadingReport(false); });
+    return () => { cancelled = true; };
+  }, [authToken]);
+  const money = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
   const exportPdf = async () => {
-    setExporting(true);
-    setExportError("");
-    try {
-      await downloadCommissionReport(currentWeek);
-    } catch (error) {
-      setExportError(error instanceof Error ? error.message : "Falha ao gerar o PDF.");
-    } finally {
-      setExporting(false);
-    }
+    setExporting(true); setExportError("");
+    try { await downloadCommissionReport(currentWeek, authToken); }
+    catch (error) { setExportError(error instanceof Error ? error.message : "Falha ao gerar o PDF."); }
+    finally { setExporting(false); }
   };
-  return (
-    <div className="content module-content report-page">
-      <ReportHeader title="Relatório de comissões" />
-      <section className="module-heading"><div><p>FINANCEIRO</p><h1>Relatório de comissões</h1><span>Pagamentos calculados sobre contratos efetivados no período.</span></div><div className="heading-actions"><label className="period-picker"><Icon name="calendar" size={18}/><select><option>{currentWeekLabel}</option></select></label><button className="primary-button" onClick={exportPdf} disabled={exporting}><Icon name="file" size={17}/>{exporting ? "Gerando no servidor..." : "Exportar PDF"}</button></div></section>
-      {exportError && <div className="export-error">{exportError} Verifique se a API de relatórios está disponível.</div>}
-      <section className="report-hero"><div><span>Total de comissões</span><strong>R$ 50.740,00</strong><small>4 colaboradores elegíveis</small></div><div><p>Volume vendido<strong>R$ 5.036.000</strong></p><p>Contratos<strong>39</strong></p><p>Ticket médio<strong>R$ 129.128</strong></p></div></section>
-      <section className="panel module-table"><div className="panel-header"><div><h3>Detalhamento por colaborador</h3><p>Valores sujeitos à validação financeira</p></div></div><div className="table-wrap"><table><thead><tr><th>COLABORADOR</th><th>PERFIL</th><th>CONTRATOS</th><th>BASE DE CÁLCULO</th><th>COMISSÃO A PAGAR</th></tr></thead><tbody>{payouts.map((row) => <tr key={row[0]}>{row.map((cell, index) => <td key={cell}><strong className={index === 4 ? "payout-value" : ""}>{cell}</strong></td>)}</tr>)}</tbody></table></div></section>
-      <p className="report-footnote">Relatório gerado por {clientCompany} · Período de 01/06/2025 a 30/06/2025</p>
-    </div>
-  );
+  return <div className="content module-content report-page">
+    <section className="module-heading"><div><p>FINANCEIRO</p><h1>Relatório de comissões</h1><span>Pagamentos sobre contratos efetivados no escopo de {userName}.</span></div><div className="heading-actions"><label className="period-picker"><Icon name="calendar" size={18}/><select><option>{currentWeekLabel}</option></select></label><button className="primary-button" onClick={() => void exportPdf()} disabled={exporting}><Icon name="file" size={17}/>{exporting ? "Gerando no servidor..." : "Exportar PDF"}</button></div></section>
+    {(reportError || exportError) && <div className="export-error">{reportError || exportError}</div>}
+    <section className="report-hero"><div><span>Total de comissões</span><strong>{loadingReport ? "Carregando..." : money(report?.summary.totalComissoes || 0)}</strong><small>{report?.summary.colaboradores || 0} colaboradores com lançamentos</small></div><div><p>Volume vendido<strong>{money(report?.summary.volumeVendido || 0)}</strong></p><p>Contratos<strong>{report?.summary.contratos || 0}</strong></p><p>Ticket médio<strong>{money(report?.summary.contratos ? (report.summary.volumeVendido / report.summary.contratos) : 0)}</strong></p></div></section>
+    <section className="panel module-table"><div className="panel-header"><div><h3>Detalhamento por colaborador</h3><p>Valores apurados no ledger de comissões do PostgreSQL.</p></div></div><div className="table-wrap"><table><thead><tr><th>COLABORADOR</th><th>PERFIL</th><th>CONTRATOS</th><th>BASE DE CÁLCULO</th><th>COMISSÃO A PAGAR</th></tr></thead><tbody>{loadingReport ? <tr><td colSpan={5}>Carregando registros...</td></tr> : report?.items.length ? report.items.map((row) => <tr key={`${row.colaborador}-${row.perfil}`}><td><strong>{row.colaborador}</strong></td><td>{row.perfil}</td><td>{row.contratos}</td><td>{money(row.baseCalculo)}</td><td><strong className="payout-value">{money(row.comissao)}</strong></td></tr>) : <tr><td colSpan={5}>Nenhuma comissão registrada neste período.</td></tr>}</tbody></table></div></section>
+    <p className="report-footnote">Relatório gerado por {clientCompany} · Período de {currentWeekLabel}</p>
+  </div>;
 }
 
 function ManagerDashboard() {
@@ -2614,7 +1134,7 @@ function ManagerDashboard() {
   const managerCommission = overrideCommission + directCommission;
   return (
     <div className="content module-content">
-      <section className="module-heading"><div><p>GESTÃO DA EQUIPE {clientCompany.toUpperCase()}</p><h1>Visão da gerência</h1><span>Acompanhe a produção dos seus vendedores e a evolução das metas.</span></div><label className="period-picker"><Icon name="calendar" size={18}/><select><option>{currentWeekLabel}</option><option>Período personalizado</option></select></label></section>
+      <section className="module-heading"><div><p>GESTÃO DA EQUIPE HORIZONTE</p><h1>Visão da gerência</h1><span>Acompanhe a produção dos seus vendedores e a evolução das metas.</span></div><label className="period-picker"><Icon name="calendar" size={18}/><select><option>{currentWeekLabel}</option><option>Período personalizado</option></select></label></section>
       <section className="stats-grid manager-stats">
         <article className="stat-card"><div className="stat-icon blue"><Icon name="proposal"/></div><div className="stat-title"><span>Simulações da equipe</span><strong className="up">+15,7%</strong></div><h2>54</h2><p>12 a mais que na semana anterior</p></article>
         <article className="stat-card"><div className="stat-icon purple"><Icon name="file"/></div><div className="stat-title"><span>Propostas enviadas</span><strong className="up">+9,4%</strong></div><h2>33</h2><p>61% de conversão das simulações</p></article>
@@ -2653,7 +1173,7 @@ function MyTeamPage() {
   };
   return (
     <div className="content module-content">
-      <section className="module-heading"><div><p>EQUIPE {clientCompany.toUpperCase()}</p><h1>Minha equipe</h1><span>Gerencie os vendedores sob sua responsabilidade sem perder o histórico.</span></div><button className="primary-button"><Icon name="plus" size={18}/>Adicionar vendedor</button></section>
+      <section className="module-heading"><div><p>EQUIPE HORIZONTE</p><h1>Minha equipe</h1><span>Gerencie os vendedores sob sua responsabilidade sem perder o histórico.</span></div><button className="primary-button"><Icon name="plus" size={18}/>Adicionar vendedor</button></section>
       <section className="module-summary"><div><span>Vendedores ativos</span><strong>{sellers.filter((seller) => seller.active).length}</strong></div><div><span>Contratos no mês</span><strong>21</strong></div><div><span>Produção da equipe</span><strong>R$ 2,48 mi</strong></div></section>
       <div className="audit-notice"><div><Icon name="settings" size={18}/></div><p><strong>Histórico preservado</strong><span>Vendedores desligados não são excluídos. O acesso é revogado, mas propostas, contratos e registros permanecem disponíveis para auditoria.</span></p></div>
       <section className="panel module-table">
@@ -2671,388 +1191,251 @@ function MyTeamPage() {
   );
 }
 
-function ApprovalsAndDocumentsPage() {
-  const approvalQueue = [
-    { id: "APR-1042", customer: "Ricardo Nunes", type: "Contrato de financiamento", amount: "R$ 98.500", owner: "Marcos Costa", status: "Pendente", risk: "Baixa" },
-    { id: "APR-1043", customer: "Camila Rocha", type: "Acordo de consultoria", amount: "R$ 7.000", owner: "Rafael Lima", status: "Em revisão", risk: "Média" },
-    { id: "APR-1044", customer: "Pedro Azevedo", type: "Pedido de garantia estendida", amount: "R$ 3.450", owner: "Juliana Castro", status: "Aprovado", risk: "Baixa" },
-    { id: "APR-1045", customer: "Fernanda Dias", type: "Renegociação de dívida", amount: "R$ 18.900", owner: "Amanda Silva", status: "Pendente", risk: "Alta" },
-  ];
-
-  const documentArchive = [
-    { doc: "Contrato assinado", customer: "Ricardo Nunes", channel: "e-Gov", version: "v3", status: "Arquivado", signed: true },
-    { doc: "Proposta comercial", customer: "Camila Rocha", channel: "WhatsApp", version: "v2", status: "Aceito", signed: true },
-    { doc: "Termo de consultoria", customer: "Pedro Azevedo", channel: "E-mail", version: "v1", status: "Pendente", signed: false },
-    { doc: "Acordo de recuperação", customer: "Henrique Alves", channel: "e-Gov", version: "v1", status: "Em validação", signed: true },
-  ];
-
-  const complianceChecklist = [
-    "Documentação do cliente validada",
-    "Consulta de risco e crédito concluída",
-    "Proposta assinada eletronicamente",
-    "Cópia do PDF arquivada em segurança",
-    "Envio para aprovação do gerente",
-  ];
-
-  return (
-    <div className="content module-content report-page">
-      <section className="module-heading">
-        <div>
-          <p>APROVAÇÕES E DOCUMENTOS</p>
-          <h1>Centro de aprovação e juridico</h1>
-          <span>Analise solicitações, valide documentos e acompanhe o arquivamento digital do cliente.</span>
-        </div>
-        <div className="heading-actions">
-          <button className="primary-button"><Icon name="plus" size={18}/>Nova solicitação</button>
-        </div>
-      </section>
-
-      <section className="stats-grid">
-        <article className="stat-card">
-          <div className="stat-icon blue"><Icon name="file" /></div>
-          <div className="stat-title"><span>Solicitações pendentes</span><strong className="up">+12%</strong></div>
-          <h2>14</h2><p>em fila de aprovação</p>
-        </article>
-        <article className="stat-card">
-          <div className="stat-icon green"><Icon name="check" /></div>
-          <div className="stat-title"><span>Documentos validados</span><strong className="up">92%</strong></div>
-          <h2>31</h2><p>assinaturas e arquivos concluídos</p>
-        </article>
-        <article className="stat-card">
-          <div className="stat-icon purple"><Icon name="contract" /></div>
-          <div className="stat-title"><span>Contratos com cópia</span><strong>100%</strong></div>
-          <h2>27</h2><p>arquivados no sistema jurídico</p>
-        </article>
-      </section>
-
-      <div className="contract-stream" style={{ gridTemplateColumns: "1.2fr 0.8fr" }}>
-        <section className="panel module-table">
-          <div className="panel-header"><div><h3>Fila de aprovação</h3><p>Pedidos que exigem validação antes da continuidade do fluxo</p></div></div>
-          <div className="table-wrap"><table><thead><tr><th>ID</th><th>CLIENTE</th><th>DOCUMENTO</th><th>VALOR</th><th>STATUS</th><th>RISCO</th></tr></thead>
-            <tbody>{approvalQueue.map((row) => (
-              <tr key={row.id}>
-                <td><strong>{row.id}</strong></td>
-                <td>{row.customer}</td>
-                <td>{row.type}</td>
-                <td>{row.amount}</td>
-                <td><span className={`status ${row.status === "Aprovado" ? "green" : row.status === "Em revisão" ? "blue" : "yellow"}`}>{row.status}</span></td>
-                <td><span className={`status ${row.risk === "Alta" ? "red" : row.risk === "Média" ? "yellow" : "green"}`}>{row.risk}</span></td>
-              </tr>
-            ))}</tbody></table></div>
-        </section>
-
-        <aside className="panel contract-summary">
-          <div className="panel-header"><div><h3>Checklist jurídico</h3><p>Validado antes do envio final</p></div></div>
-          <div className="contract-summary-card">
-            <div className="document-list compact-list">
-              {complianceChecklist.map((item, index) => (
-                <button key={item} type="button" className={index < 4 ? "document-item complete" : "document-item"}>
-                  <span className="document-check"><Icon name={index < 4 ? "check" : "file"} size={16} /></span>
-                  <span>{item}</span>
-                </button>
-              ))}
-            </div>
-            <button className="primary-button">Enviar para aprovação</button>
-          </div>
-        </aside>
-      </div>
-
-      <section className="panel module-table">
-        <div className="panel-header"><div><h3>Arquivo digital e assinatura</h3><p>Versões armazenadas, canais de envio e status de aceite</p></div></div>
-        <div className="table-wrap"><table><thead><tr><th>DOCUMENTO</th><th>CLIENTE</th><th>CANAL</th><th>VERSÃO</th><th>STATUS</th><th>ASSINATURA</th></tr></thead>
-          <tbody>{documentArchive.map((row) => (
-            <tr key={`${row.doc}-${row.customer}`}>
-              <td><strong>{row.doc}</strong></td>
-              <td>{row.customer}</td>
-              <td>{row.channel}</td>
-              <td>{row.version}</td>
-              <td><span className={`status ${row.status === "Arquivado" ? "green" : row.status === "Aceito" ? "green" : row.status === "Em validação" ? "blue" : "yellow"}`}>{row.status}</span></td>
-              <td><span className={`status ${row.signed ? "green" : "red"}`}>{row.signed ? "Registrada" : "Pendente"}</span></td>
-            </tr>
-          ))}</tbody></table></div>
-      </section>
-    </div>
-  );
+type StoreRecord = { id: number; nome: string; cnpj?: string | null; cidade?: string | null; status: string; usuariosCount: number; clientesCount: number; veiculosCount: number };
+function StoresPage({ authToken }: { authToken: string }) {
+  const [stores, setStores] = useState<StoreRecord[]>([]); const [nome, setNome] = useState(""); const [cnpj, setCnpj] = useState(""); const [cidade, setCidade] = useState(""); const [loading, setLoading] = useState(true); const [error, setError] = useState(""); const [notice, setNotice] = useState("");
+  const load = async () => { setLoading(true); try { const response = await fetch(`${API_BASE_URL}/stores`, { headers: { Authorization: `Bearer ${authToken}` } }); const payload = await response.json(); if (!response.ok) throw new Error(payload.message || "Não foi possível carregar as lojas."); setStores(payload.data || []); } catch (e) { setError(e instanceof Error ? e.message : "Falha ao carregar lojas."); } finally { setLoading(false); } };
+  useEffect(() => { void load(); }, [authToken]);
+  const create = async (event: FormEvent) => { event.preventDefault(); setError(""); setNotice(""); const response = await fetch(`${API_BASE_URL}/stores`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` }, body: JSON.stringify({ nome, cnpj, cidade }) }); const payload = await response.json(); if (!response.ok) { setError(payload.message || "Não foi possível cadastrar a loja."); return; } setNotice("Loja cadastrada. Ela já pode ser vinculada a usuários."); setNome(""); setCnpj(""); setCidade(""); await load(); };
+  const toggle = async (store: StoreRecord) => { const response = await fetch(`${API_BASE_URL}/stores/${store.id}`, { method: "PUT", headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` }, body: JSON.stringify({ status: store.status === "ativo" ? "inativo" : "ativo" }) }); const payload = await response.json(); if (!response.ok) { setError(payload.message || "Não foi possível atualizar a loja."); return; } await load(); };
+  return <div className="content module-content"><section className="module-heading"><div><p>ESTRUTURA DA OPERAÇÃO</p><h1>Lojas</h1><span>Cadastre filiais e acompanhe os registros vinculados a cada unidade.</span></div><button className="secondary-button" onClick={() => void load()}>Atualizar</button></section>{error && <div className="auth-notice">{error}</div>}{notice && <div className="auth-notice success">{notice}</div>}<form className="panel form-panel" onSubmit={(event) => void create(event)}><div className="step-title"><span>+</span><div><h3>Nova loja</h3><p>O cadastro cria a unidade para receber usuários e operações.</p></div></div><div className="customer-form-grid"><label>Nome da loja<input required value={nome} onChange={(event) => setNome(event.target.value)}/></label><label>CNPJ<input value={cnpj} onChange={(event) => setCnpj(event.target.value)} placeholder="Somente números ou formatado"/></label><label>Cidade<input value={cidade} onChange={(event) => setCidade(event.target.value)}/></label><div><button className="auth-submit" type="submit">Cadastrar loja</button></div></div></form><section className="panel module-table"><div className="table-wrap"><table><thead><tr><th>LOJA</th><th>USUÁRIOS</th><th>CLIENTES</th><th>VEÍCULOS</th><th>STATUS</th><th>AÇÃO</th></tr></thead><tbody>{loading ? <tr><td colSpan={6}>Carregando lojas...</td></tr> : stores.map((store) => <tr key={store.id}><td><strong>{store.nome}</strong><br/><small>{store.cnpj || store.cidade || "Sem documento/endereço"}</small></td><td>{store.usuariosCount}</td><td>{store.clientesCount}</td><td>{store.veiculosCount}</td><td><span className={`status ${store.status === "ativo" ? "green" : "red"}`}>{store.status}</span></td><td><button className="edit-customer-button" disabled={store.status === "ativo" && store.id === 1} onClick={() => void toggle(store)}>{store.status === "ativo" ? "Desativar" : "Reativar"}</button></td></tr>)}{!loading && stores.length === 0 && <tr><td colSpan={6}>Nenhuma loja cadastrada.</td></tr>}</tbody></table></div></section></div>;
 }
 
-function SettingsPage() {
-  const configRows = [
-    { setting: "Validação automática de proposta", owner: "Operações", status: "Ativa" },
-    { setting: "Notificação de aprovação financeira", owner: "Financeiro", status: "Ativa" },
-    { setting: "Arquivamento eletrônico de contrato", owner: "Jurídico", status: "Ativa" },
-    { setting: "Envio de lembrete via WhatsApp", owner: "CRM", status: "Ativa" },
-  ];
+type SystemModule = { id: string; label: string; defaultRoles: string[] };
 
-  const integrationRows = [
-    { name: "e-Gov", owner: "Jurídico", status: "Conectado" },
-    { name: "WhatsApp Business", owner: "Marketing", status: "Conectado" },
-    { name: "ERP Financeiro", owner: "Financeiro", status: "Simulado" },
-    { name: "SAC / atendimento", owner: "Suporte", status: "Conectado" },
-  ];
+function PermissionsPage({ authToken }: { authToken: string }) {
+  const [modules, setModules] = useState<SystemModule[]>([]);
+  const [roleAccess, setRoleAccess] = useState<Record<string, string[]>>({});
+  const [role, setRole] = useState("SELLER");
+  const [selected, setSelected] = useState<string[]>([]);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  return (
-    <div className="content module-content report-page">
-      <section className="module-heading">
-        <div>
-          <p>CONFIGURAÇÕES</p>
-          <h1>Operações e permissões</h1>
-          <span>Defina regras comerciais, automações e integrações que apoiam o dia a dia da operação.</span>
-        </div>
-        <div className="heading-actions">
-          <button className="primary-button"><Icon name="plus" size={18}/>Nova regra</button>
-        </div>
-      </section>
+  const request = async (path: string, method = "GET", body?: unknown) => {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      method, headers: { Authorization: `Bearer ${authToken}`, ...(body ? { "Content-Type": "application/json" } : {}) },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(payload?.message || "Não foi possível carregar as permissões.");
+    return payload?.data;
+  };
 
-      <section className="stats-grid">
-        <article className="stat-card">
-          <div className="stat-icon blue"><Icon name="settings" /></div>
-          <div className="stat-title"><span>Configurações ativas</span><strong className="up">82%</strong></div>
-          <h2>14</h2><p>regras em operação</p>
-        </article>
-        <article className="stat-card">
-          <div className="stat-icon green"><Icon name="check" /></div>
-          <div className="stat-title"><span>Permissões válidas</span><strong className="up">96%</strong></div>
-          <h2>26</h2><p>acessos sincronizados</p>
-        </article>
-        <article className="stat-card">
-          <div className="stat-icon purple"><Icon name="bell" /></div>
-          <div className="stat-title"><span>Alertas automatizados</span><strong>11</strong></div>
-          <h2>11</h2><p>notificações em execução</p>
-        </article>
-      </section>
+  useEffect(() => {
+    void request("/permissions/modules").then((data) => {
+      setModules(data.modules || []); setRoleAccess(data.roleAccess || {}); setSelected(data.roleAccess?.SELLER || []);
+    }).catch((requestError) => setError(requestError instanceof Error ? requestError.message : "Falha ao carregar módulos."))
+      .finally(() => setLoading(false));
+  }, [authToken]);
 
-      <div className="contract-stream" style={{ gridTemplateColumns: "1.15fr 0.85fr" }}>
-        <section className="panel module-table">
-          <div className="panel-header"><div><h3>Preferências operacionais</h3><p>Parâmetros e regras que definem o comportamento do sistema</p></div></div>
-          <div className="table-wrap"><table><thead><tr><th>REGRA</th><th>RESPONSÁVEL</th><th>STATUS</th></tr></thead>
-            <tbody>{configRows.map((row) => (
-              <tr key={row.setting}>
-                <td><strong>{row.setting}</strong></td>
-                <td>{row.owner}</td>
-                <td><span className="status green">{row.status}</span></td>
-              </tr>
-            ))}</tbody></table></div>
-        </section>
+  const changeRole = async (nextRole: string) => {
+    setRole(nextRole); setNotice(""); setError("");
+    try {
+      const data = await request(`/permissions/role/${nextRole}`);
+      setSelected(data.moduleIds || []);
+    } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Falha ao carregar o perfil."); }
+  };
 
-        <aside className="panel contract-summary">
-          <div className="panel-header"><div><h3>Permissões por perfil</h3><p>Controle de acesso ao sistema</p></div></div>
-          <div className="contract-summary-card">
-            <div className="contract-metric"><label>Admin</label><strong>Todos os acessos</strong></div>
-            <div className="contract-metric"><label>Gerente</label><strong>Financeiro + equipe</strong></div>
-            <div className="contract-metric"><label>Vendedor</label><strong>Cadastro e propostas</strong></div>
-            <div className="contract-metric"><label>Suporte</label><strong>CRM e atendimento</strong></div>
-            <button className="primary-button">Gerenciar perfis</button>
-          </div>
-        </aside>
-      </div>
+  const save = async () => {
+    setSaving(true); setNotice(""); setError("");
+    try {
+      const data = await request(`/permissions/role/${role}`, "PUT", { moduleIds: selected });
+      setSelected(data.moduleIds || []); setRoleAccess((current) => ({ ...current, [role]: data.moduleIds || [] }));
+      setNotice(`Permissões do perfil ${role} salvas.`);
+    } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Falha ao salvar permissões."); }
+    finally { setSaving(false); }
+  };
 
-      <section className="panel module-table">
-        <div className="panel-header"><div><h3>Integrações ativas</h3><p>Conectores e integrações vinculadas à operação</p></div></div>
-        <div className="table-wrap"><table><thead><tr><th>PLATAFORMA</th><th>PROPRIETÁRIO</th><th>STATUS</th></tr></thead>
-          <tbody>{integrationRows.map((row) => (
-            <tr key={row.name}>
-              <td><strong>{row.name}</strong></td>
-              <td>{row.owner}</td>
-              <td><span className={`status ${row.status === "Simulado" ? "yellow" : "green"}`}>{row.status}</span></td>
-            </tr>
-          ))}</tbody></table></div>
-      </section>
-    </div>
-  );
+  const sellerModules = new Set(roleAccess.SELLER || []);
+  return <div className="content module-content">
+    <section className="module-heading"><div><p>ADMINISTRAÇÃO</p><h1>Permissões de acesso</h1><span>Defina os módulos disponíveis para cada perfil.</span></div></section>
+    {notice && <div className="auth-notice success">{notice}</div>}{error && <div className="auth-notice">{error}</div>}
+    <section className="panel permissions-panel">
+      <div className="permissions-toolbar"><label>Perfil<select value={role} onChange={(event) => void changeRole(event.target.value)}><option value="SELLER">Vendedor</option><option value="MANAGER">Gerente</option><option value="SUPPORT">Suporte</option><option value="ADMIN">Administrador (acesso total)</option></select></label><p>O administrador mantém acesso total e não pode ser bloqueado.</p></div>
+      {role === "MANAGER" && <div className="role-inheritance-note">O gerente herda automaticamente todas as permissões do vendedor.</div>}
+      {loading ? <p>Carregando módulos...</p> : <div className="permission-list">{modules.map((module) => {
+        const inherited = role === "MANAGER" && sellerModules.has(module.id);
+        const checked = role === "ADMIN" || selected.includes(module.id) || inherited;
+        return <label className="permission-row" key={module.id}><span><strong>{module.label}</strong><small>{module.id}</small></span><input type="checkbox" checked={checked} disabled={role === "ADMIN" || inherited} onChange={(event) => setSelected((current) => event.target.checked ? [...new Set([...current, module.id])] : current.filter((id) => id !== module.id))}/></label>;
+      })}</div>}
+      <div className="modal-actions"><button className="primary-button" disabled={saving || loading || role === "ADMIN"} onClick={() => void save()}>{saving ? "Salvando..." : "Salvar permissões"}</button></div>
+    </section>
+  </div>;
 }
 
-function ExecutiveBoardPage() {
-  const boardSummary = [
-    { label: "Receita líquida", value: "R$ 6,4 mi", delta: "+18,4%", tone: "green" },
-    { label: "Conversão de propostas", value: "41,6%", delta: "+6,1 pts", tone: "blue" },
-    { label: "Carteira em risco", value: "4,3%", delta: "-1,2 pts", tone: "purple" },
-    { label: "Margem operacional", value: "31,8%", delta: "+3,4 pts", tone: "green" },
-  ];
+type EmailSettingsForm = {
+  host: string; port: string; secure: boolean; user: string; password: string;
+  from: string; appUrl: string; hasPassword: boolean;
+};
 
-  const focusCards = [
-    { label: "Meta do mês", current: "R$ 7,2 mi", target: "R$ 8,0 mi", progress: 90 },
-    { label: "Contratos ativos", current: "184", target: "220", progress: 84 },
-    { label: "Entrega programada", current: "31", target: "42", progress: 74 },
-    { label: "Satisfação do cliente", current: "96%", target: "95%", progress: 96 },
-  ];
+const emptyEmailSettings: EmailSettingsForm = {
+  host: "smtp.titan.email", port: "465", secure: true, user: "", password: "",
+  from: "", appUrl: "http://localhost:4173/", hasPassword: false,
+};
 
-  const scorecards = [
-    { area: "Vendas", result: "R$ 4,9 mi", variance: "+12,7%" },
-    { area: "Financeiro", result: "R$ 1,4 mi", variance: "+8,3%" },
-    { area: "Pós-venda", result: "R$ 760 mil", variance: "+14,9%" },
-    { area: "Consultoria", result: "R$ 510 mil", variance: "+19,6%" },
-  ];
+function EmailSettingsPage({ authToken }: { authToken: string }) {
+  const [form, setForm] = useState<EmailSettingsForm>(emptyEmailSettings);
+  const [recipient, setRecipient] = useState("");
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [configurationSaved, setConfigurationSaved] = useState(false);
 
-  const topSellers = [
-    { name: "Marcos Costa", sales: "R$ 986 mil", contracts: 8, conversion: "52%" },
-    { name: "Juliana Castro", sales: "R$ 812 mil", contracts: 7, conversion: "48%" },
-    { name: "Rafael Lima", sales: "R$ 728 mil", contracts: 6, conversion: "45%" },
-    { name: "Amanda Silva", sales: "R$ 683 mil", contracts: 5, conversion: "51%" },
-  ];
+  const request = async (path: string, method = "GET", body?: unknown) => {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      method,
+      headers: { Authorization: `Bearer ${authToken}`, ...(body ? { "Content-Type": "application/json" } : {}) },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(payload?.message || "Não foi possível concluir a operação.");
+    return payload?.data;
+  };
 
-  const riskWatch = [
-    { label: "Inadimplência em carteira", status: "Baixa", value: "4,3%" },
-    { label: "Reembolsos pendentes", status: "Média", value: "R$ 198,5 mil" },
-    { label: "Aprovações finais", status: "Alta", value: "89%" },
-  ];
+  useEffect(() => {
+    void request("/auth/email-settings").then((settings) => setForm({
+      host: settings.host || "smtp.titan.email", port: String(settings.port || 465),
+      secure: Boolean(settings.secure), user: settings.user || "", password: "",
+      from: settings.from || "", appUrl: settings.appUrl || "http://localhost:4173/",
+      hasPassword: Boolean(settings.hasPassword),
+    })).then(() => setConfigurationSaved(true)).catch((requestError) => setError(requestError instanceof Error ? requestError.message : "Falha ao carregar a configuração."))
+      .finally(() => setLoading(false));
+  }, [authToken]);
 
-  return (
-    <div className="content module-content report-page">
-      <section className="module-heading">
-        <div>
-          <p>GESTÃO EXECUTIVA</p>
-          <h1>Painel executivo</h1>
-          <span>Visão estratégica da operação: performance, risco, metas e resultados por área.</span>
+  const save = async (event: React.FormEvent) => {
+    event.preventDefault(); setSaving(true); setError(""); setNotice("");
+    try {
+      const settings = await request("/auth/email-settings", "PUT", { ...form, port: Number(form.port) });
+      setForm((current) => ({ ...current, password: "", hasPassword: Boolean(settings.hasPassword) }));
+      setConfigurationSaved(true);
+      setNotice("Configuração salva. Ela é aplicada imediatamente, sem reiniciar o servidor.");
+    } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Falha ao salvar a configuração."); }
+    finally { setSaving(false); }
+  };
+
+  const sendTest = async () => {
+    setTesting(true); setError(""); setNotice("");
+    try {
+      await request("/auth/email-settings/test", "POST", { email: recipient });
+      setNotice(`E-mail de teste enviado para ${recipient}.`);
+    } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Falha ao enviar o e-mail de teste."); }
+    finally { setTesting(false); }
+  };
+
+  return <div className="content module-content">
+    <section className="module-heading"><div><p>ADMINISTRAÇÃO</p><h1>Configurações de e-mail</h1><span>Configure SMTP e envie um teste sem reiniciar o backend.</span></div></section>
+    {notice && <div className="auth-notice success">{notice}</div>}
+    {error && <div className="auth-notice">{error}</div>}
+    {loading ? <section className="panel">Carregando configuração...</section> : <>
+      <form onSubmit={save} className="panel email-settings-form" style={{ padding: 24, marginBottom: 20 }}>
+        <div className="panel-header"><div><h3>Servidor de saída SMTP</h3><p>A senha é armazenada criptografada no arquivo de dados local.</p></div></div>
+        <div className="form-section-title">Conexão</div>
+        <div className="modal-row">
+          <label>Servidor SMTP<input required value={form.host} onChange={(event) => { setConfigurationSaved(false); setForm({ ...form, host: event.target.value }); }} placeholder="smtp.titan.email" /></label>
+          <label>Porta<input required type="number" min="1" max="65535" value={form.port} onChange={(event) => { setConfigurationSaved(false); setForm({ ...form, port: event.target.value }); }} /></label>
         </div>
-        <div className="heading-actions">
-          <button className="primary-button"><Icon name="file" size={17}/>Exportar overview</button>
+        <div className="modal-row">
+          <label>Usuário da caixa postal<input required type="email" value={form.user} onChange={(event) => { setConfigurationSaved(false); setForm({ ...form, user: event.target.value }); }} placeholder="conta@seudominio.com.br" /></label>
+          <label>Remetente<input required value={form.from} onChange={(event) => { setConfigurationSaved(false); setForm({ ...form, from: event.target.value }); }} placeholder="Sistema de Vendas <conta@seudominio.com.br>" /></label>
         </div>
+        <div className="modal-row">
+          <label>Senha SMTP<input type="password" autoComplete="new-password" value={form.password} onChange={(event) => { setConfigurationSaved(false); setForm({ ...form, password: event.target.value }); }} placeholder={form.hasPassword ? "Senha já configurada; deixe em branco para manter" : "Senha da caixa Titan"} required={!form.hasPassword} /></label>
+          <label>Link de acesso do sistema<input required type="url" value={form.appUrl} onChange={(event) => { setConfigurationSaved(false); setForm({ ...form, appUrl: event.target.value }); }} placeholder="https://sistema.suaempresa.com.br" /></label>
+        </div>
+        <label className="checkbox-row"><input type="checkbox" checked={form.secure} onChange={(event) => { setConfigurationSaved(false); setForm({ ...form, secure: event.target.checked }); }} /> Usar SSL direto (marque para a porta 465; deixe desmarcado para STARTTLS na porta 587)</label>
+        <p className="table-subcopy">A porta 993 é IMAP (recebimento), não SMTP. Para Titan, use smtp.titan.email na porta 465 com SSL ou 587 com STARTTLS.</p>
+        <div className="modal-actions"><button type="submit" className="primary-button" disabled={saving}>{saving ? "Salvando..." : "Salvar configuração"}</button></div>
+      </form>
+      <section className="panel email-test-panel">
+        <div className="panel-header"><div><h3>Testar envio</h3><p>Salve a configuração antes de enviar uma mensagem de teste.</p></div></div>
+        <div className="modal-row"><label>Enviar teste para<input type="email" required value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="destinatario@exemplo.com" /></label><div className="form-actions"><button type="button" className="primary-button" disabled={testing || !recipient || !form.hasPassword || !configurationSaved} onClick={() => void sendTest()}>{testing ? "Enviando..." : "Enviar e-mail de teste"}</button></div></div>
       </section>
-
-      <section className="stats-grid">
-        {boardSummary.map((item) => (
-          <article className="stat-card" key={item.label}>
-            <div className={`stat-icon ${item.tone}`}><Icon name={item.tone === "green" ? "trend" : item.tone === "blue" ? "chart" : "percent"} /></div>
-            <div className="stat-title"><span>{item.label}</span><strong className={item.tone === "purple" ? "up" : "up"}>{item.delta}</strong></div>
-            <h2>{item.value}</h2>
-            <p>comparado ao ciclo anterior</p>
-          </article>
-        ))}
-      </section>
-
-      <div className="contract-stream" style={{ gridTemplateColumns: "1.2fr 0.8fr" }}>
-        <section className="panel support-note contract-panel">
-          <div className="panel-header"><div><h3>Meta de negócio</h3><p>Progresso geral do mês</p></div></div>
-          <div className="goal-ring" style={{ marginTop: "0.5rem" }}>
-            <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="49"/><circle className="goal-progress" cx="60" cy="60" r="49" /></svg>
-            <div><strong>90%</strong><span>da meta</span></div>
-          </div>
-          <div className="goal-values">
-            <span><em>Realizado</em><strong>R$ 7,2 mi</strong></span>
-            <span><em>Meta</em><strong>R$ 8,0 mi</strong></span>
-            <span><em>Faltam</em><strong>R$ 800 mil</strong></span>
-          </div>
-        </section>
-
-        <aside className="panel contract-summary">
-          <div className="panel-header"><div><h3>Risco e monitoramento</h3><p>Indicadores críticos</p></div></div>
-          <div className="contract-summary-card">
-            {riskWatch.map((item) => (
-              <div key={item.label} className="contract-metric">
-                <label>{item.label}</label>
-                <strong>{item.value}</strong>
-                <span className={`status ${item.status === "Baixa" ? "green" : item.status === "Média" ? "yellow" : "blue"}`}>{item.status}</span>
-              </div>
-            ))}
-          </div>
-        </aside>
-      </div>
-
-      <div className="contract-stream" style={{ gridTemplateColumns: "1fr 1fr" }}>
-        {focusCards.map((card) => (
-          <section className="panel module-table" key={card.label}>
-            <div className="panel-header"><div><h3>{card.label}</h3><p>{card.current} de {card.target}</p></div></div>
-            <div className="goal-row">
-              <div className="goal-progress-line"><i style={{ width: `${card.progress}%` }} /></div>
-              <strong>{card.progress}%</strong>
-            </div>
-          </section>
-        ))}
-      </div>
-
-      <div className="contract-stream" style={{ gridTemplateColumns: "1fr 1fr" }}>
-        <section className="panel module-table">
-          <div className="panel-header"><div><h3>Resultado por área</h3><p>Desempenho em comparação ao período anterior</p></div></div>
-          <div className="table-wrap"><table><thead><tr><th>ÁREA</th><th>RESULTADO</th><th>VARIAÇÃO</th></tr></thead>
-            <tbody>{scorecards.map((row) => (
-              <tr key={row.area}><td><strong>{row.area}</strong></td><td>{row.result}</td><td><span className="status green">{row.variance}</span></td></tr>
-            ))}</tbody></table></div>
-        </section>
-
-        <section className="panel module-table">
-          <div className="panel-header"><div><h3>Top vendedores</h3><p>Produção e conversão do mês</p></div></div>
-          <div className="table-wrap"><table><thead><tr><th>VENDEDOR</th><th>VOLUME</th><th>CONTRATOS</th><th>CONVERSÃO</th></tr></thead>
-            <tbody>{topSellers.map((row) => (
-              <tr key={row.name}><td><strong>{row.name}</strong></td><td>{row.sales}</td><td>{row.contracts}</td><td>{row.conversion}</td></tr>
-            ))}</tbody></table></div>
-        </section>
-      </div>
-    </div>
-  );
+    </>}
+  </div>;
 }
 
 export default function App() {
-  const [authenticated, setAuthenticated] = useState(() => Boolean(localStorage.getItem("vfcAuthToken")));
+  const [authToken, setAuthToken] = useState(() => localStorage.getItem("vfcAuthToken") || "");
+  const [sessionUser, setSessionUser] = useState<AuthUser | null>(() => {
+    try { return JSON.parse(localStorage.getItem("vfcAuthUser") || "null") as AuthUser | null; }
+    catch { return null; }
+  });
+  const [authenticated, setAuthenticated] = useState(() => Boolean(localStorage.getItem("vfcAuthToken") && localStorage.getItem("vfcAuthUser")));
   const [active, setActive] = useState("Dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [period, setPeriod] = useState(currentWeekLabel);
-  const [customerHistoryMap, setCustomerHistoryMap] = useState<Record<number, CustomerHistoryEntry[]>>({
-    1: [
-      { date: "12/06/2025 · 14:32", title: "Simulação realizada", detail: "Jeep Compass Limited · Entrada de R$ 50.000 · 48 parcelas", tone: "blue", icon: "proposal" },
-      { date: "10/06/2025 · 09:18", title: "Consulta de crédito", detail: "Score 782 · Risco baixo · Cliente sem restrições ativas", tone: "green", icon: "search" },
-      { date: "22/03/2024 · 16:45", title: "Veículo adquirido", detail: "Honda City EXL 2023 · Contrato #CONT-2024-0148", tone: "purple", icon: "car" },
-    ],
-    2: [
-      { date: "09/06/2025 · 10:10", title: "Proposta enviada", detail: "Banco Capital · Valor R$ 92.500 · Aguardando análise", tone: "blue", icon: "file" },
-      { date: "04/06/2025 · 15:45", title: "Consulta de crédito", detail: "Score 714 · Aprovado para financiamento", tone: "green", icon: "check" },
-    ],
-    3: [
-      { date: "11/06/2025 · 17:00", title: "Simulação iniciada", detail: "Toyota Corolla XEi · Entrada de R$ 40.000 · 48 parcelas", tone: "blue", icon: "proposal" },
-    ],
-    4: [
-      { date: "18/03/2024 · 11:20", title: "Contrato de recuperação de crédito", detail: "Acordo concluído e baixado em 02/04/2024", tone: "orange", icon: "contract" },
-    ],
-  });
-  const currentPeriodData = dashboardPeriodData[period] ?? dashboardPeriodData[currentWeekLabel];
+  const [serverPermissions, setServerPermissions] = useState<{ role: string; allowedModules: string[] } | null>(null);
+  const [stores, setStores] = useState<StoreRecord[]>([]);
+  const profile = normalizeRole(sessionUser?.perfil);
+  const allowedModules = new Set(serverPermissions?.role === profile ? serverPermissions.allowedModules : roleModules[profile] || roleModules.SELLER);
+  const visibleNavGroups = navGroups.map((group) => ({
+    ...group, items: group.items.filter((item) => allowedModules.has(item.label)),
+  })).filter((group) => group.items.length > 0);
+  const defaultModule = profile === "SUPPORT" ? "Painel de suporte" : profile === "MANAGER" ? "Painel do gerente" : profile === "ADMIN" ? "Dashboard" : "Simulações";
+  const visibleActive = allowedModules.has(active) ? active : defaultModule;
 
-  const addCustomerHistory = (customerName: string, title: string, detail: string, tone = "blue", icon: IconName = "proposal") => {
-    const customerId = Object.keys(customerHistoryMap).find((key) => {
-      const customer = [
-        "Henrique Alves",
-        "Camila Rocha",
-        "Ricardo Nunes",
-        "Fernanda Dias",
-      ][Number(key) - 1];
-      return customer === customerName;
-    });
+  useEffect(() => {
+    if (active !== visibleActive) setActive(visibleActive);
+  }, [active, visibleActive]);
 
-    if (!customerId) return;
+  useEffect(() => {
+    if (!authToken || !["ADMIN", "SUPPORT"].includes(profile)) { setStores([]); return; }
+    let cancelled = false;
+    fetch(`${API_BASE_URL}/stores`, { headers: { Authorization: `Bearer ${authToken}` } }).then((response) => response.ok ? response.json() : null).then((payload) => { if (!cancelled) setStores(payload?.data || []); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [authToken, profile]);
 
-    const formattedDate = new Intl.DateTimeFormat("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date());
-
-    setCustomerHistoryMap((current) => ({
-      ...current,
-      [Number(customerId)]: [
-        { date: formattedDate, title, detail, tone, icon },
-        ...(current[Number(customerId)] ?? []),
-      ],
-    }));
+  const selectStoreContext = async (value: string) => {
+    const lojaId = value === "ALL" ? null : Number(value);
+    const response = await fetch(`${API_BASE_URL}/stores/select`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` }, body: JSON.stringify({ lojaId }) });
+    const payload = await response.json();
+    if (!response.ok) return;
+    const nextUser = { ...sessionUser!, lojaId: payload.data.lojaId, lojaNome: payload.data.lojaNome };
+    localStorage.setItem("vfcAuthToken", payload.data.token); localStorage.setItem("vfcAuthUser", JSON.stringify(nextUser));
+    setAuthToken(payload.data.token); setSessionUser(nextUser);
   };
 
-  if (!authenticated) return <AuthScreen onAuthenticated={() => setAuthenticated(true)} />;
+  useEffect(() => {
+    if (!authToken || !profile) return;
+    let cancelled = false;
+    const refreshPermissions = () => {
+      void fetch(`${API_BASE_URL}/permissions/role/${profile}`, { headers: { Authorization: `Bearer ${authToken}` } })
+        .then((response) => response.ok ? response.json() : null)
+        .then((payload) => { if (!cancelled && payload?.data?.allowedModules) setServerPermissions({ role: profile, allowedModules: payload.data.allowedModules }); })
+        .catch(() => {});
+    };
+    refreshPermissions();
+    const interval = window.setInterval(refreshPermissions, 15000);
+    window.addEventListener("focus", refreshPermissions);
+    return () => { cancelled = true; window.clearInterval(interval); window.removeEventListener("focus", refreshPermissions); };
+  }, [authToken, profile]);
+
+  const passwordResetRequested = new URLSearchParams(window.location.search).has("resetToken");
+  if (passwordResetRequested || !authenticated || !sessionUser) return <AuthScreen onAuthenticated={(token, user) => {
+    localStorage.setItem("vfcAuthToken", token);
+    localStorage.setItem("vfcAuthUser", JSON.stringify(user));
+    setAuthToken(token); setSessionUser(user); setAuthenticated(true);
+  }} />;
 
   return (
     <div className="app-shell">
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="brand">
-          <div className="brand-mark"><span /><span /><span /></div>
-          <div className="brand-wordmark"><strong>VFC</strong><small>Multimarcas</small></div>
+          <img src={vfcLogo} alt={clientCompany} className="brand-logo sidebar-logo" />
         </div>
         <nav>
-          {navGroups.map((group) => (
+          {visibleNavGroups.map((group) => (
             <div className="nav-group" key={group.label}>
               <p>{group.label}</p>
               {group.items.map((item) => (
                 <button
                   key={item.label}
-                  className={active === item.label ? "active" : ""}
-                  onClick={() => { setActive(item.label); setSidebarOpen(false); }}
+                  className={visibleActive === item.label ? "active" : ""}
+                  onClick={() => { if (allowedModules.has(item.label)) setActive(item.label); setSidebarOpen(false); }}
                 >
                   <Icon name={item.icon} size={19} />
                   <span>{item.label}</span>
@@ -3068,9 +1451,9 @@ export default function App() {
           <Icon name="arrow" size={16} />
         </div>
         <div className="sidebar-user">
-          <div className="avatar">AM</div>
-          <div><strong>André Martins</strong><span>Administrador</span></div>
-          <button aria-label="Mais opções"><Icon name="more" size={18} /></button>
+          <div className="avatar">{sessionUser.nome.split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase()}</div>
+          <div><strong>{sessionUser.nome}</strong><span>{roleNames[profile]}</span></div>
+          <button aria-label="Sair da conta" title="Sair da conta" onClick={() => { localStorage.removeItem("vfcAuthToken"); localStorage.removeItem("vfcAuthUser"); setAuthToken(""); setSessionUser(null); setAuthenticated(false); setActive("Dashboard"); }}><Icon name="more" size={18} /></button>
         </div>
       </aside>
 
@@ -3088,23 +1471,21 @@ export default function App() {
             <button className="icon-button notification" aria-label="Notificações"><Icon name="bell" size={20} /><i /></button>
             <div className="top-divider" />
             <span className="store-label">Loja</span>
-            <button className="store-select">{clientCompany} • São Paulo <span>⌄</span></button>
+            {["ADMIN", "SUPPORT"].includes(profile) ? <select className="store-select" value={sessionUser.lojaId == null ? "ALL" : String(sessionUser.lojaId)} onChange={(event) => void selectStoreContext(event.target.value)}><option value="ALL">Todas as lojas</option>{stores.map((store) => <option key={store.id} value={store.id}>{store.nome}</option>)}</select> : <span className="store-select">{sessionUser.lojaNome || clientCompany}</span>}
           </div>
         </header>
 
-        {active === "Clientes" ? <CustomersPage customerHistoryMap={customerHistoryMap} onAddCustomerHistory={addCustomerHistory} /> : active === "Classificados" ? <ClassifiedsPage onSimulate={() => setActive("Simulações")}/> : active === "Simulações" ? <SimulationPage onAddCustomerHistory={addCustomerHistory} /> : active === "Usuários e perfis" ? <UsersPage/> : active === "Veículos" ? <VehiclesPage/> : active === "Painel do gerente" ? <ManagerDashboard/> : active === "Painel executivo" ? <ExecutiveBoardPage/> : active === "Minha equipe" ? <MyTeamPage/> : active === "Aprovações e documentos" ? <ApprovalsAndDocumentsPage/> : active === "Painel de suporte" ? <SupportDashboard/> : active === "Propostas" ? <ProposalReviewPage onAddCustomerHistory={addCustomerHistory}/> : active === "Contratos" ? <ContractManagementPage/> : active === "Entrega e pós-venda" ? <DeliveryPage/> : active === "Garantia e pós-venda" ? <AfterSalesPage/> : active === "CRM pós-venda" ? <CustomerFollowUpPage/> : active === "Equipes e comissões" ? <TeamsCommissionsPage/> : active === "Sistema financeiro" ? <FinanceSystemPage/> : active === "Relatórios" ? <ReportsPage/> : active === "Configurações" ? <SettingsPage/> : active !== "Dashboard" ? <ModulePage name={active}/> : <div className="content">
+        {visibleActive === "Recuperação de crédito" ? <CreditRecoveryPage authToken={authToken} profile={profile}/> : visibleActive === "Clientes" ? <CustomersPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Classificados" ? <ClassifiedsPage onSimulate={() => setActive("Simulações")}/> : visibleActive === "Simulações" ? <SimulationPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Usuários e perfis" && profile === "ADMIN" ? <UsersPage authToken={authToken}/> : visibleActive === "Lojas" && profile === "ADMIN" ? <StoresPage authToken={authToken}/> : visibleActive === "Permissões de acesso" && profile === "ADMIN" ? <PermissionsPage authToken={authToken}/> : visibleActive === "Configurações" && profile === "ADMIN" ? <EmailSettingsPage authToken={authToken}/> : visibleActive === "Veículos" ? <VehiclesPage authToken={authToken} profile={profile}/> : visibleActive === "Painel do gerente" && profile === "MANAGER" ? <ManagerDashboard/> : visibleActive === "Minha equipe" && profile === "MANAGER" ? <MyTeamPage/> : visibleActive === "Painel de suporte" && profile === "SUPPORT" ? <SupportDashboard/> : visibleActive === "Propostas" && ["ADMIN", "SUPPORT"].includes(profile) ? <ProposalReviewPage authToken={authToken}/> : visibleActive === "Propostas" ? <SellerProposalsPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Equipes e comissões" && ["ADMIN", "MANAGER", "SUPPORT"].includes(profile) ? <TeamsCommissionsPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Relatórios" && ["ADMIN", "MANAGER", "SUPPORT"].includes(profile) ? <ReportsPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive !== "Dashboard" ? <ModulePage name={visibleActive} profile={profile} userName={sessionUser.nome}/> : <div className="content">
           <section className="page-heading">
             <div>
               <p>{currentDateLabel}</p>
-              <h1>Olá, André. <span>Seu desempenho está em alta.</span></h1>
+              <h1>Olá, {sessionUser.nome}. <span>Seu desempenho está em alta.</span></h1>
             </div>
             <div className="heading-actions">
               <label className="period-picker">
                 <Icon name="calendar" size={18} />
                 <select value={period} onChange={(e) => setPeriod(e.target.value)}>
                   <option>{currentWeekLabel}</option>
-                  <option>Últimos 30 dias</option>
-                  <option>Últimos 90 dias</option>
                   <option>Período personalizado</option>
                 </select>
               </label>
@@ -3115,27 +1496,27 @@ export default function App() {
           <section className="stats-grid">
             <article className="stat-card">
               <div className="stat-icon blue"><Icon name="proposal" /></div>
-              <div className="stat-title"><span>Simulações</span><strong className={currentPeriodData.sims.tone}>{currentPeriodData.sims.delta}</strong></div>
-              <h2>{currentPeriodData.sims.value}</h2><p>vs. período anterior</p>
-              <div className="spark blue-spark">{currentPeriodData.spark.map((item, index) => <i key={`${item.height}-${index}`} style={{ height: item.height, opacity: index === 6 ? 0.7 : 0.19 }} />)}</div>
+              <div className="stat-title"><span>Simulações</span><strong className="up">+12,5%</strong></div>
+              <h2>48</h2><p>vs. 42 na semana anterior</p>
+              <div className="spark blue-spark"><i/><i/><i/><i/><i/><i/><i/></div>
             </article>
             <article className="stat-card">
               <div className="stat-icon purple"><Icon name="file" /></div>
-              <div className="stat-title"><span>Propostas</span><strong className={currentPeriodData.proposals.tone}>{currentPeriodData.proposals.delta}</strong></div>
-              <h2>{currentPeriodData.proposals.value}</h2><p>vs. período anterior</p>
-              <div className="spark purple-spark">{currentPeriodData.spark.map((item, index) => <i key={`${item.height}-${index}`} style={{ height: item.height, opacity: index === 6 ? 0.7 : 0.19 }} />)}</div>
+              <div className="stat-title"><span>Propostas</span><strong className="up">+8,3%</strong></div>
+              <h2>26</h2><p>vs. 24 na semana anterior</p>
+              <div className="spark purple-spark"><i/><i/><i/><i/><i/><i/><i/></div>
             </article>
             <article className="stat-card">
               <div className="stat-icon green"><Icon name="check" /></div>
-              <div className="stat-title"><span>Contratos efetivados</span><strong className={currentPeriodData.contracts.tone}>{currentPeriodData.contracts.delta}</strong></div>
-              <h2>{currentPeriodData.contracts.value}</h2><p>vs. período anterior</p>
-              <div className="spark green-spark">{currentPeriodData.spark.map((item, index) => <i key={`${item.height}-${index}`} style={{ height: item.height, opacity: index === 6 ? 0.7 : 0.19 }} />)}</div>
+              <div className="stat-title"><span>Contratos efetivados</span><strong className="up">+18,2%</strong></div>
+              <h2>13</h2><p>vs. 11 na semana anterior</p>
+              <div className="spark green-spark"><i/><i/><i/><i/><i/><i/><i/></div>
             </article>
             <article className="stat-card">
               <div className="stat-icon red"><Icon name="close" /></div>
-              <div className="stat-title"><span>Propostas recusadas</span><strong className={currentPeriodData.rejected.tone}>{currentPeriodData.rejected.delta}</strong></div>
-              <h2>{currentPeriodData.rejected.value}</h2><p>vs. período anterior</p>
-              <div className="spark red-spark">{currentPeriodData.spark.map((item, index) => <i key={`${item.height}-${index}`} style={{ height: item.height, opacity: index === 6 ? 0.7 : 0.19 }} />)}</div>
+              <div className="stat-title"><span>Propostas recusadas</span><strong className="down">−2,1%</strong></div>
+              <h2>5</h2><p>vs. 6 na semana anterior</p>
+              <div className="spark red-spark"><i/><i/><i/><i/><i/><i/><i/></div>
             </article>
           </section>
 
