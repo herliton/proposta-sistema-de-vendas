@@ -1,6 +1,6 @@
 # Proposta — Sistema de Vendas Automotivas
 
-Aplicação front-end em React + Vite desenvolvida para demonstrar um painel de gestão comercial de concessionária, com foco em propostas, clientes, veículos, equipe e relatórios financeiros.
+Aplicação front-end em React + Vite desenvolvida para demonstrar um painel de gestão comercial de concessionária, com foco em propostas, clientes, veículos, consultoria de recuperação de crédito, equipe e relatórios financeiros.
 
 ## Visão geral
 
@@ -23,6 +23,7 @@ A plataforma simula um sistema de operação comercial para uma loja de veículo
 - Painel de suporte e acompanhamento da equipe
 - Relatórios e cálculos de comissões
 - Fluxos interativos de simulação e proposta
+- Proposta de recuperação de crédito para proposta não aprovadas
 
 ## Stack
 
@@ -70,3 +71,4 @@ https://github.com/herliton/proposta-sistema-de-vendas
 - Projeto pensado como uma interface funcional de demonstração para apresentação comercial ou portfólio.
 - A estrutura foi criada para facilitar extensão futura com backend, autenticação real e dados persistentes.
 - O ambiente de desenvolvimento foi configurado para rodar localmente de forma simples e rápida.
+- O projeto possui um backend feito em nodejs (teste) node --watch server.js
