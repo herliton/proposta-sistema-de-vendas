@@ -73,7 +73,7 @@ type DashboardSummary = {
   salesVolume: number;
   commissionAmount: number;
 };
-type DashboardSeller = { name: string; managerName: string; simulations: number; proposals: number; contracts: number; sales: number };
+type DashboardSeller = { id: number | null; name: string; managerName: string; simulations: number; proposals: number; contracts: number; sales: number };
 type DashboardTeam = { name: string; sellers: number; contracts: number; sales: number };
 type DashboardProposal = { id: number; cliente: string; veiculo: string; vendedor: string; valor: number; status: string; createdAt: string };
 type DashboardData = {
@@ -1238,40 +1238,82 @@ function ManagerDashboard() {
   );
 }
 
-function MyTeamPage() {
+type TeamSeller = { id: number; nome: string; email: string; status: string; createdAt: string; usuario?: { id: number; status: string; gerenteId: number | null } | null };
+
+function MyTeamPage({ authToken }: { authToken: string }) {
   const { dateRange, setDateRange } = useDateRangeContext();
   const { dashboard, loading: dashboardLoading } = useDashboardContext();
-  const initialSellers = [
-    { initials: "MC", name: "Marcos Costa", email: "marcos@proposta.com.br", since: "12/03/2023", sales: "R$ 986 mil", active: true },
-    { initials: "RL", name: "Rafael Lima", email: "rafael@proposta.com.br", since: "08/08/2023", sales: "R$ 728 mil", active: true },
-    { initials: "LF", name: "Lucas Freitas", email: "lucas@proposta.com.br", since: "17/01/2024", sales: "R$ 492 mil", active: true },
-    { initials: "BN", name: "Bianca Nunes", email: "bianca@proposta.com.br", since: "03/04/2024", sales: "R$ 371 mil", active: true },
-    { initials: "GP", name: "Gustavo Prado", email: "gustavo@proposta.com.br", since: "22/09/2022", sales: "R$ 0", active: false },
-  ];
-  const [sellers, setSellers] = useState(initialSellers);
+  const [sellers, setSellers] = useState<TeamSeller[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("todos");
   const [confirmIndex, setConfirmIndex] = useState<number | null>(null);
-  const toggleSeller = (index: number) => {
-    setSellers((current) => current.map((seller, sellerIndex) => sellerIndex === index ? { ...seller, active: !seller.active } : seller));
-    setConfirmIndex(null);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError("");
+    fetch(`${API_BASE_URL}/vendedores`, { headers: { Authorization: `Bearer ${authToken}` } })
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.message || "Não foi possível carregar a equipe.");
+        if (!cancelled) setSellers(payload.data || []);
+      })
+      .catch((loadError) => {
+        if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Falha ao carregar a equipe.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [authToken]);
+
+  const toggleSeller = async (seller: TeamSeller) => {
+    setError("");
+    try {
+      const active = seller.status === "ativo" && seller.usuario?.status !== "inativo";
+      const status = active ? "inativo" : "ativo";
+      const response = await fetch(`${API_BASE_URL}/vendedores/${seller.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ status }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message || "Não foi possível atualizar o vendedor.");
+      setSellers((current) => current.map((item) => item.id === seller.id ? { ...item, status, usuario: item.usuario ? { ...item.usuario, status } : null } : item));
+      setConfirmIndex(null);
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : "Falha ao atualizar o vendedor.");
+    }
   };
+  const visibleSellers = sellers.filter((seller) => {
+    const matchesSearch = `${seller.nome} ${seller.email}`.toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR"));
+    const active = seller.status === "ativo" && seller.usuario?.status !== "inativo";
+    const matchesStatus = statusFilter === "todos" || (active ? "ativo" : "inativo") === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+  const activeSellers = sellers.filter((seller) => seller.status === "ativo" && seller.usuario?.status !== "inativo").length;
   return (
     <div className="content module-content">
-      <section className="module-heading"><div><p>EQUIPE HORIZONTE</p><h1>Minha equipe</h1><span>Gerencie os vendedores sob sua responsabilidade sem perder o histórico.</span></div><div className="heading-actions"><DateRangePicker value={dateRange} onChange={setDateRange}/><button className="primary-button"><Icon name="plus" size={18}/>Adicionar vendedor</button></div></section>
-      <section className="module-summary"><div><span>Vendedores ativos</span><strong>{sellers.filter((seller) => seller.active).length}</strong></div><div><span>Contratos no período</span><strong>{dashboardLoading ? "…" : dashboard?.summary.contracts ?? "—"}</strong></div><div><span>Produção da equipe</span><strong>{dashboardLoading ? "Atualizando..." : dashboard ? money(dashboard.summary.salesVolume) : "—"}</strong></div></section>
+      <section className="module-heading"><div><p>GESTÃO DA EQUIPE</p><h1>Minha equipe</h1><span>Gerencie os vendedores sob sua responsabilidade sem perder o histórico.</span></div><div className="heading-actions"><DateRangePicker value={dateRange} onChange={setDateRange}/><button className="primary-button"><Icon name="plus" size={18}/>Adicionar vendedor</button></div></section>
+      <section className="module-summary"><div><span>Vendedores ativos</span><strong>{loading ? "…" : activeSellers}</strong></div><div><span>Contratos no período</span><strong>{dashboardLoading ? "…" : dashboard?.summary.contracts ?? "—"}</strong></div><div><span>Produção da equipe</span><strong>{dashboardLoading ? "Atualizando..." : dashboard ? money(dashboard.summary.salesVolume) : "—"}</strong></div></section>
       <div className="audit-notice"><div><Icon name="settings" size={18}/></div><p><strong>Histórico preservado</strong><span>Vendedores desligados não são excluídos. O acesso é revogado, mas propostas, contratos e registros permanecem disponíveis para auditoria.</span></p></div>
+      {error && <div className="auth-notice" role="alert">{error}</div>}
       <section className="panel module-table">
-        <div className="module-toolbar"><div className="search-box"><Icon name="search" size={17}/><input placeholder="Buscar vendedor..."/></div><button><Icon name="settings" size={16}/>Todos os status</button></div>
+        <div className="module-toolbar"><div className="search-box"><Icon name="search" size={17}/><input aria-label="Buscar vendedor" placeholder="Buscar vendedor..." value={search} onChange={(event) => setSearch(event.target.value)}/></div><select aria-label="Filtrar por status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="todos">Todos os status</option><option value="ativo">Ativos</option><option value="inativo">Inativos</option></select></div>
         <div className="table-wrap"><table><thead><tr><th>VENDEDOR</th><th>E-MAIL</th><th>NA EQUIPE DESDE</th><th>VENDAS NO PERÍODO</th><th>ACESSO</th><th>AÇÃO</th></tr></thead>
-          <tbody>{sellers.map((seller, index) => {
-            const sales = dashboard?.sellers.find((row) => row.name === seller.name)?.sales ?? 0;
-            return <tr key={seller.email} className={!seller.active ? "inactive-row" : ""}><td><div className="seller-cell"><div className={`mini-avatar ${seller.active ? "blue" : ""}`}>{seller.initials}</div><strong>{seller.name}</strong></div></td><td>{seller.email}</td><td>{seller.since}</td><td><strong>{dashboardLoading ? "…" : money(sales)}</strong></td><td><span className={`status ${seller.active ? "green" : "red"}`}>{seller.active ? "Ativo" : "Desativado"}</span></td><td><button className={`staff-action ${seller.active ? "deactivate" : "activate"}`} onClick={() => seller.active ? setConfirmIndex(index) : toggleSeller(index)}>{seller.active ? "Desativar" : "Reativar acesso"}</button></td></tr>;
-          })}</tbody>
+          <tbody>{loading ? <tr><td colSpan={6}>Carregando vendedores...</td></tr> : visibleSellers.length ? visibleSellers.map((seller, index) => {
+            const sales = dashboard?.sellers.find((row) => row.id === seller.id)?.sales ?? 0;
+            const initials = seller.nome.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toLocaleUpperCase("pt-BR");
+            const active = seller.status === "ativo" && seller.usuario?.status !== "inativo";
+            return <tr key={seller.id} className={!active ? "inactive-row" : ""}><td><div className="seller-cell"><div className={`mini-avatar ${active ? "blue" : ""}`}>{initials}</div><strong>{seller.nome}</strong></div></td><td>{seller.email}</td><td>{new Date(seller.createdAt).toLocaleDateString("pt-BR")}</td><td><strong>{dashboardLoading ? "…" : money(sales)}</strong></td><td><span className={`status ${active ? "green" : "red"}`}>{active ? "Ativo" : "Inativo"}</span></td><td><button className={`staff-action ${active ? "deactivate" : "activate"}`} onClick={() => active ? setConfirmIndex(index) : void toggleSeller(seller)}>{active ? "Desativar" : "Reativar acesso"}</button></td></tr>;
+          }) : <tr><td colSpan={6}>{error ? "Não foi possível carregar os vendedores." : "Nenhum vendedor encontrado."}</td></tr>}</tbody>
         </table></div>
       </section>
-      {confirmIndex !== null && <div className="modal-layer" onMouseDown={() => setConfirmIndex(null)}><div className="modal-card confirm-card" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="confirm-symbol"><Icon name="users" size={24}/></div><h2>Desativar acesso?</h2><p>O acesso de <strong>{sellers[confirmIndex].name}</strong> será revogado imediatamente. Seus registros históricos serão preservados e poderão ser consultados normalmente.</p>
+      {confirmIndex !== null && visibleSellers[confirmIndex] && <div className="modal-layer" onMouseDown={() => setConfirmIndex(null)}><div className="modal-card confirm-card" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="confirm-symbol"><Icon name="users" size={24}/></div><h2>Desativar acesso?</h2><p>O acesso de <strong>{visibleSellers[confirmIndex].nome}</strong> será revogado imediatamente. Seus registros históricos serão preservados e poderão ser consultados normalmente.</p>
         <label>Motivo do desligamento<select><option>Desligamento da empresa</option><option>Transferência de equipe</option><option>Afastamento temporário</option></select></label>
-        <div className="modal-actions"><button onClick={() => setConfirmIndex(null)}>Cancelar</button><button className="danger-button" onClick={() => toggleSeller(confirmIndex)}>Confirmar desativação</button></div>
+        <div className="modal-actions"><button onClick={() => setConfirmIndex(null)}>Cancelar</button><button className="danger-button" onClick={() => void toggleSeller(visibleSellers[confirmIndex])}>Confirmar desativação</button></div>
       </div></div>}
     </div>
   );
@@ -1576,7 +1618,7 @@ export default function App() {
           </div>
         </header>
 
-        {visibleActive === "Recuperação de crédito" ? <CreditRecoveryPage authToken={authToken} profile={profile}/> : visibleActive === "Clientes" ? <CustomersPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Classificados" ? <ClassifiedsPage onSimulate={() => setActive("Simulações")}/> : visibleActive === "Simulações" ? <SimulationPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Usuários e perfis" && profile === "ADMIN" ? <UsersPage authToken={authToken}/> : visibleActive === "Lojas" && profile === "ADMIN" ? <StoresPage authToken={authToken}/> : visibleActive === "Permissões de acesso" && profile === "ADMIN" ? <PermissionsPage authToken={authToken}/> : visibleActive === "Configurações" && profile === "ADMIN" ? <EmailSettingsPage authToken={authToken}/> : visibleActive === "Veículos" ? <VehiclesPage authToken={authToken} profile={profile}/> : visibleActive === "Painel do gerente" && profile === "MANAGER" ? <ManagerDashboard/> : visibleActive === "Minha equipe" && profile === "MANAGER" ? <MyTeamPage/> : visibleActive === "Painel de suporte" && profile === "SUPPORT" ? <SupportDashboard/> : visibleActive === "Propostas" && ["ADMIN", "SUPPORT"].includes(profile) ? <ProposalReviewPage authToken={authToken}/> : visibleActive === "Propostas" ? <SellerProposalsPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Equipes e comissões" && ["ADMIN", "MANAGER", "SUPPORT"].includes(profile) ? <TeamsCommissionsPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Relatórios" && ["ADMIN", "MANAGER", "SUPPORT"].includes(profile) ? <ReportsPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive !== "Dashboard" ? <ModulePage name={visibleActive} profile={profile} userName={sessionUser.nome}/> : <div className="content">
+        {visibleActive === "Recuperação de crédito" ? <CreditRecoveryPage authToken={authToken} profile={profile}/> : visibleActive === "Clientes" ? <CustomersPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Classificados" ? <ClassifiedsPage onSimulate={() => setActive("Simulações")}/> : visibleActive === "Simulações" ? <SimulationPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Usuários e perfis" && profile === "ADMIN" ? <UsersPage authToken={authToken}/> : visibleActive === "Lojas" && profile === "ADMIN" ? <StoresPage authToken={authToken}/> : visibleActive === "Permissões de acesso" && profile === "ADMIN" ? <PermissionsPage authToken={authToken}/> : visibleActive === "Configurações" && profile === "ADMIN" ? <EmailSettingsPage authToken={authToken}/> : visibleActive === "Veículos" ? <VehiclesPage authToken={authToken} profile={profile}/> : visibleActive === "Painel do gerente" && profile === "MANAGER" ? <ManagerDashboard/> : visibleActive === "Minha equipe" && profile === "MANAGER" ? <MyTeamPage authToken={authToken}/> : visibleActive === "Painel de suporte" && profile === "SUPPORT" ? <SupportDashboard/> : visibleActive === "Propostas" && ["ADMIN", "SUPPORT"].includes(profile) ? <ProposalReviewPage authToken={authToken}/> : visibleActive === "Propostas" ? <SellerProposalsPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Equipes e comissões" && ["ADMIN", "MANAGER", "SUPPORT"].includes(profile) ? <TeamsCommissionsPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Relatórios" && ["ADMIN", "MANAGER", "SUPPORT"].includes(profile) ? <ReportsPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive !== "Dashboard" ? <ModulePage name={visibleActive} profile={profile} userName={sessionUser.nome}/> : <div className="content">
           <section className="page-heading">
             <div>
               <p>{currentDateLabel}</p>

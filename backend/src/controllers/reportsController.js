@@ -154,7 +154,7 @@ export const getDashboardSummary = async (req, res) => {
   const bySeller = new Map();
   const sellerEntry = (sellerId, name, managerName = '') => {
     const key = sellerId ?? name;
-    const entry = bySeller.get(key) || { name, managerName, simulations: 0, proposals: 0, contracts: 0, sales: 0 };
+    const entry = bySeller.get(key) || { id: sellerId, name, managerName, simulations: 0, proposals: 0, contracts: 0, sales: 0 };
     bySeller.set(key, entry);
     return entry;
   };
