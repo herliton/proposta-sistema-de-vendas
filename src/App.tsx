@@ -1246,9 +1246,13 @@ function MyTeamPage({ authToken }: { authToken: string }) {
   const [sellers, setSellers] = useState<TeamSeller[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
   const [confirmIndex, setConfirmIndex] = useState<number | null>(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [savingSeller, setSavingSeller] = useState(false);
+  const [newSeller, setNewSeller] = useState({ nome: "", email: "", telefone: "" });
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -1270,6 +1274,7 @@ function MyTeamPage({ authToken }: { authToken: string }) {
 
   const toggleSeller = async (seller: TeamSeller) => {
     setError("");
+    setNotice("");
     try {
       const active = seller.status === "ativo" && seller.usuario?.status !== "inativo";
       const status = active ? "inativo" : "ativo";
@@ -1282,8 +1287,32 @@ function MyTeamPage({ authToken }: { authToken: string }) {
       if (!response.ok) throw new Error(payload.message || "Não foi possível atualizar o vendedor.");
       setSellers((current) => current.map((item) => item.id === seller.id ? { ...item, status, usuario: item.usuario ? { ...item.usuario, status } : null } : item));
       setConfirmIndex(null);
+      setNotice(status === "inativo" ? "Acesso do vendedor desativado." : "Acesso do vendedor reativado.");
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : "Falha ao atualizar o vendedor.");
+    }
+  };
+  const createSeller = async (event: FormEvent) => {
+    event.preventDefault();
+    setError("");
+    setNotice("");
+    setSavingSeller(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/vendedores`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify(newSeller),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message || "Não foi possível cadastrar o vendedor.");
+      setSellers((current) => [...current, payload.data].sort((left, right) => left.nome.localeCompare(right.nome, "pt-BR")));
+      setNewSeller({ nome: "", email: "", telefone: "" });
+      setShowCreateForm(false);
+      setNotice(payload.message || "Vendedor cadastrado e instruções de acesso enviadas.");
+    } catch (createError) {
+      setError(createError instanceof Error ? createError.message : "Falha ao cadastrar vendedor.");
+    } finally {
+      setSavingSeller(false);
     }
   };
   const visibleSellers = sellers.filter((seller) => {
@@ -1295,10 +1324,11 @@ function MyTeamPage({ authToken }: { authToken: string }) {
   const activeSellers = sellers.filter((seller) => seller.status === "ativo" && seller.usuario?.status !== "inativo").length;
   return (
     <div className="content module-content">
-      <section className="module-heading"><div><p>GESTÃO DA EQUIPE</p><h1>Minha equipe</h1><span>Gerencie os vendedores sob sua responsabilidade sem perder o histórico.</span></div><div className="heading-actions"><DateRangePicker value={dateRange} onChange={setDateRange}/><button className="primary-button"><Icon name="plus" size={18}/>Adicionar vendedor</button></div></section>
+      <section className="module-heading"><div><p>GESTÃO DA EQUIPE</p><h1>Minha equipe</h1><span>Gerencie os vendedores sob sua responsabilidade sem perder o histórico.</span></div><div className="heading-actions"><DateRangePicker value={dateRange} onChange={setDateRange}/><button className="primary-button" onClick={() => { setError(""); setShowCreateForm(true); }}><Icon name="plus" size={18}/>Adicionar vendedor</button></div></section>
       <section className="module-summary"><div><span>Vendedores ativos</span><strong>{loading ? "…" : activeSellers}</strong></div><div><span>Contratos no período</span><strong>{dashboardLoading ? "…" : dashboard?.summary.contracts ?? "—"}</strong></div><div><span>Produção da equipe</span><strong>{dashboardLoading ? "Atualizando..." : dashboard ? money(dashboard.summary.salesVolume) : "—"}</strong></div></section>
       <div className="audit-notice"><div><Icon name="settings" size={18}/></div><p><strong>Histórico preservado</strong><span>Vendedores desligados não são excluídos. O acesso é revogado, mas propostas, contratos e registros permanecem disponíveis para auditoria.</span></p></div>
-      {error && <div className="auth-notice" role="alert">{error}</div>}
+      {notice && <div className="auth-notice success" role="status">{notice}</div>}
+      {error && !showCreateForm && <div className="auth-notice" role="alert">{error}</div>}
       <section className="panel module-table">
         <div className="module-toolbar"><div className="search-box"><Icon name="search" size={17}/><input aria-label="Buscar vendedor" placeholder="Buscar vendedor..." value={search} onChange={(event) => setSearch(event.target.value)}/></div><select aria-label="Filtrar por status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="todos">Todos os status</option><option value="ativo">Ativos</option><option value="inativo">Inativos</option></select></div>
         <div className="table-wrap"><table><thead><tr><th>VENDEDOR</th><th>E-MAIL</th><th>NA EQUIPE DESDE</th><th>VENDAS NO PERÍODO</th><th>ACESSO</th><th>AÇÃO</th></tr></thead>
@@ -1310,6 +1340,14 @@ function MyTeamPage({ authToken }: { authToken: string }) {
           }) : <tr><td colSpan={6}>{error ? "Não foi possível carregar os vendedores." : "Nenhum vendedor encontrado."}</td></tr>}</tbody>
         </table></div>
       </section>
+      {showCreateForm && <div className="page-form-layer"><form onSubmit={(event) => void createSeller(event)} className="modal-card wide-modal user-modal page-form-card">
+        <button type="button" className="page-back" onClick={() => setShowCreateForm(false)}><Icon name="arrow" size={16}/>Voltar para minha equipe</button>
+        <div className="modal-title"><div><span>NOVO VENDEDOR</span><h2>Cadastrar vendedor</h2><p>Será criada uma conta individual vinculada à sua equipe. As instruções de acesso serão enviadas ao e-mail cadastrado.</p></div></div>
+        <div className="modal-row"><label>Nome completo<input required maxLength={120} autoComplete="name" value={newSeller.nome} onChange={(event) => setNewSeller((current) => ({ ...current, nome: event.target.value }))} placeholder="Nome e sobrenome"/></label><label>Telefone / WhatsApp<input type="tel" autoComplete="tel" value={newSeller.telefone} onChange={(event) => setNewSeller((current) => ({ ...current, telefone: event.target.value }))} placeholder="(00) 00000-0000"/></label></div>
+        <div className="modal-row"><label>E-mail de acesso<input required type="email" maxLength={254} autoComplete="email" value={newSeller.email} onChange={(event) => setNewSeller((current) => ({ ...current, email: event.target.value }))} placeholder="vendedor@empresa.com.br"/></label></div>
+        {error && <div className="auth-notice" role="alert">{error}</div>}
+        <div className="modal-actions"><button type="button" onClick={() => setShowCreateForm(false)}>Cancelar</button><button className="primary-button" disabled={savingSeller}>{savingSeller ? "Cadastrando..." : "Cadastrar e enviar acesso"}</button></div>
+      </form></div>}
       {confirmIndex !== null && visibleSellers[confirmIndex] && <div className="modal-layer" onMouseDown={() => setConfirmIndex(null)}><div className="modal-card confirm-card" onMouseDown={(e) => e.stopPropagation()}>
         <div className="confirm-symbol"><Icon name="users" size={24}/></div><h2>Desativar acesso?</h2><p>O acesso de <strong>{visibleSellers[confirmIndex].nome}</strong> será revogado imediatamente. Seus registros históricos serão preservados e poderão ser consultados normalmente.</p>
         <label>Motivo do desligamento<select><option>Desligamento da empresa</option><option>Transferência de equipe</option><option>Afastamento temporário</option></select></label>
