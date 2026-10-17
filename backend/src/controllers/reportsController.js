@@ -1,6 +1,7 @@
 import PDFDocument from 'pdfkit';
 import { prisma } from '../config/database.js';
 import { normalizeRole } from './permissionsController.js';
+import { storeScope } from '../utils/storeScope.js';
 
 const dateOnly = /^\d{4}-\d{2}-\d{2}$/;
 const reportScope = async (user) => {
@@ -96,6 +97,148 @@ export const getCommissionSummary = async (req, res) => {
   const items = [...grouped.values()].map((entry) => ({ colaborador: entry.colaborador, perfil: entry.perfil, contratos: entry.contratos.size, baseCalculo: [...entry.baseCalculo.values()].reduce((sum, value) => sum + value, 0), comissao: entry.comissao }));
   const proposalTotals = new Map(rows.filter((row) => row.proposta?.contrato).map((row) => [row.propostaId, Number(row.proposta.valorProposta)]));
   return res.json({ success: true, data: { items, summary: { totalComissoes: items.reduce((sum, item) => sum + item.comissao, 0), colaboradores: items.length, volumeVendido: [...proposalTotals.values()].reduce((sum, value) => sum + value, 0), contratos: proposalTotals.size } } });
+};
+
+export const getDashboardSummary = async (req, res) => {
+  const startDate = String(req.query.startDate || '');
+  const endDate = String(req.query.endDate || '');
+  if (!dateOnly.test(startDate) || !dateOnly.test(endDate)) return res.status(400).json({ success: false, error: 'INVALID_DATE_RANGE', message: 'Informe startDate e endDate no formato AAAA-MM-DD.' });
+  const start = new Date(`${startDate}T00:00:00.000Z`);
+  const end = new Date(`${endDate}T23:59:59.999Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start.toISOString().slice(0, 10) !== startDate || end.toISOString().slice(0, 10) !== endDate || end < start || end.getTime() - start.getTime() > 366 * 24 * 60 * 60 * 1000) return res.status(400).json({ success: false, error: 'INVALID_DATE_RANGE', message: 'O período informado é inválido ou superior a um ano.' });
+
+  const role = normalizeRole(req.user?.perfil || req.user?.role);
+  const userId = Number(req.user.id);
+  const seller = ['ADMIN', 'SUPPORT'].includes(role) ? null : await prisma.vendedor.findFirst({ where: { usuarioId: userId }, select: { id: true } });
+  const store = storeScope(req.user);
+  const scope = ['ADMIN', 'SUPPORT'].includes(role)
+    ? store
+    : role === 'MANAGER'
+      ? { AND: [store, { OR: [{ vendedorId: seller?.id ?? -1 }, { vendedor: { usuario: { gerenteId: userId } } }] }] }
+      : { ...store, vendedorId: seller?.id ?? -1 };
+  const range = { gte: start, lte: end };
+
+  const [proposals, contracts, commissions] = await Promise.all([
+    prisma.proposta.findMany({
+      where: { ...scope, createdAt: range, deletedAt: null },
+      include: { cliente: { select: { nome: true } }, veiculo: { select: { marca: true, modelo: true } }, vendedor: { include: { usuario: { select: { id: true, nome: true, gerenteId: true, gerente: { select: { nome: true } } } } } } },
+      orderBy: { createdAt: 'desc' },
+    }),
+    prisma.contrato.findMany({
+      where: { ...scope, dataAssinatura: range, deletedAt: null, status: 'ativo' },
+      include: {
+        vendedor: {
+          include: {
+            usuario: {
+              select: { id: true, nome: true, gerenteId: true, gerente: { select: { nome: true } } },
+            },
+          },
+        },
+      },
+    }),
+    prisma.comissao.findMany({
+      where: {
+        createdAt: range,
+        ...(role === 'MANAGER'
+          ? { OR: [{ usuarioId: userId }, { vendedorId: seller?.id ?? -1 }, { vendedor: { usuario: { gerenteId: userId } } }] }
+          : role === 'ADMIN' || role === 'SUPPORT'
+            ? {}
+            : { vendedorId: seller?.id ?? -1 }),
+        ...(req.user?.lojaId == null && ['ADMIN', 'SUPPORT'].includes(role)
+          ? {}
+          : { proposta: { lojaId: Number(req.user?.lojaId) || -1 } }),
+      },
+    }),
+  ]);
+
+  const bySeller = new Map();
+  const sellerEntry = (sellerId, name, managerName = '') => {
+    const key = sellerId ?? name;
+    const entry = bySeller.get(key) || { name, managerName, simulations: 0, proposals: 0, contracts: 0, sales: 0 };
+    bySeller.set(key, entry);
+    return entry;
+  };
+  const activeStatuses = new Set(['pendente', 'em análise', 'em analise', 'aguardando', 'simulation', 'proposal', 'simulacao', 'proposta']);
+  const rejectedStatuses = new Set(['credit_rejected', 'rejected', 'recusada']);
+  let pendingProposals = 0;
+  let rejectedProposals = 0;
+  const timeline = Array.from({ length: 6 }, (_, index) => {
+    const bucketStart = new Date(start.getTime() + ((end.getTime() - start.getTime() + 1) * index) / 6);
+    const bucketEnd = new Date(start.getTime() + ((end.getTime() - start.getTime() + 1) * (index + 1)) / 6 - 1);
+    return {
+      start: bucketStart,
+      end: bucketEnd,
+      label: `${safeDate(bucketStart)}–${safeDate(bucketEnd)}`,
+      simulations: 0,
+      proposals: 0,
+      contracts: 0,
+    };
+  });
+  const bucketFor = (date) => {
+    const index = Math.min(5, Math.floor(((date.getTime() - start.getTime()) / (end.getTime() - start.getTime() + 1)) * 6));
+    return timeline[Math.max(0, index)];
+  };
+
+  for (const proposal of proposals) {
+    const status = String(proposal.status).trim().toLowerCase();
+    const entry = sellerEntry(proposal.vendedorId, proposal.vendedor?.usuario?.nome || proposal.vendedor?.nome || 'Vendedor', proposal.vendedor?.usuario?.gerente?.nome || '');
+    entry.simulations += 1;
+    if (activeStatuses.has(status)) {
+      entry.proposals += 1;
+      pendingProposals += 1;
+    }
+    if (rejectedStatuses.has(status)) rejectedProposals += 1;
+    bucketFor(proposal.createdAt).simulations += 1;
+    if (activeStatuses.has(status)) bucketFor(proposal.createdAt).proposals += 1;
+  }
+  let salesVolume = 0;
+  for (const contract of contracts) {
+    const amount = Number(contract.valorTotal || 0);
+    const entry = sellerEntry(contract.vendedorId, contract.vendedor?.usuario?.nome || contract.vendedor?.nome || 'Vendedor', contract.vendedor?.usuario?.gerente?.nome || '');
+    entry.contracts += 1;
+    entry.sales += amount;
+    salesVolume += amount;
+    if (contract.dataAssinatura) bucketFor(contract.dataAssinatura).contracts += 1;
+  }
+
+  const sellers = [...bySeller.values()].sort((left, right) => right.sales - left.sales || right.contracts - left.contracts);
+  const managerTotals = new Map();
+  for (const row of sellers) {
+    if (!row.managerName) continue;
+    const team = managerTotals.get(row.managerName) || { name: row.managerName, sellers: 0, contracts: 0, sales: 0 };
+    team.sellers += 1;
+    team.contracts += row.contracts;
+    team.sales += row.sales;
+    managerTotals.set(row.managerName, team);
+  }
+  const recentProposals = proposals.slice(0, 6).map((proposal) => ({
+    id: proposal.id,
+    cliente: proposal.cliente?.nome || 'Cliente',
+    veiculo: `${proposal.veiculo?.marca || ''} ${proposal.veiculo?.modelo || ''}`.trim() || 'Veículo',
+    vendedor: proposal.vendedor?.usuario?.nome || proposal.vendedor?.nome || 'Vendedor',
+    valor: Number(proposal.valorProposta || 0),
+    status: proposal.status,
+    createdAt: proposal.createdAt.toISOString(),
+  }));
+
+  return res.json({
+    success: true,
+    data: {
+      summary: {
+        simulations: proposals.length,
+        proposals: pendingProposals,
+        pendingProposals,
+        rejectedProposals,
+        contracts: contracts.length,
+        salesVolume,
+        commissionAmount: commissions.reduce((total, row) => total + Number(row.valor || 0), 0),
+      },
+      timeline: timeline.map(({ label, simulations, proposals: proposalCount, contracts: contractCount }) => ({ label, simulations, proposals: proposalCount, contracts: contractCount })),
+      sellers,
+      teams: [...managerTotals.values()].sort((left, right) => right.sales - left.sales),
+      recentProposals,
+    },
+  });
 };
 
 

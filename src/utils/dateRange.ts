@@ -15,12 +15,27 @@ export function getCurrentWeekRange(referenceDate = new Date()): DateRange {
   return { startDate, endDate };
 }
 
-export function formatWeekRange({ startDate, endDate }: DateRange) {
+export function formatDateRange({ startDate, endDate }: DateRange) {
   const formatter = new Intl.DateTimeFormat("pt-BR", {
     day: "2-digit",
     month: "short",
   });
   return `${formatter.format(startDate)} — ${formatter.format(endDate)}, ${endDate.getFullYear()}`;
+}
+
+export function dateFromInput(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return new Date(Number.NaN);
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  if (toApiDate(date) !== value) return new Date(Number.NaN);
+  return date;
+}
+
+export function isDateRangeValid({ startDate, endDate }: DateRange) {
+  return !Number.isNaN(startDate.getTime()) &&
+    !Number.isNaN(endDate.getTime()) &&
+    endDate >= startDate &&
+    endDate.getTime() - startDate.getTime() < 366 * 24 * 60 * 60 * 1000;
 }
 
 export function toApiDate(date: Date) {

@@ -1,13 +1,11 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { createContext, useContext, useEffect, useState, type FormEvent } from "react";
 import logoSemFundo from "../logo-sem-fundo.png";
 import { downloadCommissionReport } from "./api/reports";
-import { formatWeekRange, getCurrentWeekRange, toApiDate } from "./utils/dateRange";
+import { dateFromInput, formatDateRange, getCurrentWeekRange, isDateRangeValid, toApiDate, type DateRange } from "./utils/dateRange";
 import { transitionSalesStage, type SalesStage } from "./utils/salesLifecycle";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
 
-const currentWeek = getCurrentWeekRange();
-const currentWeekLabel = formatWeekRange(currentWeek);
 const clientCompany = "VFC Multimarcas";
 const currentDateLabel = new Intl.DateTimeFormat("pt-BR", {
   weekday: "long",
@@ -64,6 +62,86 @@ const paths: Record<IconName, React.ReactNode> = {
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
+}
+
+type DashboardSummary = {
+  simulations: number;
+  proposals: number;
+  pendingProposals: number;
+  rejectedProposals: number;
+  contracts: number;
+  salesVolume: number;
+  commissionAmount: number;
+};
+type DashboardSeller = { name: string; managerName: string; simulations: number; proposals: number; contracts: number; sales: number };
+type DashboardTeam = { name: string; sellers: number; contracts: number; sales: number };
+type DashboardProposal = { id: number; cliente: string; veiculo: string; vendedor: string; valor: number; status: string; createdAt: string };
+type DashboardData = {
+  summary: DashboardSummary;
+  timeline: { label: string; simulations: number; proposals: number; contracts: number }[];
+  sellers: DashboardSeller[];
+  teams: DashboardTeam[];
+  recentProposals: DashboardProposal[];
+};
+
+function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (range: DateRange) => void }) {
+  const valid = isDateRangeValid(value);
+  const inputValue = (date: Date) => Number.isNaN(date.getTime()) ? "" : toApiDate(date);
+
+  return (
+    <div className="period-picker">
+      <Icon name="calendar" size={18} />
+      <label>De<input aria-label="Data inicial" type="date" value={inputValue(value.startDate)} onChange={(event) => onChange({ ...value, startDate: dateFromInput(event.target.value) })} /></label>
+      <span aria-hidden="true">—</span>
+      <label>Até<input aria-label="Data final" type="date" value={inputValue(value.endDate)} onChange={(event) => onChange({ ...value, endDate: dateFromInput(event.target.value) })} /></label>
+      {!valid && <small role="alert">Informe um intervalo válido de até um ano.</small>}
+    </div>
+  );
+}
+
+function useDashboardSummary(authToken: string, dateRange: DateRange, enabled: boolean) {
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const valid = isDateRangeValid(dateRange);
+
+  useEffect(() => {
+    if (!authToken || !enabled || !valid) return;
+    let cancelled = false;
+    const query = new URLSearchParams({ startDate: toApiDate(dateRange.startDate), endDate: toApiDate(dateRange.endDate) });
+    setLoading(true);
+    setError("");
+    fetch(`${API_BASE_URL}/reports/dashboard-summary?${query}`, { headers: { Authorization: `Bearer ${authToken}` } })
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload?.message || "Não foi possível carregar os indicadores do período.");
+        if (!cancelled) setDashboard(payload.data);
+      })
+      .catch((requestError) => {
+        if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Falha ao carregar os indicadores.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [authToken, dateRange.startDate, dateRange.endDate, enabled, valid]);
+
+  return { dashboard, loading, error, valid };
+}
+
+const DateRangeContext = createContext<{ dateRange: DateRange; setDateRange: (range: DateRange) => void } | null>(null);
+const DashboardContext = createContext<ReturnType<typeof useDashboardSummary> | null>(null);
+
+function useDateRangeContext() {
+  const context = useContext(DateRangeContext);
+  if (!context) throw new Error("O filtro de período não foi configurado.");
+  return context;
+}
+
+function useDashboardContext() {
+  const context = useContext(DashboardContext);
+  if (!context) throw new Error("Os indicadores do painel não foram configurados.");
+  return context;
 }
 
 const navGroups = [
@@ -123,13 +201,6 @@ const normalizeRole = (role?: string) => {
 };
 
 const roleNames: Record<string, string> = { ADMIN: "Administrador", MANAGER: "Gerente", SELLER: "Vendedor", SUPPORT: "Suporte" };
-
-const activities = [
-  { initials: "MC", tone: "blue", name: "Marcos Costa", action: "criou uma nova proposta", item: "#PROP-2025-0842", time: "Há 8 min" },
-  { initials: "AS", tone: "purple", name: "Amanda Silva", action: "efetivou o contrato", item: "#CONT-2025-0318", time: "Há 24 min" },
-  { initials: "RL", tone: "orange", name: "Rafael Lima", action: "enviou para análise", item: "#PROP-2025-0841", time: "Há 46 min" },
-  { initials: "JC", tone: "green", name: "Juliana Castro", action: "cadastrou um cliente", item: "Henrique Alves", time: "Há 1h" },
-];
 
 const proposals = [
   { id: "#0842", client: "Ricardo Nunes", car: "Jeep Compass Limited", seller: "Marcos Costa", value: "R$ 168.900", status: "Em análise", tone: "yellow" },
@@ -462,6 +533,7 @@ const emptyVehicleForm: VehicleForm = {
   fotos: { right: "", left: "", front: "", rear: "", interior: "" }, videoUrl: "", videoDuracaoSegundos: "",
 };
 const moneyLabel = (value: number) => value ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value) : "—";
+const moneyValue = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(value || 0);
 
 function VehiclesPage({ authToken, profile }: { authToken: string; profile: string }) {
   const [vehicles, setVehicles] = useState<InventoryVehicle[]>([]);
@@ -963,33 +1035,34 @@ function SimulationPage({ profile, userName, authToken }: { profile: string; use
 }
 
 function SupportDashboard() {
-  const teams = [
-    { name: "Equipe Horizonte", manager: "Amanda Silva", contracts: 18, sales: "R$ 2,48 mi", goal: 92 },
-    { name: "Equipe Impulso", manager: "Bruno Tavares", contracts: 15, sales: "R$ 1,96 mi", goal: 81 },
-    { name: "Equipe Vértice", manager: "Patrícia Melo", contracts: 12, sales: "R$ 1,54 mi", goal: 74 },
-  ];
-  const sellers = [
-    { initials: "MC", name: "Marcos Costa", team: "Horizonte", contracts: 8, sales: "R$ 986 mil" },
-    { initials: "JC", name: "Juliana Castro", team: "Impulso", contracts: 7, sales: "R$ 842 mil" },
-    { initials: "RL", name: "Rafael Lima", team: "Horizonte", contracts: 6, sales: "R$ 728 mil" },
-  ];
+  const { dateRange, setDateRange } = useDateRangeContext();
+  const { dashboard, loading, error } = useDashboardContext();
+  const summary = dashboard?.summary;
+  const teams = dashboard?.teams || [];
+  const sellers = dashboard?.sellers || [];
+  const money = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(value || 0);
+  const approvalRate = (summary?.contracts || 0) + (summary?.rejectedProposals || 0)
+    ? Math.round((summary?.contracts || 0) * 100 / ((summary?.contracts || 0) + (summary?.rejectedProposals || 0)))
+    : 0;
+  const maxTeamSales = Math.max(...teams.map((team) => team.sales), 1);
   return (
     <div className="content module-content">
-      <section className="module-heading"><div><p>SUPORTE E OPERAÇÕES</p><h1>Performance comercial</h1><span>Acompanhe equipes, vendedores e propostas enviadas aos bancos.</span></div><label className="period-picker"><Icon name="calendar" size={18}/><select><option>{currentWeekLabel}</option><option>Período personalizado</option></select></label></section>
+      <section className="module-heading"><div><p>SUPORTE E OPERAÇÕES</p><h1>Performance comercial</h1><span>Acompanhe equipes, vendedores e propostas enviadas aos bancos.</span></div><DateRangePicker value={dateRange} onChange={setDateRange}/></section>
+      {error && <div className="auth-notice">{error}</div>}
       <section className="stats-grid support-stats">
-        <article className="stat-card"><div className="stat-icon blue"><Icon name="proposal"/></div><div className="stat-title"><span>Propostas em análise</span><strong className="up">+6 hoje</strong></div><h2>24</h2><p>Em 4 instituições financeiras</p></article>
-        <article className="stat-card"><div className="stat-icon green"><Icon name="check"/></div><div className="stat-title"><span>Aprovações</span><strong className="up">78%</strong></div><h2>32</h2><p>Taxa de aprovação no período</p></article>
-        <article className="stat-card"><div className="stat-icon purple"><Icon name="trend"/></div><div className="stat-title"><span>Volume vendido</span><strong className="up">+14,2%</strong></div><h2>R$ 5,9 mi</h2><p>45 contratos efetivados</p></article>
-        <article className="stat-card"><div className="stat-icon red"><Icon name="percent"/></div><div className="stat-title"><span>Comissões previstas</span><strong>Junho</strong></div><h2>R$ 94,2 mil</h2><p>12 colaboradores elegíveis</p></article>
+        <article className="stat-card"><div className="stat-icon blue"><Icon name="proposal"/></div><div className="stat-title"><span>Propostas em análise</span><strong>{loading ? "Atualizando" : "No período"}</strong></div><h2>{summary?.pendingProposals ?? "—"}</h2><p>Em análise no intervalo selecionado</p></article>
+        <article className="stat-card"><div className="stat-icon green"><Icon name="check"/></div><div className="stat-title"><span>Aprovações</span><strong>{approvalRate}%</strong></div><h2>{summary?.contracts ?? "—"}</h2><p>Contratos efetivados no período</p></article>
+        <article className="stat-card"><div className="stat-icon purple"><Icon name="trend"/></div><div className="stat-title"><span>Volume vendido</span><strong>{loading ? "Atualizando" : "No período"}</strong></div><h2>{summary ? money(summary.salesVolume) : "—"}</h2><p>{summary?.contracts ?? 0} contratos efetivados</p></article>
+        <article className="stat-card"><div className="stat-icon red"><Icon name="percent"/></div><div className="stat-title"><span>Comissões registradas</span><strong>{loading ? "Atualizando" : "No período"}</strong></div><h2>{summary ? money(summary.commissionAmount) : "—"}</h2><p>Valores lançados no período</p></article>
       </section>
       <div className="support-grid">
         <section className="panel ranking-panel">
-          <div className="panel-header"><div><h3>Ranking de equipes</h3><p>Desempenho consolidado no período</p></div><button className="plain-link">Ver detalhes <Icon name="arrow" size={14}/></button></div>
-          <div className="team-ranking">{teams.map((team, index) => <div className="rank-row" key={team.name}><span className={`rank-number rank-${index + 1}`}>{index + 1}</span><div className="rank-main"><strong>{team.name}</strong><small>Gerente: {team.manager}</small><div><i style={{ width: `${team.goal}%` }}/></div></div><div className="rank-metric"><strong>{team.sales}</strong><span>{team.contracts} contratos</span></div><b>{team.goal}%</b></div>)}</div>
+          <div className="panel-header"><div><h3>Resultado por gerente</h3><p>Consolidado de vendedores associados no período</p></div></div>
+          <div className="team-ranking">{teams.length ? teams.map((team, index) => <div className="rank-row" key={team.name}><span className={`rank-number rank-${index + 1}`}>{index + 1}</span><div className="rank-main"><strong>{team.name}</strong><small>{team.sellers} vendedores associados</small><div><i style={{ width: `${Math.max(2, team.sales / maxTeamSales * 100)}%` }}/></div></div><div className="rank-metric"><strong>{money(team.sales)}</strong><span>{team.contracts} contratos</span></div></div>) : <p className="empty-state">{loading ? "Carregando resultados..." : "Sem resultados de equipe neste período."}</p>}</div>
         </section>
         <section className="panel seller-ranking">
-          <div className="panel-header"><div><h3>Vendedores em destaque</h3><p>Maiores resultados individuais</p></div></div>
-          {sellers.map((seller, index) => <div className="seller-row" key={seller.name}><span className="seller-position">{index + 1}</span><div className="mini-avatar blue">{seller.initials}</div><div><strong>{seller.name}</strong><small>Equipe {seller.team}</small></div><div><strong>{seller.sales}</strong><small>{seller.contracts} contratos</small></div></div>)}
+          <div className="panel-header"><div><h3>Vendedores em destaque</h3><p>Maiores volumes no intervalo selecionado</p></div></div>
+          {sellers.length ? sellers.slice(0, 5).map((seller, index) => <div className="seller-row" key={seller.name}><span className="seller-position">{index + 1}</span><div className="mini-avatar blue">{seller.name.split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase()}</div><div><strong>{seller.name}</strong><small>{seller.managerName || "Sem gerente associado"}</small></div><div><strong>{money(seller.sales)}</strong><small>{seller.contracts} contratos</small></div></div>) : <p className="empty-state">{loading ? "Carregando resultados..." : "Sem vendas registradas neste período."}</p>}
         </section>
       </div>
     </div>
@@ -1090,66 +1163,74 @@ function CreditRecoveryPage({ authToken, profile }: { authToken: string; profile
 }
 
 function ReportsPage({ profile, userName, authToken }: { profile: string; userName: string; authToken: string }) {
+  const { dateRange, setDateRange } = useDateRangeContext();
   const [report, setReport] = useState<CommissionSummary | null>(null);
   const [loadingReport, setLoadingReport] = useState(true);
   const [reportError, setReportError] = useState("");
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
   useEffect(() => {
+    if (!isDateRangeValid(dateRange)) {
+      setReport(null);
+      setLoadingReport(false);
+      setReportError("");
+      return;
+    }
     let cancelled = false;
-    const query = new URLSearchParams({ startDate: toApiDate(currentWeek.startDate), endDate: toApiDate(currentWeek.endDate) });
+    const query = new URLSearchParams({ startDate: toApiDate(dateRange.startDate), endDate: toApiDate(dateRange.endDate) });
+    setLoadingReport(true);
+    setReportError("");
     fetch(`${API_BASE_URL}/reports/commissions?${query}`, { headers: { Authorization: `Bearer ${authToken}` } }).then(async (response) => {
       const payload = await response.json(); if (!response.ok) throw new Error(payload?.message || "Não foi possível carregar o relatório.");
       if (!cancelled) setReport(payload.data);
-    }).catch((requestError) => { if (!cancelled) setReportError(requestError instanceof Error ? requestError.message : "Falha ao carregar o relatório."); })
+    }).catch((requestError) => { if (!cancelled) { setReport(null); setReportError(requestError instanceof Error ? requestError.message : "Falha ao carregar o relatório."); } })
       .finally(() => { if (!cancelled) setLoadingReport(false); });
     return () => { cancelled = true; };
-  }, [authToken]);
+  }, [authToken, dateRange.startDate, dateRange.endDate]);
   const money = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
   const exportPdf = async () => {
+    if (!isDateRangeValid(dateRange)) {
+      setExportError("Informe um intervalo válido de até um ano antes de exportar.");
+      return;
+    }
     setExporting(true); setExportError("");
-    try { await downloadCommissionReport(currentWeek, authToken); }
+    try { await downloadCommissionReport(dateRange, authToken); }
     catch (error) { setExportError(error instanceof Error ? error.message : "Falha ao gerar o PDF."); }
     finally { setExporting(false); }
   };
   return <div className="content module-content report-page">
-    <section className="module-heading"><div><p>FINANCEIRO</p><h1>Relatório de comissões</h1><span>Pagamentos sobre contratos efetivados no escopo de {userName}.</span></div><div className="heading-actions"><label className="period-picker"><Icon name="calendar" size={18}/><select><option>{currentWeekLabel}</option></select></label><button className="primary-button" onClick={() => void exportPdf()} disabled={exporting}><Icon name="file" size={17}/>{exporting ? "Gerando no servidor..." : "Exportar PDF"}</button></div></section>
+    <section className="module-heading"><div><p>FINANCEIRO</p><h1>Relatório de comissões</h1><span>Pagamentos sobre contratos efetivados no escopo de {userName}.</span></div><div className="heading-actions"><DateRangePicker value={dateRange} onChange={setDateRange}/><button className="primary-button" onClick={() => void exportPdf()} disabled={exporting || !isDateRangeValid(dateRange)}><Icon name="file" size={17}/>{exporting ? "Gerando no servidor..." : "Exportar PDF"}</button></div></section>
     {(reportError || exportError) && <div className="export-error">{reportError || exportError}</div>}
     <section className="report-hero"><div><span>Total de comissões</span><strong>{loadingReport ? "Carregando..." : money(report?.summary.totalComissoes || 0)}</strong><small>{report?.summary.colaboradores || 0} colaboradores com lançamentos</small></div><div><p>Volume vendido<strong>{money(report?.summary.volumeVendido || 0)}</strong></p><p>Contratos<strong>{report?.summary.contratos || 0}</strong></p><p>Ticket médio<strong>{money(report?.summary.contratos ? (report.summary.volumeVendido / report.summary.contratos) : 0)}</strong></p></div></section>
     <section className="panel module-table"><div className="panel-header"><div><h3>Detalhamento por colaborador</h3><p>Valores apurados no ledger de comissões do MySQL.</p></div></div><div className="table-wrap"><table><thead><tr><th>COLABORADOR</th><th>PERFIL</th><th>CONTRATOS</th><th>BASE DE CÁLCULO</th><th>COMISSÃO A PAGAR</th></tr></thead><tbody>{loadingReport ? <tr><td colSpan={5}>Carregando registros...</td></tr> : report?.items.length ? report.items.map((row) => <tr key={`${row.colaborador}-${row.perfil}`}><td><strong>{row.colaborador}</strong></td><td>{row.perfil}</td><td>{row.contratos}</td><td>{money(row.baseCalculo)}</td><td><strong className="payout-value">{money(row.comissao)}</strong></td></tr>) : <tr><td colSpan={5}>Nenhuma comissão registrada neste período.</td></tr>}</tbody></table></div></section>
-    <p className="report-footnote">Relatório gerado por {clientCompany} · Período de {currentWeekLabel}</p>
+    <p className="report-footnote">Relatório gerado por {clientCompany} · Período de {formatDateRange(dateRange)}</p>
   </div>;
 }
 
 function ManagerDashboard() {
-  const production = [
-    { initials: "MC", name: "Marcos Costa", simulations: 18, proposals: 11, contracts: 8, sales: 986000, goal: 96 },
-    { initials: "RL", name: "Rafael Lima", simulations: 15, proposals: 9, contracts: 6, sales: 728000, goal: 81 },
-    { initials: "LF", name: "Lucas Freitas", simulations: 12, proposals: 7, contracts: 4, sales: 492000, goal: 68 },
-    { initials: "BN", name: "Bianca Nunes", simulations: 9, proposals: 6, contracts: 3, sales: 371000, goal: 55 },
-  ];
-  const overrideCommission = 2480000 * 0.005;
-  const directCommission = 486000 * 0.015;
-  const managerCommission = overrideCommission + directCommission;
+  const { dateRange, setDateRange } = useDateRangeContext();
+  const { dashboard, loading, error } = useDashboardContext();
+  const production = dashboard?.sellers || [];
+  const summary = dashboard?.summary;
+  const money = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(value || 0);
   return (
     <div className="content module-content">
-      <section className="module-heading"><div><p>GESTÃO DA EQUIPE HORIZONTE</p><h1>Visão da gerência</h1><span>Acompanhe a produção dos seus vendedores e a evolução das metas.</span></div><label className="period-picker"><Icon name="calendar" size={18}/><select><option>{currentWeekLabel}</option><option>Período personalizado</option></select></label></section>
+      <section className="module-heading"><div><p>GESTÃO DA EQUIPE</p><h1>Visão da gerência</h1><span>Acompanhe a produção dos seus vendedores e a evolução das metas.</span></div><DateRangePicker value={dateRange} onChange={setDateRange}/></section>
+      {error && <div className="auth-notice">{error}</div>}
       <section className="stats-grid manager-stats">
-        <article className="stat-card"><div className="stat-icon blue"><Icon name="proposal"/></div><div className="stat-title"><span>Simulações da equipe</span><strong className="up">+15,7%</strong></div><h2>54</h2><p>12 a mais que na semana anterior</p></article>
-        <article className="stat-card"><div className="stat-icon purple"><Icon name="file"/></div><div className="stat-title"><span>Propostas enviadas</span><strong className="up">+9,4%</strong></div><h2>33</h2><p>61% de conversão das simulações</p></article>
-        <article className="stat-card"><div className="stat-icon green"><Icon name="check"/></div><div className="stat-title"><span>Contratos efetivados</span><strong className="up">+21,1%</strong></div><h2>21</h2><p>R$ 2,48 milhões vendidos</p></article>
-        <article className="stat-card commission-stat"><div className="stat-icon orange"><Icon name="percent"/></div><div className="stat-title"><span>Sua comissão estimada</span><strong>Dupla função</strong></div><h2>{managerCommission.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</h2><p>{overrideCommission.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} equipe + {directCommission.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} vendas próprias</p></article>
+        <article className="stat-card"><div className="stat-icon blue"><Icon name="proposal"/></div><div className="stat-title"><span>Simulações da equipe</span><strong>{loading ? "Atualizando" : "No período"}</strong></div><h2>{summary?.simulations ?? "—"}</h2><p>Registros criados no intervalo selecionado</p></article>
+        <article className="stat-card"><div className="stat-icon purple"><Icon name="file"/></div><div className="stat-title"><span>Propostas em andamento</span><strong>{loading ? "Atualizando" : "No período"}</strong></div><h2>{summary?.proposals ?? "—"}</h2><p>Em análise ou aguardando decisão</p></article>
+        <article className="stat-card"><div className="stat-icon green"><Icon name="check"/></div><div className="stat-title"><span>Contratos efetivados</span><strong>{loading ? "Atualizando" : "No período"}</strong></div><h2>{summary?.contracts ?? "—"}</h2><p>{summary ? money(summary.salesVolume) : "—"} em vendas</p></article>
+        <article className="stat-card commission-stat"><div className="stat-icon orange"><Icon name="percent"/></div><div className="stat-title"><span>Comissões registradas</span><strong>{loading ? "Atualizando" : "No período"}</strong></div><h2>{summary ? money(summary.commissionAmount) : "—"}</h2><p>Comissões associadas à equipe</p></article>
       </section>
       <div className="manager-grid">
         <section className="panel production-panel">
-          <div className="panel-header"><div><h3>Produção por vendedor</h3><p>Resultados individuais no período selecionado</p></div><button className="plain-link">Relatório completo <Icon name="arrow" size={14}/></button></div>
-          <div className="table-wrap"><table><thead><tr><th>VENDEDOR</th><th>SIMULAÇÕES</th><th>PROPOSTAS</th><th>CONTRATOS</th><th>VOLUME</th><th>META</th></tr></thead><tbody>{production.map((seller) => <tr key={seller.name}><td><div className="seller-cell"><div className="mini-avatar blue">{seller.initials}</div><strong>{seller.name}</strong></div></td><td>{seller.simulations}</td><td>{seller.proposals}</td><td><strong>{seller.contracts}</strong></td><td><strong>{seller.sales.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}</strong></td><td><div className="goal-cell"><span>{seller.goal}%</span><div><i style={{ width: `${seller.goal}%` }}/></div></div></td></tr>)}</tbody></table></div>
+          <div className="panel-header"><div><h3>Produção por vendedor</h3><p>Resultados individuais no período selecionado</p></div></div>
+          <div className="table-wrap"><table><thead><tr><th>VENDEDOR</th><th>SIMULAÇÕES</th><th>PROPOSTAS EM ANDAMENTO</th><th>CONTRATOS</th><th>VOLUME</th></tr></thead><tbody>{loading ? <tr><td colSpan={5}>Carregando resultados...</td></tr> : production.length ? production.map((seller) => <tr key={seller.name}><td><div className="seller-cell"><div className="mini-avatar blue">{seller.name.split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase()}</div><strong>{seller.name}</strong></div></td><td>{seller.simulations}</td><td>{seller.proposals}</td><td><strong>{seller.contracts}</strong></td><td><strong>{money(seller.sales)}</strong></td></tr>) : <tr><td colSpan={5}>Sem produção registrada neste período.</td></tr>}</tbody></table></div>
         </section>
         <aside className="panel manager-goal">
-          <div className="panel-header"><div><h3>Meta da equipe</h3><p>Junho de 2025</p></div></div>
-          <div className="goal-ring"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="49"/><circle className="goal-progress" cx="60" cy="60" r="49"/></svg><div><strong>83%</strong><span>atingido</span></div></div>
-          <div className="goal-values"><span><em>Realizado</em><strong>R$ 2,48 mi</strong></span><span><em>Meta mensal</em><strong>R$ 3,00 mi</strong></span><span><em>Faltam</em><strong>R$ 520 mil</strong></span></div>
-          <div className="goal-projection"><Icon name="trend" size={17}/><div><strong>Projeção acima da meta</strong><span>No ritmo atual, a equipe chegará a 108%.</span></div></div>
+          <div className="panel-header"><div><h3>Resumo do período</h3><p>Produção real da equipe</p></div></div>
+          <div className="goal-values"><span><em>Vendedores com atividade</em><strong>{production.length}</strong></span><span><em>Vendas efetivadas</em><strong>{summary?.contracts ?? "—"}</strong></span><span><em>Propostas recusadas</em><strong>{summary?.rejectedProposals ?? "—"}</strong></span><span><em>Volume vendido</em><strong>{summary ? money(summary.salesVolume) : "—"}</strong></span></div>
         </aside>
       </div>
     </div>
@@ -1366,10 +1447,11 @@ export default function App() {
   const [authenticated, setAuthenticated] = useState(() => Boolean(localStorage.getItem("vfcAuthToken") && localStorage.getItem("vfcAuthUser")));
   const [active, setActive] = useState("Dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [period, setPeriod] = useState(currentWeekLabel);
+  const [dateRange, setDateRange] = useState<DateRange>(() => getCurrentWeekRange());
   const [serverPermissions, setServerPermissions] = useState<{ role: string; allowedModules: string[] } | null>(null);
   const [stores, setStores] = useState<StoreRecord[]>([]);
   const profile = normalizeRole(sessionUser?.perfil);
+  const dashboardState = useDashboardSummary(authToken, dateRange, ["ADMIN", "MANAGER", "SUPPORT"].includes(profile));
   const allowedModules = new Set(serverPermissions?.role === profile ? serverPermissions.allowedModules : roleModules[profile] || roleModules.SELLER);
   const visibleNavGroups = navGroups.map((group) => ({
     ...group, items: group.items.filter((item) => allowedModules.has(item.label)),
@@ -1423,6 +1505,8 @@ export default function App() {
     return () => { cancelled = true; window.clearInterval(interval); window.removeEventListener("focus", refreshPermissions); };
   }, [authToken, profile]);
 
+  const dashboardTimeline = dashboardState.dashboard?.timeline || [];
+  const timelineMax = Math.max(1, ...dashboardTimeline.flatMap((bucket) => [bucket.simulations, bucket.proposals, bucket.contracts]));
   const passwordResetRequested = new URLSearchParams(window.location.search).has("resetToken");
   if (passwordResetRequested || !authenticated || !sessionUser) return <AuthScreen onAuthenticated={(token, user) => {
     localStorage.setItem("vfcAuthToken", token);
@@ -1431,6 +1515,8 @@ export default function App() {
   }} />;
 
   return (
+    <DateRangeContext.Provider value={{ dateRange, setDateRange }}>
+      <DashboardContext.Provider value={dashboardState}>
     <div className="app-shell">
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="brand">
@@ -1491,13 +1577,7 @@ export default function App() {
               <h1>Olá, {sessionUser.nome}. <span>Seu desempenho está em alta.</span></h1>
             </div>
             <div className="heading-actions">
-              <label className="period-picker">
-                <Icon name="calendar" size={18} />
-                <select value={period} onChange={(e) => setPeriod(e.target.value)}>
-                  <option>{currentWeekLabel}</option>
-                  <option>Período personalizado</option>
-                </select>
-              </label>
+              <DateRangePicker value={dateRange} onChange={setDateRange}/>
               <button className="primary-button"><Icon name="plus" size={18} /> Nova proposta</button>
             </div>
           </section>
@@ -1505,35 +1585,36 @@ export default function App() {
           <section className="stats-grid">
             <article className="stat-card">
               <div className="stat-icon blue"><Icon name="proposal" /></div>
-              <div className="stat-title"><span>Simulações</span><strong className="up">+12,5%</strong></div>
-              <h2>48</h2><p>vs. 42 na semana anterior</p>
+              <div className="stat-title"><span>Simulações</span><strong>{dashboardState.loading ? "Atualizando" : "No período"}</strong></div>
+              <h2>{dashboardState.dashboard?.summary.simulations ?? "—"}</h2><p>Registros criados no intervalo selecionado</p>
               <div className="spark blue-spark"><i/><i/><i/><i/><i/><i/><i/></div>
             </article>
             <article className="stat-card">
               <div className="stat-icon purple"><Icon name="file" /></div>
-              <div className="stat-title"><span>Propostas</span><strong className="up">+8,3%</strong></div>
-              <h2>26</h2><p>vs. 24 na semana anterior</p>
+              <div className="stat-title"><span>Propostas em andamento</span><strong>{dashboardState.loading ? "Atualizando" : "No período"}</strong></div>
+              <h2>{dashboardState.dashboard?.summary.proposals ?? "—"}</h2><p>Aguardando análise ou decisão</p>
               <div className="spark purple-spark"><i/><i/><i/><i/><i/><i/><i/></div>
             </article>
             <article className="stat-card">
               <div className="stat-icon green"><Icon name="check" /></div>
-              <div className="stat-title"><span>Contratos efetivados</span><strong className="up">+18,2%</strong></div>
-              <h2>13</h2><p>vs. 11 na semana anterior</p>
+              <div className="stat-title"><span>Contratos efetivados</span><strong>{dashboardState.loading ? "Atualizando" : "No período"}</strong></div>
+              <h2>{dashboardState.dashboard?.summary.contracts ?? "—"}</h2><p>Vendas: {dashboardState.dashboard ? moneyValue(dashboardState.dashboard.summary.salesVolume) : "—"}</p>
               <div className="spark green-spark"><i/><i/><i/><i/><i/><i/><i/></div>
             </article>
             <article className="stat-card">
               <div className="stat-icon red"><Icon name="close" /></div>
-              <div className="stat-title"><span>Propostas recusadas</span><strong className="down">−2,1%</strong></div>
-              <h2>5</h2><p>vs. 6 na semana anterior</p>
+              <div className="stat-title"><span>Propostas recusadas</span><strong>{dashboardState.loading ? "Atualizando" : "No período"}</strong></div>
+              <h2>{dashboardState.dashboard?.summary.rejectedProposals ?? "—"}</h2><p>Recusas registradas no intervalo</p>
               <div className="spark red-spark"><i/><i/><i/><i/><i/><i/><i/></div>
             </article>
           </section>
+          {dashboardState.error && <div className="auth-notice">{dashboardState.error}</div>}
 
           <section className="dashboard-grid">
             <article className="panel performance-panel">
               <div className="panel-header">
-                <div><h3>Desempenho comercial</h3><p>Evolução de simulações, propostas e contratos</p></div>
-                <button>Últimas 6 semanas <span>⌄</span></button>
+                <div><h3>Desempenho comercial</h3><p>Simulações, propostas e contratos · {formatDateRange(dateRange)}</p></div>
+                <span className="table-subcopy">6 intervalos no período</span>
               </div>
               <div className="legend">
                 <span><i className="dot-blue"/>Simulações</span>
@@ -1541,19 +1622,20 @@ export default function App() {
                 <span><i className="dot-green"/>Contratos</span>
               </div>
               <div className="chart-area">
-                <div className="y-axis"><span>60</span><span>45</span><span>30</span><span>15</span><span>0</span></div>
+                <div className="y-axis"><span>{timelineMax}</span><span>{Math.round(timelineMax * .75)}</span><span>{Math.round(timelineMax * .5)}</span><span>{Math.round(timelineMax * .25)}</span><span>0</span></div>
                 <div className="chart">
                   <div className="gridline g1"/><div className="gridline g2"/><div className="gridline g3"/><div className="gridline g4"/>
-                  <svg viewBox="0 0 650 205" preserveAspectRatio="none">
-                    <defs>
-                      <linearGradient id="fillBlue" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#2867e8" stopOpacity=".16"/><stop offset="1" stopColor="#2867e8" stopOpacity="0"/></linearGradient>
-                    </defs>
-                    <path className="area-fill" d="M0,150 C55,139 68,122 130,130 S210,92 260,105 S340,72 390,84 S472,45 520,63 S602,28 650,38 L650,205 L0,205Z"/>
-                    <path className="line line-blue" d="M0,150 C55,139 68,122 130,130 S210,92 260,105 S340,72 390,84 S472,45 520,63 S602,28 650,38"/>
-                    <path className="line line-purple" d="M0,175 C60,160 74,153 130,157 S210,133 260,140 S335,113 390,125 S470,88 520,105 S605,70 650,76"/>
-                    <path className="line line-green" d="M0,189 C58,183 75,175 130,180 S210,160 260,169 S340,144 390,154 S470,122 520,140 S605,106 650,116"/>
-                  </svg>
-                  <div className="x-axis"><span>05—11 mai</span><span>12—18 mai</span><span>19—25 mai</span><span>26 mai—01 jun</span><span>02—08 jun</span><span>09—15 jun</span></div>
+                  <div className="dashboard-timeline">
+                    {dashboardTimeline.map((bucket) => <div className="timeline-column" key={bucket.label} title={`${bucket.label}: ${bucket.simulations} simulações, ${bucket.proposals} propostas, ${bucket.contracts} contratos`}>
+                      <div className="timeline-bars">
+                        <i className="timeline-bar blue" style={{ height: `${bucket.simulations / timelineMax * 100}%` }}/>
+                        <i className="timeline-bar purple" style={{ height: `${bucket.proposals / timelineMax * 100}%` }}/>
+                        <i className="timeline-bar green" style={{ height: `${bucket.contracts / timelineMax * 100}%` }}/>
+                      </div>
+                      <span>{bucket.label}</span>
+                    </div>)}
+                    {!dashboardTimeline.length && <p className="empty-state">{dashboardState.loading ? "Carregando período..." : "Sem atividades neste período."}</p>}
+                  </div>
                 </div>
               </div>
             </article>
@@ -1561,12 +1643,13 @@ export default function App() {
             <article className="panel activity-panel">
               <div className="panel-header"><div><h3>Atividade recente</h3><p>Atualizações da sua equipe</p></div><button className="plain-link">Ver todas <Icon name="arrow" size={14}/></button></div>
               <div className="activity-list">
-                {activities.map((activity) => (
-                  <div className="activity" key={activity.item}>
-                    <div className={`mini-avatar ${activity.tone}`}>{activity.initials}</div>
-                    <div><p><strong>{activity.name}</strong> {activity.action}</p><a>{activity.item}</a><span>{activity.time}</span></div>
+                {dashboardState.dashboard?.recentProposals.map((proposal, index) => (
+                  <div className="activity" key={proposal.id}>
+                    <div className={`mini-avatar ${["blue", "purple", "orange", "green"][index % 4]}`}>{proposal.vendedor.split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase()}</div>
+                    <div><p><strong>{proposal.vendedor}</strong> criou uma proposta para {proposal.cliente}</p><a>#{String(proposal.id).padStart(4, "0")} · {proposal.veiculo}</a><span>{new Date(proposal.createdAt).toLocaleString("pt-BR")}</span></div>
                   </div>
                 ))}
+                {!dashboardState.loading && !dashboardState.dashboard?.recentProposals.length && <p className="empty-state">Nenhuma proposta neste período.</p>}
               </div>
             </article>
           </section>
@@ -1580,13 +1663,14 @@ export default function App() {
               <table>
                 <thead><tr><th>PROPOSTA</th><th>CLIENTE</th><th>VEÍCULO</th><th>VENDEDOR</th><th>VALOR</th><th>STATUS</th><th></th></tr></thead>
                 <tbody>
-                  {proposals.map((proposal) => (
+                  {(dashboardState.dashboard?.recentProposals || []).map((proposal) => (
                     <tr key={proposal.id}>
-                      <td><strong>{proposal.id}</strong></td><td>{proposal.client}</td><td>{proposal.car}</td><td>{proposal.seller}</td><td><strong>{proposal.value}</strong></td>
-                      <td><span className={`status ${proposal.tone}`}><i/>{proposal.status}</span></td>
+                      <td><strong>#{String(proposal.id).padStart(4, "0")}</strong></td><td>{proposal.cliente}</td><td>{proposal.veiculo}</td><td>{proposal.vendedor}</td><td><strong>{moneyValue(proposal.valor)}</strong></td>
+                      <td><span className={`status ${["CONTRACT_EFFECTIVE", "APROVADA", "APPROVED"].includes(proposal.status.toUpperCase()) ? "green" : ["CREDIT_REJECTED", "REJECTED", "RECUSADA"].includes(proposal.status.toUpperCase()) ? "red" : "blue"}`}><i/>{proposal.status}</span></td>
                       <td><button className="row-more" aria-label="Mais opções"><Icon name="more" size={18}/></button></td>
                     </tr>
                   ))}
+                  {!dashboardState.loading && !dashboardState.dashboard?.recentProposals.length && <tr><td colSpan={7}>Nenhuma proposta registrada neste período.</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -1594,5 +1678,7 @@ export default function App() {
         </div>}
       </main>
     </div>
+      </DashboardContext.Provider>
+    </DateRangeContext.Provider>
   );
 }
