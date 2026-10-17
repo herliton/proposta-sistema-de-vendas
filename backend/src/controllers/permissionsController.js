@@ -22,8 +22,12 @@ export const roleModuleIds = async (rawRole) => {
 };
 
 export const listModules = async (_req, res) => {
+  const basicModules = await prisma.systemModule.findMany({ orderBy: { name: 'asc' } });
   const roleAccess = Object.fromEntries(await Promise.all(roles.map(async (role) => [role, [...await roleModuleIds(role)]])));
-  const modules = systemModules.map((item) => ({ ...item }));
+  const modules = systemModules.map((item) => ({
+    ...item,
+    persisted: basicModules.some((module) => module.id === item.id),
+  }));
   return ok(res, { modules, roles, roleAccess });
 };
 

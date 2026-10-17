@@ -1,16 +1,18 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: vfc-postgres
+  mysql:
+    image: mysql:8.0
+    container_name: vfc-mysql
     restart: unless-stopped
     environment:
-      POSTGRES_DB: vfc_multimarcas
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      MYSQL_DATABASE: vfc_multimarcas
+      MYSQL_USER: vfc_user
+      MYSQL_PASSWORD: vfc_password
+      MYSQL_ROOT_PASSWORD: root_password
     ports:
-      - "5432:5432"
+      - "3306:3306"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mysql_data:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password
 
 volumes:
-  postgres_data:
+  mysql_data:

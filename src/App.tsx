@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import vfcLogo from "./assets/vfc-logo.png";
+import logoSemFundo from "../logo-sem-fundo.png";
 import { downloadCommissionReport } from "./api/reports";
 import { formatWeekRange, getCurrentWeekRange, toApiDate } from "./utils/dateRange";
 import { transitionSalesStage, type SalesStage } from "./utils/salesLifecycle";
@@ -230,7 +230,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (token: string, user
   return (
     <div className="auth-page">
       <div className="auth-brand">
-        <img src={vfcLogo} alt={clientCompany} className="brand-logo" />
+        <img src={logoSemFundo} alt={clientCompany} className="brand-logo" />
       </div>
       <div className="auth-visual">
         <div className="auth-visual-copy">
@@ -1379,6 +1379,16 @@ export default function App() {
   const visibleActive = allowedModules.has(active) ? active : defaultModule;
 
   useEffect(() => {
+    const favicon = document.querySelector("link[rel='icon']") ?? document.createElement("link");
+    favicon.setAttribute("rel", "icon");
+    favicon.setAttribute("type", "image/png");
+    favicon.setAttribute("href", logoSemFundo);
+    if (!favicon.parentNode) {
+      document.head.appendChild(favicon);
+    }
+  }, []);
+
+  useEffect(() => {
     if (active !== visibleActive) setActive(visibleActive);
   }, [active, visibleActive]);
 
@@ -1425,7 +1435,7 @@ export default function App() {
     <div className="app-shell">
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="brand">
-          <img src={vfcLogo} alt={clientCompany} className="brand-logo sidebar-logo" />
+          <img src={logoSemFundo} alt={clientCompany} className="brand-logo sidebar-logo" />
         </div>
         <nav>
           {visibleNavGroups.map((group) => (

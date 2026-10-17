@@ -1,4 +1,4 @@
-# figma-make-app
+# vfc-multimarca
 
 React + Vite + Tailwind CSS project running inside Figma Make.
 

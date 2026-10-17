@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -79,7 +79,7 @@ model SystemModule {
 }
 
 model RolePermission {
-  id        String       @id @default(uuid()) @db.Uuid
+  id        String       @id @default(uuid()) @db.VarChar(36)
   role      String       @db.VarChar(30)
   moduleId  String       @db.VarChar(50)
   canAccess Boolean      @default(true)
