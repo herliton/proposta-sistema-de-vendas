@@ -1099,6 +1099,8 @@ function ProposalReviewPage({ authToken }: { authToken: string }) {
 }
 
 function TeamsCommissionsPage({ profile, userName, authToken }: { profile: string; userName: string; authToken: string }) {
+  const { dateRange, setDateRange } = useDateRangeContext();
+  const { dashboard, loading: dashboardLoading } = useDashboardContext();
   const [sellerRate, setSellerRate] = useState("1.5");
   const [managerRate, setManagerRate] = useState("0.5");
   const [commissionNotice, setCommissionNotice] = useState("");
@@ -1121,17 +1123,16 @@ function TeamsCommissionsPage({ profile, userName, authToken }: { profile: strin
     } catch (saveError) { setCommissionError(saveError instanceof Error ? saveError.message : "Falha ao salvar regras."); }
     finally { setSavingRules(false); }
   };
-  const allTeams = [["Horizonte", "Amanda Silva", "5 vendedores", "R$ 2,48 mi"], ["Impulso", "Bruno Tavares", "4 vendedores", "R$ 1,96 mi"], ["Vértice", "Patrícia Melo", "3 vendedores", "R$ 1,54 mi"]];
-  const visibleTeams = profile === "MANAGER" ? allTeams.filter((team) => team[1] === userName) : allTeams;
-  const salesByManager: Record<string, number> = { "Amanda Silva": 2480000, "Bruno Tavares": 1960000, "Patrícia Melo": 1540000 };
-  const sales = profile === "MANAGER" ? salesByManager[userName] || 0 : 2480000;
+  const visibleTeams = (dashboard?.teams || []).filter((team) => profile !== "MANAGER" || team.name === userName);
+  const sales = visibleTeams.reduce((total, team) => total + team.sales, 0);
+  const activeSellers = visibleTeams.reduce((total, team) => total + team.sellers, 0);
   return (
     <div className="content module-content">
-      <section className="module-heading"><div><p>GESTÃO DE EQUIPES</p><h1>Equipes e comissões</h1><span>Organize a estrutura comercial e configure regras de remuneração.</span></div><button className="primary-button"><Icon name="plus" size={18}/>Nova equipe</button></section>
+      <section className="module-heading"><div><p>GESTÃO DE EQUIPES</p><h1>Equipes e comissões</h1><span>Organize a estrutura comercial e configure regras de remuneração.</span></div><div className="heading-actions"><DateRangePicker value={dateRange} onChange={setDateRange}/><button className="primary-button"><Icon name="plus" size={18}/>Nova equipe</button></div></section>
       <div className="commissions-layout">
         <section className="panel teams-list">
-          <div className="panel-header"><div><h3>Equipes de vendas</h3><p>3 equipes · 12 vendedores ativos</p></div></div>
-          {visibleTeams.map((team, index) => <div className="team-card" key={team[0]}><div className={`team-icon team-${index + 1}`}><Icon name="users" size={19}/></div><div><strong>Equipe {team[0]}</strong><span>Gerente: {team[1]} · {team[2]}</span></div><div><strong>{team[3]}</strong><span>Vendas no período</span></div><button><Icon name="arrow" size={17}/></button></div>)}
+          <div className="panel-header"><div><h3>Equipes de vendas</h3><p>{dashboardLoading ? "Atualizando resultados..." : `${visibleTeams.length} equipes · ${activeSellers} vendedores com atividade`}</p></div></div>
+          {visibleTeams.length ? visibleTeams.map((team, index) => <div className="team-card" key={team.name}><div className={`team-icon team-${(index % 3) + 1}`}><Icon name="users" size={19}/></div><div><strong>Equipe de {team.name}</strong><span>{team.sellers} vendedores · {team.contracts} contratos</span></div><div><strong>{money(team.sales)}</strong><span>Vendas no período</span></div><button><Icon name="arrow" size={17}/></button></div>) : <p className="empty-state">{dashboardLoading ? "Carregando resultados..." : "Sem resultados de equipe neste período."}</p>}
         </section>
         <section className="panel commission-config">
           <div className="panel-header"><div><h3>Regras de comissão</h3><p>Percentuais sobre contratos efetivados</p></div></div>
@@ -1139,7 +1140,7 @@ function TeamsCommissionsPage({ profile, userName, authToken }: { profile: strin
             <label>Comissão do vendedor<div className="percent-input"><input type="number" step=".1" value={sellerRate} onChange={(e) => setSellerRate(e.target.value)}/><span>%</span></div><small>Aplicada sobre o valor total vendido pelo vendedor.</small></label>
             <label>Comissão do gerente<div className="percent-input"><input type="number" step=".1" value={managerRate} onChange={(e) => setManagerRate(e.target.value)}/><span>%</span></div><small>Aplicada sobre as vendas de toda a equipe gerenciada.</small></label>
             {commissionError && <div className="auth-notice">{commissionError}</div>}{commissionNotice && <div className="auth-notice success">{commissionNotice}</div>}
-            <div className="commission-preview"><span>Simulação · Equipe Horizonte</span><div><p>Volume vendido<strong>R$ 2.480.000</strong></p><p>Vendedores<strong>R$ {(sales * Number(sellerRate) / 100).toLocaleString("pt-BR")}</strong></p><p>Gerência<strong>R$ {(sales * Number(managerRate) / 100).toLocaleString("pt-BR")}</strong></p></div></div>
+            <div className="commission-preview"><span>Simulação · Resultado no período</span><div><p>Volume vendido<strong>{money(sales)}</strong></p><p>Vendedores<strong>{money(sales * Number(sellerRate) / 100)}</strong></p><p>Gerência<strong>{money(sales * Number(managerRate) / 100)}</strong></p></div></div>
             <button className="auth-submit" disabled={savingRules || profile !== "ADMIN"} onClick={() => void saveCommissionRules()}>{savingRules ? "Salvando..." : profile === "ADMIN" ? "Salvar regras de comissão" : "Somente administrador pode alterar"}</button>
           </div>
         </section>
@@ -1238,6 +1239,8 @@ function ManagerDashboard() {
 }
 
 function MyTeamPage() {
+  const { dateRange, setDateRange } = useDateRangeContext();
+  const { dashboard, loading: dashboardLoading } = useDashboardContext();
   const initialSellers = [
     { initials: "MC", name: "Marcos Costa", email: "marcos@proposta.com.br", since: "12/03/2023", sales: "R$ 986 mil", active: true },
     { initials: "RL", name: "Rafael Lima", email: "rafael@proposta.com.br", since: "08/08/2023", sales: "R$ 728 mil", active: true },
@@ -1253,13 +1256,16 @@ function MyTeamPage() {
   };
   return (
     <div className="content module-content">
-      <section className="module-heading"><div><p>EQUIPE HORIZONTE</p><h1>Minha equipe</h1><span>Gerencie os vendedores sob sua responsabilidade sem perder o histórico.</span></div><button className="primary-button"><Icon name="plus" size={18}/>Adicionar vendedor</button></section>
-      <section className="module-summary"><div><span>Vendedores ativos</span><strong>{sellers.filter((seller) => seller.active).length}</strong></div><div><span>Contratos no mês</span><strong>21</strong></div><div><span>Produção da equipe</span><strong>R$ 2,48 mi</strong></div></section>
+      <section className="module-heading"><div><p>EQUIPE HORIZONTE</p><h1>Minha equipe</h1><span>Gerencie os vendedores sob sua responsabilidade sem perder o histórico.</span></div><div className="heading-actions"><DateRangePicker value={dateRange} onChange={setDateRange}/><button className="primary-button"><Icon name="plus" size={18}/>Adicionar vendedor</button></div></section>
+      <section className="module-summary"><div><span>Vendedores ativos</span><strong>{sellers.filter((seller) => seller.active).length}</strong></div><div><span>Contratos no período</span><strong>{dashboardLoading ? "…" : dashboard?.summary.contracts ?? "—"}</strong></div><div><span>Produção da equipe</span><strong>{dashboardLoading ? "Atualizando..." : dashboard ? money(dashboard.summary.salesVolume) : "—"}</strong></div></section>
       <div className="audit-notice"><div><Icon name="settings" size={18}/></div><p><strong>Histórico preservado</strong><span>Vendedores desligados não são excluídos. O acesso é revogado, mas propostas, contratos e registros permanecem disponíveis para auditoria.</span></p></div>
       <section className="panel module-table">
         <div className="module-toolbar"><div className="search-box"><Icon name="search" size={17}/><input placeholder="Buscar vendedor..."/></div><button><Icon name="settings" size={16}/>Todos os status</button></div>
         <div className="table-wrap"><table><thead><tr><th>VENDEDOR</th><th>E-MAIL</th><th>NA EQUIPE DESDE</th><th>VENDAS NO PERÍODO</th><th>ACESSO</th><th>AÇÃO</th></tr></thead>
-          <tbody>{sellers.map((seller, index) => <tr key={seller.email} className={!seller.active ? "inactive-row" : ""}><td><div className="seller-cell"><div className={`mini-avatar ${seller.active ? "blue" : ""}`}>{seller.initials}</div><strong>{seller.name}</strong></div></td><td>{seller.email}</td><td>{seller.since}</td><td><strong>{seller.sales}</strong></td><td><span className={`status ${seller.active ? "green" : "red"}`}>{seller.active ? "Ativo" : "Desativado"}</span></td><td><button className={`staff-action ${seller.active ? "deactivate" : "activate"}`} onClick={() => seller.active ? setConfirmIndex(index) : toggleSeller(index)}>{seller.active ? "Desativar" : "Reativar acesso"}</button></td></tr>)}</tbody>
+          <tbody>{sellers.map((seller, index) => {
+            const sales = dashboard?.sellers.find((row) => row.name === seller.name)?.sales ?? 0;
+            return <tr key={seller.email} className={!seller.active ? "inactive-row" : ""}><td><div className="seller-cell"><div className={`mini-avatar ${seller.active ? "blue" : ""}`}>{seller.initials}</div><strong>{seller.name}</strong></div></td><td>{seller.email}</td><td>{seller.since}</td><td><strong>{dashboardLoading ? "…" : money(sales)}</strong></td><td><span className={`status ${seller.active ? "green" : "red"}`}>{seller.active ? "Ativo" : "Desativado"}</span></td><td><button className={`staff-action ${seller.active ? "deactivate" : "activate"}`} onClick={() => seller.active ? setConfirmIndex(index) : toggleSeller(index)}>{seller.active ? "Desativar" : "Reativar acesso"}</button></td></tr>;
+          })}</tbody>
         </table></div>
       </section>
       {confirmIndex !== null && <div className="modal-layer" onMouseDown={() => setConfirmIndex(null)}><div className="modal-card confirm-card" onMouseDown={(e) => e.stopPropagation()}>
