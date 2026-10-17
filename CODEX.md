@@ -10,7 +10,7 @@ You are an expert full-stack AI engineer. You are instructed to build and deploy
 
 ### Tech Stack Specifications
 - **Backend:** Node.js (Express.js framework)
-- **Database:** PostgreSQL (using `pg` / `pg-promise` driver) with strict foreign key constraints, indexes, and soft-delete capabilities.
+- **Database:** MySQL 8.0+ (using Prisma and MySQL-compatible schema) with strict foreign key constraints, indexes, and soft-delete capabilities.
 - **Frontend:** React (Modern Functional Components, Hooks, Context API / Redux, Tailwind CSS).
 - **Integrations:**
   - **ViaCEP API:** Automatic ZIP code address lookup (`https://viacep.com.br/ws/{cep}/json/`).

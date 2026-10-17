@@ -11,7 +11,7 @@
     "prisma:studio": "prisma studio",
     "db:generate": "prisma generate",
     "db:migrate:deploy": "prisma migrate deploy",
-    "db:import-json": "node scripts/import-json-to-postgres.js"
+    "db:import-json": "node scripts/import-json-to-mysql.js"
   },
   "dependencies": {
     "@prisma/client": "^5.16.0",
