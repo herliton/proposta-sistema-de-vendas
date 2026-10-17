@@ -146,7 +146,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (token: string, user
   const [resetToken, setResetToken] = useState(() => new URLSearchParams(window.location.search).get("resetToken") || "");
   const [mode, setMode] = useState<AuthMode>(() => resetToken ? "reset" : "login");
   const [email, setEmail] = useState("herliton@allos.net.br");
-  const [password, setPassword] = useState(() => resetToken ? "" : "Proposta123");
+  const [password, setPassword] = useState("");
   const [notice, setNotice] = useState("");
   const [pendingToken, setPendingToken] = useState("");
   const [pendingUser, setPendingUser] = useState<AuthUser | null>(null);
@@ -254,7 +254,6 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (token: string, user
             <label>Senha<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Sua senha"/></label>
             <button type="button" className="forgot-link" onClick={() => { setMode("forgot"); setNotice(""); }}>Esqueci minha senha</button>
             <button className="auth-submit" type="submit" disabled={submitting}>{submitting ? "Entrando..." : <>Entrar <Icon name="arrow" size={16}/></>}</button>
-            <div className="demo-access"><strong>Demonstração ativa</strong><span>herliton@allos.net.br · Proposta123</span></div>
           </>}
           {mode === "forgot" && <>
             <button type="button" className="auth-back" onClick={() => { setMode("login"); setNotice(""); }}>‹ Voltar para o login</button>
