@@ -121,7 +121,7 @@ export const getDashboardSummary = async (req, res) => {
   const [proposals, contracts, commissions] = await Promise.all([
     prisma.proposta.findMany({
       where: { ...scope, createdAt: range, deletedAt: null },
-      include: { cliente: { select: { nome: true } }, veiculo: { select: { marca: true, modelo: true } }, vendedor: { include: { usuario: { select: { id: true, nome: true, gerenteId: true, gerente: { select: { nome: true } } } } } } },
+      include: { cliente: { select: { nome: true } }, veiculo: { select: { marca: true, modelo: true } }, vendedor: { include: { usuario: { select: { id: true, nome: true, gerenteId: true, gerente: { select: { id: true, nome: true } } } } } } },
       orderBy: { createdAt: 'desc' },
     }),
     prisma.contrato.findMany({
@@ -130,7 +130,7 @@ export const getDashboardSummary = async (req, res) => {
         vendedor: {
           include: {
             usuario: {
-              select: { id: true, nome: true, gerenteId: true, gerente: { select: { nome: true } } },
+              select: { id: true, nome: true, gerenteId: true, gerente: { select: { id: true, nome: true } } },
             },
           },
         },
@@ -152,9 +152,9 @@ export const getDashboardSummary = async (req, res) => {
   ]);
 
   const bySeller = new Map();
-  const sellerEntry = (sellerId, name, managerName = '') => {
+  const sellerEntry = (sellerId, name, managerName = '', managerId = null) => {
     const key = sellerId ?? name;
-    const entry = bySeller.get(key) || { id: sellerId, name, managerName, simulations: 0, proposals: 0, contracts: 0, sales: 0 };
+    const entry = bySeller.get(key) || { id: sellerId, name, managerId, managerName, simulations: 0, proposals: 0, contracts: 0, sales: 0 };
     bySeller.set(key, entry);
     return entry;
   };
@@ -181,7 +181,7 @@ export const getDashboardSummary = async (req, res) => {
 
   for (const proposal of proposals) {
     const status = String(proposal.status).trim().toLowerCase();
-    const entry = sellerEntry(proposal.vendedorId, proposal.vendedor?.usuario?.nome || proposal.vendedor?.nome || 'Vendedor', proposal.vendedor?.usuario?.gerente?.nome || '');
+    const entry = sellerEntry(proposal.vendedorId, proposal.vendedor?.usuario?.nome || proposal.vendedor?.nome || 'Vendedor', proposal.vendedor?.usuario?.gerente?.nome || '', proposal.vendedor?.usuario?.gerenteId || null);
     entry.simulations += 1;
     if (activeStatuses.has(status)) {
       entry.proposals += 1;
@@ -194,7 +194,7 @@ export const getDashboardSummary = async (req, res) => {
   let salesVolume = 0;
   for (const contract of contracts) {
     const amount = Number(contract.valorTotal || 0);
-    const entry = sellerEntry(contract.vendedorId, contract.vendedor?.usuario?.nome || contract.vendedor?.nome || 'Vendedor', contract.vendedor?.usuario?.gerente?.nome || '');
+    const entry = sellerEntry(contract.vendedorId, contract.vendedor?.usuario?.nome || contract.vendedor?.nome || 'Vendedor', contract.vendedor?.usuario?.gerente?.nome || '', contract.vendedor?.usuario?.gerenteId || null);
     entry.contracts += 1;
     entry.sales += amount;
     salesVolume += amount;
@@ -205,11 +205,12 @@ export const getDashboardSummary = async (req, res) => {
   const managerTotals = new Map();
   for (const row of sellers) {
     if (!row.managerName) continue;
-    const team = managerTotals.get(row.managerName) || { name: row.managerName, sellers: 0, contracts: 0, sales: 0 };
+    const managerKey = row.managerId ?? row.managerName;
+    const team = managerTotals.get(managerKey) || { managerId: row.managerId, name: row.managerName, sellers: 0, contracts: 0, sales: 0 };
     team.sellers += 1;
     team.contracts += row.contracts;
     team.sales += row.sales;
-    managerTotals.set(row.managerName, team);
+    managerTotals.set(managerKey, team);
   }
   const recentProposals = proposals.slice(0, 6).map((proposal) => ({
     id: proposal.id,

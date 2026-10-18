@@ -30,6 +30,7 @@ model Loja {
   propostas     Proposta[]
   contratos     Contrato[]
   oportunidades OportunidadeCredito[]
+  equipes       Equipe[]
 }
 
 model Usuario {
@@ -58,6 +59,9 @@ model Usuario {
   updatedAt              DateTime              @default(now()) @updatedAt
   gerente                Usuario?              @relation("UserManager", fields: [gerenteId], references: [id], onDelete: SetNull)
   equipe                 Usuario[]             @relation("UserManager")
+  equipeId               Int?
+  equipeComercial        Equipe?                @relation("TeamMembers", fields: [equipeId], references: [id], onDelete: SetNull)
+  equipesGerenciadas     Equipe[]               @relation("TeamManager")
   vendedores             Vendedor[]
   aprovacoes             Aprovacao[]
   auditorias             AuditLog[]
@@ -68,6 +72,24 @@ model Usuario {
 
   @@index([perfil, status])
   @@index([gerenteId])
+  @@index([equipeId, status])
+}
+
+model Equipe {
+  id        Int       @id @default(autoincrement())
+  nome      String    @db.VarChar(120)
+  gerenteId Int
+  lojaId    Int       @default(1)
+  status    String    @default("ativo")
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  gerente   Usuario   @relation("TeamManager", fields: [gerenteId], references: [id], onDelete: Restrict)
+  loja      Loja      @relation(fields: [lojaId], references: [id], onDelete: Restrict)
+  membros   Usuario[] @relation("TeamMembers")
+
+  @@unique([nome, lojaId])
+  @@index([lojaId, status])
 }
 
 model SystemModule {

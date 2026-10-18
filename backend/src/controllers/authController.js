@@ -11,7 +11,7 @@ const userResponse = (user) => ({
   id: user.id, nome: user.nome, email: user.email, perfil: user.perfil, status: user.status || 'ativo',
   telefone: user.telefone || user.vendedores?.[0]?.telefone || '', cep: user.cep || '', logradouro: user.logradouro || '',
   numero: user.numero || '', complemento: user.complemento || '', bairro: user.bairro || '', cidade: user.cidade || '', estado: user.estado || '',
-  firstAccess: Boolean(user.firstAccess), lojaId: user.lojaId ?? 1, lojaNome: user.loja?.nome || '',
+  firstAccess: Boolean(user.firstAccess), lojaId: user.lojaId ?? 1, lojaNome: user.loja?.nome || '', gerenteId: user.gerenteId ?? null, equipeId: user.equipeId ?? null,
 });
 const tokenFor = (user, firstAccess) => jwt.sign({ id: user.id, email: user.email, perfil: user.perfil, firstAccess, lojaId: user.lojaId ?? 1 }, process.env.JWT_SECRET || 'dev-secret', { expiresIn: '8h' });
 const mailError = (error) => {

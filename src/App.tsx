@@ -74,7 +74,7 @@ type DashboardSummary = {
   commissionAmount: number;
 };
 type DashboardSeller = { id: number | null; name: string; managerName: string; simulations: number; proposals: number; contracts: number; sales: number };
-type DashboardTeam = { name: string; sellers: number; contracts: number; sales: number };
+type DashboardTeam = { managerId: number | null; name: string; sellers: number; contracts: number; sales: number };
 type DashboardProposal = { id: number; cliente: string; veiculo: string; vendedor: string; valor: number; status: string; createdAt: string };
 type DashboardData = {
   summary: DashboardSummary;
@@ -387,6 +387,7 @@ const moduleData: Record<string, { title: string; subtitle: string; action: stri
 type ManagedUser = {
   id: number; nome: string; email: string; perfil: string; status: string; telefone: string;
   cep: string; logradouro: string; numero: string; complemento: string; bairro: string; cidade: string; estado: string; lojaId: number; lojaNome: string;
+  gerenteId?: number | null; equipeId?: number | null;
 };
 
 type ManagedUserForm = Omit<ManagedUser, "id">;
@@ -1098,14 +1099,70 @@ function ProposalReviewPage({ authToken }: { authToken: string }) {
   return <div className="content module-content"><section className="module-heading"><div><p>OPERAÇÃO BANCÁRIA</p><h1>Análise de propostas</h1><span>Revise propostas pendentes e registre aprovação ou recusa.</span></div><button className="secondary-button" onClick={() => void load()}>Atualizar fila</button></section>{error && <div className="auth-notice">{error}</div>}<section className="review-tabs"><button className="active">Aguardando análise <span>{review.length}</span></button></section><section className="panel module-table"><div className="table-wrap"><table><thead><tr><th>PROPOSTA</th><th>CLIENTE</th><th>VENDEDOR</th><th>VEÍCULO</th><th>VALOR</th><th>STATUS</th><th>PDF</th><th>AÇÃO</th></tr></thead><tbody>{loading ? <tr><td colSpan={8}>Carregando fila...</td></tr> : review.length ? review.map((row) => <tr key={row.id}><td><strong>#{String(row.id).padStart(4, "0")}</strong></td><td>{row.cliente?.nome || "—"}</td><td>{row.vendedor?.nome || "—"}</td><td>{row.veiculo ? `${row.veiculo.marca} ${row.veiculo.modelo}` : "—"}</td><td><strong>{money(row.valorProposta)}</strong></td><td><span className="status blue">{row.status}</span></td><td><button className="submit-bank" onClick={() => void downloadPdf(row.id)}>Baixar PDF</button></td><td><button className="submit-bank done" disabled={busyId === row.id} onClick={() => void changeStatus(row.id, "CONTRACT_EFFECTIVE")}>{busyId === row.id ? "Salvando..." : "Aprovar"}</button> <button className="submit-bank" disabled={busyId === row.id} onClick={() => void changeStatus(row.id, "CREDIT_REJECTED")}>Recusar</button></td></tr>) : <tr><td colSpan={8}>Não há propostas aguardando análise.</td></tr>}</tbody></table></div></section></div>;
 }
 
-function TeamsCommissionsPage({ profile, userName, authToken }: { profile: string; userName: string; authToken: string }) {
+type TeamRecord = {
+  id: number;
+  nome: string;
+  gerenteId: number;
+  lojaId: number;
+  status: string;
+  gerente: { id: number; nome: string; email: string; status: string };
+  loja: { id: number; nome: string };
+  _count: { membros: number };
+  membros: { id: number; nome: string; email: string; perfil: string; status: string; gerenteId: number | null }[];
+};
+
+function TeamsCommissionsPage({ profile, userId, userName, authToken }: { profile: string; userId: number; userName: string; authToken: string }) {
   const { dateRange, setDateRange } = useDateRangeContext();
   const { dashboard, loading: dashboardLoading } = useDashboardContext();
+  const [teams, setTeams] = useState<TeamRecord[]>([]);
+  const [managers, setManagers] = useState<ManagedUser[]>([]);
+  const [memberOptions, setMemberOptions] = useState<ManagedUser[]>([]);
+  const [teamsLoading, setTeamsLoading] = useState(true);
+  const [teamError, setTeamError] = useState("");
+  const [teamNotice, setTeamNotice] = useState("");
+  const [teamSaving, setTeamSaving] = useState(false);
+  const [showTeamForm, setShowTeamForm] = useState(false);
+  const [editingTeam, setEditingTeam] = useState<TeamRecord | null>(null);
+  const [teamForm, setTeamForm] = useState({ nome: "", gerenteId: "", lojaId: "", memberIds: [] as number[] });
   const [sellerRate, setSellerRate] = useState("1.5");
   const [managerRate, setManagerRate] = useState("0.5");
   const [commissionNotice, setCommissionNotice] = useState("");
   const [commissionError, setCommissionError] = useState("");
   const [savingRules, setSavingRules] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    setTeamsLoading(true);
+    setTeamError("");
+    const load = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/teams`, { headers: { Authorization: `Bearer ${authToken}` } });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload?.message || "Não foi possível carregar as equipes.");
+        if (!cancelled) setTeams(payload.data || []);
+        if (profile === "ADMIN") {
+          const usersResponse = await fetch(`${API_BASE_URL}/auth/users`, { headers: { Authorization: `Bearer ${authToken}` } });
+          const usersPayload = await usersResponse.json();
+          if (!usersResponse.ok) throw new Error(usersPayload?.message || "Não foi possível carregar os gerentes.");
+          if (!cancelled) {
+            setManagers((usersPayload.data || []).filter((user: ManagedUser) => user.perfil.toUpperCase() === "MANAGER" && user.status === "ativo"));
+            setMemberOptions((usersPayload.data || []).filter((user: ManagedUser) => user.perfil.toUpperCase() === "SELLER"));
+          }
+        } else if (profile === "MANAGER") {
+          const sellersResponse = await fetch(`${API_BASE_URL}/vendedores`, { headers: { Authorization: `Bearer ${authToken}` } });
+          const sellersPayload = await sellersResponse.json();
+          if (!sellersResponse.ok) throw new Error(sellersPayload?.message || "Não foi possível carregar os vendedores da equipe.");
+          if (!cancelled) setMemberOptions((sellersPayload.data || []).filter((seller: { usuario?: { id: number } | null }) => seller.usuario).map((seller: { nome: string; email: string; status: string; usuario: { id: number; status: string; gerenteId: number | null } }) => ({ id: seller.usuario.id, nome: seller.nome, email: seller.email, perfil: "SELLER", status: seller.status === "ativo" && seller.usuario.status === "ativo" ? "ativo" : "inativo", telefone: "", cep: "", logradouro: "", numero: "", complemento: "", bairro: "", cidade: "", estado: "", lojaId: 0, lojaNome: "", gerenteId: seller.usuario.gerenteId })));
+        }
+      } catch (loadError) {
+        if (!cancelled) setTeamError(loadError instanceof Error ? loadError.message : "Falha ao carregar equipes.");
+      } finally {
+        if (!cancelled) setTeamsLoading(false);
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [authToken, profile]);
+
   useEffect(() => {
     let cancelled = false;
     fetch(`${API_BASE_URL}/reports/commission-rules`, { headers: { Authorization: `Bearer ${authToken}` } }).then(async (response) => {
@@ -1123,16 +1180,71 @@ function TeamsCommissionsPage({ profile, userName, authToken }: { profile: strin
     } catch (saveError) { setCommissionError(saveError instanceof Error ? saveError.message : "Falha ao salvar regras."); }
     finally { setSavingRules(false); }
   };
-  const visibleTeams = (dashboard?.teams || []).filter((team) => profile !== "MANAGER" || team.name === userName);
-  const sales = visibleTeams.reduce((total, team) => total + team.sales, 0);
-  const activeSellers = visibleTeams.reduce((total, team) => total + team.sellers, 0);
+  const visibleTeams = teams.filter((team) => team.status === "ativo");
+  const salesForTeam = (team: TeamRecord) => dashboard?.teams.find((row) => row.managerId === team.gerenteId);
+  const totalSales = visibleTeams.reduce((total, team) => total + (salesForTeam(team)?.sales || 0), 0);
+  const activeSellers = visibleTeams.reduce((total, team) => total + team._count.membros, 0);
+  const openTeamForm = (team?: TeamRecord) => {
+    setTeamError("");
+    setTeamNotice("");
+    setEditingTeam(team || null);
+    setTeamForm(team
+      ? { nome: team.nome, gerenteId: String(team.gerenteId), lojaId: String(team.lojaId), memberIds: team.membros.map((member) => member.id) }
+      : profile === "MANAGER"
+        ? { nome: "", gerenteId: String(userId), lojaId: "", memberIds: memberOptions.filter((member) => member.gerenteId === userId && member.status === "ativo").map((member) => member.id) }
+        : { nome: "", gerenteId: "", lojaId: "", memberIds: [] });
+    setShowTeamForm(true);
+  };
+  const saveTeam = async (event: FormEvent) => {
+    event.preventDefault();
+    setTeamSaving(true);
+    setTeamError("");
+    setTeamNotice("");
+    try {
+      const response = await fetch(`${API_BASE_URL}/teams${editingTeam ? `/${editingTeam.id}` : ""}`, {
+        method: editingTeam ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify({ nome: teamForm.nome, gerenteId: Number(teamForm.gerenteId), ...(profile === "ADMIN" ? { lojaId: Number(teamForm.lojaId) } : {}), memberIds: teamForm.memberIds }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload?.message || "Não foi possível salvar a equipe.");
+      setTeams((current) => editingTeam
+        ? current.map((team) => team.id === editingTeam.id ? payload.data : team)
+        : [...current, payload.data].sort((left, right) => left.nome.localeCompare(right.nome, "pt-BR")));
+      setShowTeamForm(false);
+      setTeamNotice(payload.message || "Equipe salva.");
+    } catch (saveError) {
+      setTeamError(saveError instanceof Error ? saveError.message : "Falha ao salvar equipe.");
+    } finally {
+      setTeamSaving(false);
+    }
+  };
+  const deactivateTeam = async (team: TeamRecord) => {
+    if (!window.confirm(`Desativar a equipe “${team.nome}”? A operação só é permitida quando não houver membros vinculados.`)) return;
+    setTeamError("");
+    setTeamNotice("");
+    try {
+      const response = await fetch(`${API_BASE_URL}/teams/${team.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${authToken}` } });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload?.message || "Não foi possível desativar a equipe.");
+      setTeams((current) => current.filter((item) => item.id !== team.id));
+      setTeamNotice(payload.message || "Equipe desativada.");
+    } catch (deleteError) {
+      setTeamError(deleteError instanceof Error ? deleteError.message : "Falha ao desativar equipe.");
+    }
+  };
   return (
     <div className="content module-content">
-      <section className="module-heading"><div><p>GESTÃO DE EQUIPES</p><h1>Equipes e comissões</h1><span>Organize a estrutura comercial e configure regras de remuneração.</span></div><div className="heading-actions"><DateRangePicker value={dateRange} onChange={setDateRange}/><button className="primary-button"><Icon name="plus" size={18}/>Nova equipe</button></div></section>
+      <section className="module-heading"><div><p>GESTÃO DE EQUIPES</p><h1>Equipes e comissões</h1><span>Organize a estrutura comercial e configure regras de remuneração.</span></div><div className="heading-actions"><DateRangePicker value={dateRange} onChange={setDateRange}/>{profile !== "SUPPORT" && <button className="primary-button" onClick={() => openTeamForm()} disabled={profile === "MANAGER" && teams.some((team) => team.gerenteId === userId && team.status === "ativo")}><Icon name="plus" size={18}/>Nova equipe</button>}</div></section>
+      {teamNotice && <div className="auth-notice success" role="status">{teamNotice}</div>}
+      {teamError && !showTeamForm && <div className="auth-notice" role="alert">{teamError}</div>}
       <div className="commissions-layout">
         <section className="panel teams-list">
-          <div className="panel-header"><div><h3>Equipes de vendas</h3><p>{dashboardLoading ? "Atualizando resultados..." : `${visibleTeams.length} equipes · ${activeSellers} vendedores com atividade`}</p></div></div>
-          {visibleTeams.length ? visibleTeams.map((team, index) => <div className="team-card" key={team.name}><div className={`team-icon team-${(index % 3) + 1}`}><Icon name="users" size={19}/></div><div><strong>Equipe de {team.name}</strong><span>{team.sellers} vendedores · {team.contracts} contratos</span></div><div><strong>{money(team.sales)}</strong><span>Vendas no período</span></div><button><Icon name="arrow" size={17}/></button></div>) : <p className="empty-state">{dashboardLoading ? "Carregando resultados..." : "Sem resultados de equipe neste período."}</p>}
+          <div className="panel-header"><div><h3>Equipes de vendas</h3><p>{teamsLoading ? "Carregando equipes..." : `${visibleTeams.length} equipes ativas · ${activeSellers} membros`}</p></div></div>
+          {teamsLoading ? <p className="empty-state">Carregando equipes...</p> : visibleTeams.length ? visibleTeams.map((team, index) => {
+            const results = salesForTeam(team);
+            return <div className="team-card" key={team.id}><div className={`team-icon team-${(index % 3) + 1}`}><Icon name="users" size={19}/></div><div><strong>{team.nome}</strong><span>Gerente: {team.gerente.nome} · {team._count.membros} membros</span></div><div><strong>{money(results?.sales || 0)}</strong><span>{dashboardLoading ? "Atualizando..." : `${results?.contracts || 0} contratos no período`}</span></div>{profile !== "SUPPORT" && (profile === "ADMIN" || team.gerenteId === userId) && <div className="team-actions"><button className="edit-link" onClick={() => openTeamForm(team)}>Editar</button>{profile === "ADMIN" && <button className="staff-action deactivate" onClick={() => void deactivateTeam(team)}>Desativar</button>}</div>}</div>;
+          }) : <p className="empty-state">{teamError || "Nenhuma equipe cadastrada."}</p>}
         </section>
         <section className="panel commission-config">
           <div className="panel-header"><div><h3>Regras de comissão</h3><p>Percentuais sobre contratos efetivados</p></div></div>
@@ -1140,11 +1252,21 @@ function TeamsCommissionsPage({ profile, userName, authToken }: { profile: strin
             <label>Comissão do vendedor<div className="percent-input"><input type="number" step=".1" value={sellerRate} onChange={(e) => setSellerRate(e.target.value)}/><span>%</span></div><small>Aplicada sobre o valor total vendido pelo vendedor.</small></label>
             <label>Comissão do gerente<div className="percent-input"><input type="number" step=".1" value={managerRate} onChange={(e) => setManagerRate(e.target.value)}/><span>%</span></div><small>Aplicada sobre as vendas de toda a equipe gerenciada.</small></label>
             {commissionError && <div className="auth-notice">{commissionError}</div>}{commissionNotice && <div className="auth-notice success">{commissionNotice}</div>}
-            <div className="commission-preview"><span>Simulação · Resultado no período</span><div><p>Volume vendido<strong>{money(sales)}</strong></p><p>Vendedores<strong>{money(sales * Number(sellerRate) / 100)}</strong></p><p>Gerência<strong>{money(sales * Number(managerRate) / 100)}</strong></p></div></div>
+            <div className="commission-preview"><span>Simulação · Resultado no período</span><div><p>Volume vendido<strong>{money(totalSales)}</strong></p><p>Vendedores<strong>{money(totalSales * Number(sellerRate) / 100)}</strong></p><p>Gerência<strong>{money(totalSales * Number(managerRate) / 100)}</strong></p></div></div>
             <button className="auth-submit" disabled={savingRules || profile !== "ADMIN"} onClick={() => void saveCommissionRules()}>{savingRules ? "Salvando..." : profile === "ADMIN" ? "Salvar regras de comissão" : "Somente administrador pode alterar"}</button>
           </div>
         </section>
       </div>
+      {showTeamForm && <div className="page-form-layer"><form onSubmit={(event) => void saveTeam(event)} className="modal-card wide-modal user-modal page-form-card">
+        <button type="button" className="page-back" onClick={() => setShowTeamForm(false)}><Icon name="arrow" size={16}/>Voltar para equipes</button>
+        <div className="modal-title"><div><span>{editingTeam ? "EDITAR EQUIPE" : "NOVA EQUIPE"}</span><h2>{editingTeam ? editingTeam.nome : "Cadastrar equipe"}</h2><p>Selecione os vendedores que farão parte da equipe. As transferências atualizam o gerente responsável.</p></div></div>
+        <div className="modal-row"><label>Nome da equipe<input required maxLength={120} value={teamForm.nome} onChange={(event) => setTeamForm((current) => ({ ...current, nome: event.target.value }))} placeholder="Ex.: Equipe Centro"/></label>
+          {profile === "ADMIN" ? <label>Gerente responsável<select required value={teamForm.gerenteId} onChange={(event) => { const selected = managers.find((manager) => manager.id === Number(event.target.value)); setTeamForm((current) => ({ ...current, gerenteId: event.target.value, lojaId: selected ? String(selected.lojaId) : "", memberIds: memberOptions.filter((member) => member.gerenteId === selected?.id && member.status === "ativo").map((member) => member.id) })); }}><option value="">Selecione um gerente ativo</option>{managers.map((manager) => <option key={manager.id} value={manager.id}>{manager.nome} · {manager.lojaNome || `Loja ${manager.lojaId}`}</option>)}</select></label> : <label>Gerente responsável<input readOnly value={userName}/></label>}
+        </div>
+        <fieldset className="team-member-options"><legend>Vendedores da equipe</legend>{memberOptions.filter((member) => (member.status === "ativo" || editingTeam?.membros.some((current) => current.id === member.id)) && (profile === "MANAGER" ? member.gerenteId === userId || editingTeam?.membros.some((current) => current.id === member.id) : member.lojaId === Number(teamForm.lojaId))).map((member) => <label key={member.id}><input type="checkbox" checked={teamForm.memberIds.includes(member.id)} onChange={(event) => setTeamForm((current) => ({ ...current, memberIds: event.target.checked ? [...current.memberIds, member.id] : current.memberIds.filter((id) => id !== member.id) }))}/><span>{member.nome} · {member.email}</span></label>)}{!memberOptions.some((member) => profile === "MANAGER" ? member.gerenteId === userId : member.lojaId === Number(teamForm.lojaId)) && <small>Não há vendedores ativos disponíveis para esta equipe.</small>}</fieldset>
+        {teamError && <div className="auth-notice" role="alert">{teamError}</div>}
+        <div className="modal-actions"><button type="button" onClick={() => setShowTeamForm(false)}>Cancelar</button><button className="primary-button" disabled={teamSaving || (profile === "ADMIN" && managers.length === 0)}>{teamSaving ? "Salvando..." : editingTeam ? "Salvar alterações" : "Cadastrar equipe"}</button></div>
+      </form></div>}
     </div>
   );
 }
@@ -1656,7 +1778,7 @@ export default function App() {
           </div>
         </header>
 
-        {visibleActive === "Recuperação de crédito" ? <CreditRecoveryPage authToken={authToken} profile={profile}/> : visibleActive === "Clientes" ? <CustomersPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Classificados" ? <ClassifiedsPage onSimulate={() => setActive("Simulações")}/> : visibleActive === "Simulações" ? <SimulationPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Usuários e perfis" && profile === "ADMIN" ? <UsersPage authToken={authToken}/> : visibleActive === "Lojas" && profile === "ADMIN" ? <StoresPage authToken={authToken}/> : visibleActive === "Permissões de acesso" && profile === "ADMIN" ? <PermissionsPage authToken={authToken}/> : visibleActive === "Configurações" && profile === "ADMIN" ? <EmailSettingsPage authToken={authToken}/> : visibleActive === "Veículos" ? <VehiclesPage authToken={authToken} profile={profile}/> : visibleActive === "Painel do gerente" && profile === "MANAGER" ? <ManagerDashboard/> : visibleActive === "Minha equipe" && profile === "MANAGER" ? <MyTeamPage authToken={authToken}/> : visibleActive === "Painel de suporte" && profile === "SUPPORT" ? <SupportDashboard/> : visibleActive === "Propostas" && ["ADMIN", "SUPPORT"].includes(profile) ? <ProposalReviewPage authToken={authToken}/> : visibleActive === "Propostas" ? <SellerProposalsPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Equipes e comissões" && ["ADMIN", "MANAGER", "SUPPORT"].includes(profile) ? <TeamsCommissionsPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Relatórios" && ["ADMIN", "MANAGER", "SUPPORT"].includes(profile) ? <ReportsPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive !== "Dashboard" ? <ModulePage name={visibleActive} profile={profile} userName={sessionUser.nome}/> : <div className="content">
+        {visibleActive === "Recuperação de crédito" ? <CreditRecoveryPage authToken={authToken} profile={profile}/> : visibleActive === "Clientes" ? <CustomersPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Classificados" ? <ClassifiedsPage onSimulate={() => setActive("Simulações")}/> : visibleActive === "Simulações" ? <SimulationPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Usuários e perfis" && profile === "ADMIN" ? <UsersPage authToken={authToken}/> : visibleActive === "Lojas" && profile === "ADMIN" ? <StoresPage authToken={authToken}/> : visibleActive === "Permissões de acesso" && profile === "ADMIN" ? <PermissionsPage authToken={authToken}/> : visibleActive === "Configurações" && profile === "ADMIN" ? <EmailSettingsPage authToken={authToken}/> : visibleActive === "Veículos" ? <VehiclesPage authToken={authToken} profile={profile}/> : visibleActive === "Painel do gerente" && profile === "MANAGER" ? <ManagerDashboard/> : visibleActive === "Minha equipe" && profile === "MANAGER" ? <MyTeamPage authToken={authToken}/> : visibleActive === "Painel de suporte" && profile === "SUPPORT" ? <SupportDashboard/> : visibleActive === "Propostas" && ["ADMIN", "SUPPORT"].includes(profile) ? <ProposalReviewPage authToken={authToken}/> : visibleActive === "Propostas" ? <SellerProposalsPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Equipes e comissões" && ["ADMIN", "MANAGER", "SUPPORT"].includes(profile) ? <TeamsCommissionsPage profile={profile} userId={sessionUser.id} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Relatórios" && ["ADMIN", "MANAGER", "SUPPORT"].includes(profile) ? <ReportsPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive !== "Dashboard" ? <ModulePage name={visibleActive} profile={profile} userName={sessionUser.nome}/> : <div className="content">
           <section className="page-heading">
             <div>
               <p>{currentDateLabel}</p>

@@ -91,6 +91,14 @@ export const createVendedor = async (req, res) => {
 
   try {
     const seller = await prisma.$transaction(async (tx) => {
+      let team = gerenteId ? await tx.equipe.findFirst({
+        where: { gerenteId, lojaId, status: 'ativo', deletedAt: null },
+        select: { id: true },
+      }) : null;
+      if (team) {
+        await tx.$queryRaw`SELECT id FROM Equipe WHERE id = ${team.id} FOR UPDATE`;
+        team = await tx.equipe.findFirst({ where: { id: team.id, status: 'ativo', deletedAt: null }, select: { id: true } });
+      }
       const user = await tx.usuario.create({
         data: {
           nome,
@@ -101,6 +109,7 @@ export const createVendedor = async (req, res) => {
           firstAccess: true,
           senhaHash: await bcrypt.hash(temporaryPassword, 10),
           gerenteId,
+          equipeId: team?.id || null,
           lojaId,
         },
       });
