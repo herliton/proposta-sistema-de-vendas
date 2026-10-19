@@ -46,7 +46,9 @@ export const authMiddleware = async (req, res, next) => {
 
 
 export const requireRole = (...allowedRoles) => (req, res, next) => {
-  const role = String(req.user?.perfil || req.user?.role || '').toUpperCase();
-  if (allowedRoles.map((item) => item.toUpperCase()).includes(role)) return next();
+  const aliases = { ADMINISTRADOR: 'ADMIN', GERENTE: 'MANAGER', VENDEDOR: 'SELLER', SUPORTE: 'SUPPORT' };
+  const role = String(req.user?.perfil || req.user?.role || '').trim().toUpperCase();
+  const normalizedRole = aliases[role] || role;
+  if (allowedRoles.map((item) => item.toUpperCase()).includes(normalizedRole)) return next();
   return res.status(403).json({ success: false, message: 'Acesso permitido somente a administradores', error: 'FORBIDDEN' });
 };

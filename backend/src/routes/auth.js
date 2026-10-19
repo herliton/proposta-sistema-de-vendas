@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { login, register, listUsers, createUser, updateUser, firstAccessChange, forgotPassword, resetPassword } from '../controllers/authController.js';
+import { login, register, listUsers, getUserById, createUser, updateUser, deactivateUser, firstAccessChange, forgotPassword, resetPassword } from '../controllers/authController.js';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
 import { getEmailSettings, saveEmailSettings, testEmailSettings } from '../utils/email.js';
 import { ok } from '../utils/response.js';
@@ -11,8 +11,10 @@ router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 router.post('/register', register);
 router.get('/users', authMiddleware, requireRole('ADMIN'), listUsers);
+router.get('/users/:id', authMiddleware, requireRole('ADMIN'), getUserById);
 router.post('/users', authMiddleware, requireRole('ADMIN'), createUser);
 router.put('/users/:id', authMiddleware, requireRole('ADMIN'), updateUser);
+router.delete('/users/:id', authMiddleware, requireRole('ADMIN'), deactivateUser);
 router.post('/first-access-change', authMiddleware, firstAccessChange);
 router.get('/email-settings', authMiddleware, requireRole('ADMIN'), async (req, res, next) => { try { return ok(res, await getEmailSettings()); } catch (error) { return next(error); } });
 router.put('/email-settings', authMiddleware, requireRole('ADMIN'), async (req, res) => {

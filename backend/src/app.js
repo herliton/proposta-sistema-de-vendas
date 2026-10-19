@@ -17,6 +17,7 @@ import creditRecoveryRoutes from './routes/creditRecovery.js';
 import dealsRoutes from './routes/deals.js';
 import lojasRoutes from './routes/lojas.js';
 import equipesRoutes from './routes/equipes.js';
+import auditLogsRoutes from './routes/auditLogs.js';
 import { prisma } from './config/database.js';
 
 dotenv.config();
@@ -50,6 +51,7 @@ app.use('/api/credit-recovery', creditRecoveryRoutes);
 app.use('/api/deals', dealsRoutes);
 app.use('/api/stores', lojasRoutes);
 app.use('/api/teams', equipesRoutes);
+app.use('/api/audit-logs', auditLogsRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err);

@@ -400,6 +400,12 @@ const emptyUserForm: ManagedUserForm = {
 function UsersPage({ authToken }: { authToken: string }) {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [stores, setStores] = useState<StoreRecord[]>([]);
+  const [search, setSearch] = useState("");
+  const [profileFilter, setProfileFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [storeFilter, setStoreFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, pageSize: 25, total: 0, totalPages: 0 });
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<ManagedUserForm>(emptyUserForm);
@@ -423,8 +429,14 @@ function UsersPage({ authToken }: { authToken: string }) {
     setLoading(true);
     setError("");
     try {
-      const [records, storeRecords] = await Promise.all([apiRequest("/auth/users"), apiRequest("/stores")]);
-      setUsers(Array.isArray(records) ? records : []); setStores(Array.isArray(storeRecords) ? storeRecords.filter((store: StoreRecord) => store.status === "ativo") : []);
+      const params = new URLSearchParams({ page: String(page), pageSize: "25" });
+      if (search.trim()) params.set("search", search.trim());
+      if (profileFilter) params.set("perfil", profileFilter);
+      if (statusFilter) params.set("status", statusFilter);
+      if (storeFilter) params.set("lojaId", storeFilter);
+      const records = await apiRequest(`/auth/users?${params.toString()}`);
+      setUsers(Array.isArray(records?.items) ? records.items : []);
+      setPagination(records?.pagination || { page: 1, pageSize: 25, total: 0, totalPages: 0 });
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Falha ao carregar usuários.");
     } finally {
@@ -432,7 +444,14 @@ function UsersPage({ authToken }: { authToken: string }) {
     }
   };
 
-  useEffect(() => { void loadUsers(); }, [authToken]);
+  useEffect(() => { void loadUsers(); }, [authToken, search, profileFilter, statusFilter, storeFilter, page]);
+  useEffect(() => {
+    void apiRequest("/stores").then((records) => {
+      setStores(Array.isArray(records) ? records.filter((store: StoreRecord) => store.status === "ativo") : []);
+    }).catch((requestError) => {
+      setError(requestError instanceof Error ? requestError.message : "Falha ao carregar lojas.");
+    });
+  }, [authToken]);
 
   const updateField = <K extends keyof ManagedUserForm>(field: K, value: ManagedUserForm[K]) => setForm((current) => ({ ...current, [field]: value }));
   const openForm = (user?: ManagedUser) => {
@@ -472,11 +491,31 @@ function UsersPage({ authToken }: { authToken: string }) {
       await loadUsers();
       setShowForm(false);
       setNotice(editingId
-        ? `Dados atualizados. As instruções de acesso foram enviadas para ${saved.email}.`
+        ? `Dados de ${saved.nome} atualizados.`
         : `Usuário criado. As instruções de acesso foram enviadas para ${saved.email}.`);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Falha ao salvar usuário.");
     } finally { setSaving(false); }
+  };
+
+  const changeUserStatus = async (user: ManagedUser) => {
+    const activating = user.status === "inativo";
+    const confirmation = activating
+      ? `Deseja reativar o acesso de ${user.nome}?`
+      : `Deseja desativar ${user.nome}? O usuário perderá o acesso imediatamente.`;
+    if (!window.confirm(confirmation)) return;
+    setError("");
+    setNotice("");
+    try {
+      await apiRequest(activating ? `/auth/users/${user.id}` : `/auth/users/${user.id}`, {
+        method: activating ? "PUT" : "DELETE",
+        ...(activating ? { body: JSON.stringify({ status: "ativo" }) } : {}),
+      });
+      await loadUsers();
+      setNotice(activating ? `${user.nome} foi reativado.` : `${user.nome} foi desativado.`);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Falha ao alterar o status do usuário.");
+    }
   };
 
   const initials = (name: string) => name.split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase();
@@ -486,24 +525,25 @@ function UsersPage({ authToken }: { authToken: string }) {
   return (
     <div className="content module-content">
       <section className="module-heading"><div><p>ADMINISTRAÇÃO E ACESSOS</p><h1>Usuários e perfis</h1><span>Gerencie dados pessoais, funções e acessos dos colaboradores.</span></div><button className="primary-button" onClick={() => openForm()}><Icon name="plus" size={18}/>Novo usuário</button></section>
-      <section className="module-summary"><div><span>Usuários ativos</span><strong>{activeUsers}</strong></div><div><span>Gerentes</span><strong>{managers}</strong></div><div><span>Acessos desativados</span><strong>{users.length - activeUsers}</strong></div></section>
+      <section className="module-summary"><div><span>Usuários encontrados</span><strong>{pagination.total}</strong></div><div><span>Gerentes nesta página</span><strong>{managers}</strong></div><div><span>Inativos nesta página</span><strong>{users.length - activeUsers}</strong></div></section>
       {notice && <div className="auth-notice success">{notice}</div>}
       {error && !showForm && <div className="auth-notice">{error} <button onClick={() => void loadUsers()}>Tentar novamente</button></div>}
       <section className="panel module-table">
-        <div className="module-toolbar"><div className="search-box"><Icon name="search" size={17}/><input placeholder="Buscar usuário, e-mail ou perfil..."/></div><button><Icon name="settings" size={16}/>Filtros</button></div>
+        <div className="module-toolbar"><div className="search-box"><Icon name="search" size={17}/><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Buscar usuário ou e-mail..."/></div><label>Perfil<select value={profileFilter} onChange={(event) => { setProfileFilter(event.target.value); setPage(1); }}><option value="">Todos os perfis</option><option value="ADMIN">ADMIN</option><option value="MANAGER">MANAGER</option><option value="SELLER">SELLER</option><option value="SUPPORT">SUPPORT</option></select></label><label>Status<select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}><option value="">Todos os status</option><option value="ativo">Ativos</option><option value="inativo">Inativos</option></select></label><label>Loja<select value={storeFilter} onChange={(event) => { setStoreFilter(event.target.value); setPage(1); }}><option value="">Todas as lojas</option>{stores.map((store) => <option key={store.id} value={store.id}>{store.nome}</option>)}</select></label></div>
         <div className="table-wrap"><table><thead><tr><th>USUÁRIO</th><th>CONTATO</th><th>PERFIL</th><th>LOJA</th><th>STATUS</th><th>ACESSOS HERDADOS</th><th></th></tr></thead><tbody>
-          {loading ? <tr><td colSpan={6}>Carregando usuários...</td></tr> : users.map((user) => <tr key={user.id}><td><div className="seller-cell"><div className="mini-avatar blue">{initials(user.nome)}</div><div><strong>{user.nome}</strong><small className="table-subcopy">{user.email}</small></div></div></td><td>{user.telefone || "—"}</td><td><span className="role-pill">{user.perfil}</span></td><td>{user.lojaNome || "Loja Brasília"}</td><td><span className={`status ${user.status === "inativo" ? "red" : "green"}`}>{user.status === "inativo" ? "Inativo" : "Ativo"}</span></td><td>{user.perfil.toUpperCase() === "MANAGER" ? <span className="inheritance-pill">MANAGER + SELLER</span> : "—"}</td><td><button className="edit-link" onClick={() => openForm(user)}>Editar</button></td></tr>)}
-          {!loading && users.length === 0 && <tr><td colSpan={6}>Nenhum usuário cadastrado.</td></tr>}
+          {loading ? <tr><td colSpan={7}>Carregando usuários...</td></tr> : users.map((user) => <tr key={user.id}><td><div className="seller-cell"><div className="mini-avatar blue">{initials(user.nome)}</div><div><strong>{user.nome}</strong><small className="table-subcopy">{user.email}</small></div></div></td><td>{user.telefone || "—"}</td><td><span className="role-pill">{user.perfil}</span></td><td>{user.lojaNome || "Loja Brasília"}</td><td><span className={`status ${user.status === "inativo" ? "red" : "green"}`}>{user.status === "inativo" ? "Inativo" : "Ativo"}</span></td><td>{user.perfil.toUpperCase() === "MANAGER" ? <span className="inheritance-pill">MANAGER + SELLER</span> : "—"}</td><td><button className="edit-link" onClick={() => openForm(user)}>Editar</button><button className="edit-link" onClick={() => void changeUserStatus(user)}>{user.status === "inativo" ? "Reativar" : "Inativar"}</button></td></tr>)}
+          {!loading && users.length === 0 && <tr><td colSpan={7}>Nenhum usuário cadastrado.</td></tr>}
         </tbody></table></div>
+        <div className="pagination-controls"><span>{pagination.total ? `${(page - 1) * pagination.pageSize + 1}–${Math.min(page * pagination.pageSize, pagination.total)} de ${pagination.total}` : "Nenhum resultado"}</span><button disabled={page <= 1 || loading} onClick={() => setPage((current) => current - 1)}>Anterior</button><span>Página {page} de {Math.max(pagination.totalPages, 1)}</span><button disabled={page >= pagination.totalPages || loading} onClick={() => setPage((current) => current + 1)}>Próxima</button></div>
       </section>
       {showForm && <div className="page-form-layer"><form onSubmit={saveUser} className="modal-card wide-modal user-modal page-form-card">
         <button type="button" className="page-back" onClick={() => setShowForm(false)}><Icon name="arrow" size={16}/>Voltar para usuários</button>
-        <div className="modal-title"><div><span>{editingId ? "EDIÇÃO DE USUÁRIO" : "NOVO USUÁRIO"}</span><h2>{editingId ? form.nome : "Cadastrar colaborador"}</h2><p>{editingId ? "Os dados serão carregados do cadastro atual. Ao salvar, uma senha temporária será enviada ao e-mail cadastrado." : "Preencha os dados de identificação, acesso e endereço do colaborador. As credenciais temporárias serão enviadas ao e-mail informado."}</p></div></div>
+        <div className="modal-title"><div><span>{editingId ? "EDIÇÃO DE USUÁRIO" : "NOVO USUÁRIO"}</span><h2>{editingId ? form.nome : "Cadastrar colaborador"}</h2><p>{editingId ? "Atualize os dados do cadastro. A senha atual não será alterada." : "Preencha os dados de identificação, acesso e endereço do colaborador. As credenciais temporárias serão enviadas ao e-mail informado."}</p></div></div>
         <div className="form-section-title">Identificação e acesso</div>
         <div className="modal-row"><label>Nome completo<input required value={form.nome} onChange={(event) => updateField("nome", event.target.value)} placeholder="Nome e sobrenome"/></label><label>Telefone / WhatsApp<input value={form.telefone} onChange={(event) => updateField("telefone", event.target.value)} placeholder="(00) 00000-0000"/></label></div>
         <div className="modal-row"><label>E-mail de acesso<input required type="email" value={form.email} readOnly={Boolean(editingId)} onChange={(event) => updateField("email", event.target.value)} placeholder="usuario@empresa.com.br"/></label><label>Perfil<select value={form.perfil} onChange={(event) => updateField("perfil", event.target.value)}><option value="ADMIN">ADMIN</option><option value="MANAGER">MANAGER</option><option value="SELLER">SELLER</option><option value="SUPPORT">SUPPORT</option></select></label></div>
-        {editingId && <div className="role-inheritance-note"><Icon name="settings" size={17}/><span>O e-mail é fixo. Ao salvar, uma senha temporária será enviada para esse endereço e deverá ser trocada no primeiro acesso.</span></div>}
-        <div className="modal-row"><label>Status<select value={form.status} onChange={(event) => updateField("status", event.target.value)}><option value="ativo">Ativo</option><option value="inativo">Inativo</option></select></label><label>Loja<select value={form.lojaId} onChange={(event) => updateField("lojaId", Number(event.target.value))}>{stores.map((store) => <option key={store.id} value={store.id}>{store.nome}</option>)}</select></label></div>
+        {editingId && <div className="role-inheritance-note"><Icon name="settings" size={17}/><span>O e-mail é fixo. O status de acesso pode ser alterado na lista de usuários.</span></div>}
+        <div className="modal-row"><label>Status<select disabled={Boolean(editingId)} value={form.status} onChange={(event) => updateField("status", event.target.value)}><option value="ativo">Ativo</option><option value="inativo">Inativo</option></select></label><label>Loja<select value={form.lojaId} onChange={(event) => updateField("lojaId", Number(event.target.value))}>{stores.map((store) => <option key={store.id} value={store.id}>{store.nome}</option>)}</select></label></div>
         <div className="form-section-title">Endereço completo</div>
         <div className="cep-row"><label>CEP<input value={form.cep} onChange={(event) => updateField("cep", event.target.value)} onBlur={() => { if (form.cep.replace(/\D/g, "").length === 8) void lookupCep(); }} placeholder="00000-000"/></label><button type="button" onClick={() => void lookupCep()}><Icon name="search" size={15}/>Buscar CEP</button><span>{cepStatus}</span></div>
         <div className="modal-row address-main"><label>Logradouro<input value={form.logradouro} onChange={(event) => updateField("logradouro", event.target.value)}/></label><label>Número<input value={form.numero} onChange={(event) => updateField("numero", event.target.value)} placeholder="Nº"/></label></div>
