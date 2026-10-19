@@ -400,6 +400,7 @@ const emptyUserForm: ManagedUserForm = {
 function UsersPage({ authToken }: { authToken: string }) {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [stores, setStores] = useState<StoreRecord[]>([]);
+  const [showAuditLogs, setShowAuditLogs] = useState(false);
   const [search, setSearch] = useState("");
   const [profileFilter, setProfileFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -522,14 +523,16 @@ function UsersPage({ authToken }: { authToken: string }) {
   const activeUsers = users.filter((user) => user.status !== "inativo").length;
   const managers = users.filter((user) => user.perfil.toUpperCase() === "MANAGER").length;
 
+  if (showAuditLogs) return <AuditLogsPage authToken={authToken} onBack={() => setShowAuditLogs(false)} />;
+
   return (
     <div className="content module-content">
-      <section className="module-heading"><div><p>ADMINISTRAÇÃO E ACESSOS</p><h1>Usuários e perfis</h1><span>Gerencie dados pessoais, funções e acessos dos colaboradores.</span></div><button className="primary-button" onClick={() => openForm()}><Icon name="plus" size={18}/>Novo usuário</button></section>
+      <section className="module-heading"><div><p>ADMINISTRAÇÃO E ACESSOS</p><h1>Usuários e perfis</h1><span>Gerencie dados pessoais, funções e acessos dos colaboradores.</span></div><div className="users-heading-actions"><button className="secondary-button" type="button" onClick={() => setShowAuditLogs(true)}>Ver auditoria</button><button className="primary-button" onClick={() => openForm()}><Icon name="plus" size={18}/>Novo usuário</button></div></section>
       <section className="module-summary"><div><span>Usuários encontrados</span><strong>{pagination.total}</strong></div><div><span>Gerentes nesta página</span><strong>{managers}</strong></div><div><span>Inativos nesta página</span><strong>{users.length - activeUsers}</strong></div></section>
       {notice && <div className="auth-notice success">{notice}</div>}
       {error && !showForm && <div className="auth-notice">{error} <button onClick={() => void loadUsers()}>Tentar novamente</button></div>}
       <section className="panel module-table">
-        <div className="module-toolbar"><div className="search-box"><Icon name="search" size={17}/><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Buscar usuário ou e-mail..."/></div><label>Perfil<select value={profileFilter} onChange={(event) => { setProfileFilter(event.target.value); setPage(1); }}><option value="">Todos os perfis</option><option value="ADMIN">ADMIN</option><option value="MANAGER">MANAGER</option><option value="SELLER">SELLER</option><option value="SUPPORT">SUPPORT</option></select></label><label>Status<select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}><option value="">Todos os status</option><option value="ativo">Ativos</option><option value="inativo">Inativos</option></select></label><label>Loja<select value={storeFilter} onChange={(event) => { setStoreFilter(event.target.value); setPage(1); }}><option value="">Todas as lojas</option>{stores.map((store) => <option key={store.id} value={store.id}>{store.nome}</option>)}</select></label></div>
+        <div className="module-toolbar users-toolbar"><div className="search-box"><Icon name="search" size={17}/><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Buscar usuário ou e-mail..."/></div><label className="users-filter">Perfil<select value={profileFilter} onChange={(event) => { setProfileFilter(event.target.value); setPage(1); }}><option value="">Todos os perfis</option><option value="ADMIN">ADMIN</option><option value="MANAGER">MANAGER</option><option value="SELLER">SELLER</option><option value="SUPPORT">SUPPORT</option></select></label><label className="users-filter">Status<select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}><option value="">Todos os status</option><option value="ativo">Ativos</option><option value="inativo">Inativos</option></select></label><label className="users-filter">Loja<select value={storeFilter} onChange={(event) => { setStoreFilter(event.target.value); setPage(1); }}><option value="">Todas as lojas</option>{stores.map((store) => <option key={store.id} value={store.id}>{store.nome}</option>)}</select></label></div>
         <div className="table-wrap"><table><thead><tr><th>USUÁRIO</th><th>CONTATO</th><th>PERFIL</th><th>LOJA</th><th>STATUS</th><th>ACESSOS HERDADOS</th><th></th></tr></thead><tbody>
           {loading ? <tr><td colSpan={7}>Carregando usuários...</td></tr> : users.map((user) => <tr key={user.id}><td><div className="seller-cell"><div className="mini-avatar blue">{initials(user.nome)}</div><div><strong>{user.nome}</strong><small className="table-subcopy">{user.email}</small></div></div></td><td>{user.telefone || "—"}</td><td><span className="role-pill">{user.perfil}</span></td><td>{user.lojaNome || "Loja Brasília"}</td><td><span className={`status ${user.status === "inativo" ? "red" : "green"}`}>{user.status === "inativo" ? "Inativo" : "Ativo"}</span></td><td>{user.perfil.toUpperCase() === "MANAGER" ? <span className="inheritance-pill">MANAGER + SELLER</span> : "—"}</td><td><button className="edit-link" onClick={() => openForm(user)}>Editar</button><button className="edit-link" onClick={() => void changeUserStatus(user)}>{user.status === "inativo" ? "Reativar" : "Inativar"}</button></td></tr>)}
           {!loading && users.length === 0 && <tr><td colSpan={7}>Nenhum usuário cadastrado.</td></tr>}
@@ -552,6 +555,102 @@ function UsersPage({ authToken }: { authToken: string }) {
         {error && <div className="auth-notice">{error}</div>}
         <div className="modal-actions"><button type="button" onClick={() => setShowForm(false)}>Cancelar</button><button className="primary-button" disabled={saving}>{saving ? "Salvando..." : editingId ? "Salvar alterações" : "Cadastrar e gerar acesso"}</button></div>
       </form></div>}
+    </div>
+  );
+}
+
+type AuditLogRecord = {
+  id: number;
+  actorId: number;
+  action: string;
+  details: unknown;
+  createdAt: string;
+  actor: { id: number; nome: string; email: string; perfil: string };
+};
+type AuditLogFilters = { actorId: string; action: string; from: string; to: string };
+
+function AuditLogsPage({ authToken, onBack }: { authToken: string; onBack: () => void }) {
+  const [filters, setFilters] = useState<AuditLogFilters>({ actorId: "", action: "", from: "", to: "" });
+  const [appliedFilters, setAppliedFilters] = useState<AuditLogFilters>({ actorId: "", action: "", from: "", to: "" });
+  const [logs, setLogs] = useState<AuditLogRecord[]>([]);
+  const [pagination, setPagination] = useState({ page: 1, pageSize: 25, total: 0, totalPages: 0 });
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    const query = new URLSearchParams({ page: String(page), pageSize: "25" });
+    if (appliedFilters.actorId) query.set("actorId", appliedFilters.actorId);
+    if (appliedFilters.action) query.set("action", appliedFilters.action);
+    if (appliedFilters.from) query.set("from", appliedFilters.from);
+    if (appliedFilters.to) query.set("to", appliedFilters.to);
+    setLoading(true);
+    setError("");
+    fetch(`${API_BASE_URL}/audit-logs?${query.toString()}`, { headers: { Authorization: "Bearer " + authToken } })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(payload?.message || "Não foi possível carregar o histórico de auditoria.");
+        return payload?.data;
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setLogs(Array.isArray(data?.items) ? data.items : []);
+        setPagination(data?.pagination || { page: 1, pageSize: 25, total: 0, totalPages: 0 });
+      })
+      .catch((requestError) => {
+        if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Falha ao carregar o histórico.");
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [authToken, appliedFilters, page]);
+
+  const updateFilter = (field: keyof AuditLogFilters, value: string) => setFilters((current) => ({ ...current, [field]: value }));
+  const applyFilters = (event: FormEvent) => {
+    event.preventDefault();
+    const actorId = filters.actorId.trim();
+    if (actorId && (!/^\d+$/.test(actorId) || !Number.isSafeInteger(Number(actorId)) || Number(actorId) < 1)) {
+      setError("Informe um ID de usuário válido.");
+      return;
+    }
+    if (filters.from && filters.to && filters.from > filters.to) {
+      setError("A data inicial deve ser anterior ou igual à data final.");
+      return;
+    }
+    setError("");
+    setPage(1);
+    setAppliedFilters({ ...filters, actorId });
+  };
+  const clearFilters = () => {
+    const emptyFilters = { actorId: "", action: "", from: "", to: "" };
+    setFilters(emptyFilters);
+    setAppliedFilters(emptyFilters);
+    setPage(1);
+    setError("");
+  };
+  const formatTimestamp = (value: string) => {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(date);
+  };
+
+  return (
+    <div className="content module-content">
+      <section className="module-heading"><div><p>ADMINISTRAÇÃO E ACESSOS</p><h1>Histórico de auditoria</h1><span>Consulte ações registradas pelos usuários no sistema.</span></div><button className="secondary-button" type="button" onClick={onBack}><Icon name="arrow" size={16}/>Voltar aos usuários</button></section>
+      <section className="panel audit-log-panel">
+        <form className="audit-log-filters" onSubmit={applyFilters}>
+          <label>ID do usuário<input type="number" min="1" step="1" value={filters.actorId} onChange={(event) => updateFilter("actorId", event.target.value)} placeholder="Todos"/></label>
+          <label>Ação<input value={filters.action} onChange={(event) => updateFilter("action", event.target.value)} placeholder="Ex.: USER_UPDATED"/></label>
+          <label>Data inicial<input type="date" value={filters.from} onChange={(event) => updateFilter("from", event.target.value)}/></label>
+          <label>Data final<input type="date" value={filters.to} onChange={(event) => updateFilter("to", event.target.value)}/></label>
+          <div className="audit-filter-actions"><button type="button" className="secondary-button" onClick={clearFilters}>Limpar</button><button type="submit" className="primary-button">Aplicar filtros</button></div>
+        </form>
+        {error && <div className="auth-notice">{error}</div>}
+        <div className="table-wrap audit-log-table-wrap"><table><thead><tr><th>DATA E HORA</th><th>USUÁRIO</th><th>AÇÃO</th><th>DETALHES</th></tr></thead><tbody>
+          {loading ? <tr><td colSpan={4}>Carregando histórico...</td></tr> : logs.map((log) => <tr key={log.id}><td>{formatTimestamp(log.createdAt)}</td><td><strong>{log.actor?.nome || `Usuário ${log.actorId}`}</strong><small className="table-subcopy">{log.actor?.email || "Ator indisponível"}</small></td><td><span className="audit-action-pill">{log.action}</span></td><td><details className="audit-details"><summary>Ver detalhes</summary><pre>{JSON.stringify(log.details, null, 2) || "Sem detalhes"}</pre></details></td></tr>)}
+          {!loading && logs.length === 0 && <tr><td colSpan={4}>Nenhum registro encontrado para os filtros selecionados.</td></tr>}
+        </tbody></table></div>
+        <div className="pagination-controls"><span>{pagination.total ? `${(page - 1) * pagination.pageSize + 1}–${Math.min(page * pagination.pageSize, pagination.total)} de ${pagination.total}` : "Nenhum registro"}</span><button disabled={page <= 1 || loading} onClick={() => setPage((current) => current - 1)}>Anterior</button><span>Página {page} de {Math.max(pagination.totalPages, 1)}</span><button disabled={page >= pagination.totalPages || loading} onClick={() => setPage((current) => current + 1)}>Próxima</button></div>
+      </section>
     </div>
   );
 }
