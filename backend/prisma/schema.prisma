@@ -117,7 +117,7 @@ model Cliente {
   nome          String
   razaoSocial   String?
   nomeFantasia  String?
-  documento     String?
+  documento     String?               @unique(map: "Cliente_documento_key")
   tipoPessoa    String?
   email         String?
   telefone      String?
@@ -143,7 +143,6 @@ model Cliente {
   lojaId        Int                   @default(1)
   loja          Loja                  @relation(fields: [lojaId], references: [id], onDelete: Restrict)
 
-  @@index([documento])
   @@index([nome])
   @@index([vendedorId, status])
 }

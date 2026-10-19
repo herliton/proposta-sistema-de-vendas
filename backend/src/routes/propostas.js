@@ -4,6 +4,7 @@ import { requireModuleAccess } from '../middleware/requireModuleAccess.js';
 import {
   listPropostas,
   getPropostaById,
+  getPropostaHistory,
   createProposta,
   updateStatusProposta,
   downloadPropostaPdf,
@@ -14,6 +15,7 @@ router.use(authMiddleware, requireModuleAccess('PROPOSALS'));
 
 router.get('/', listPropostas);
 router.get('/:id/pdf', downloadPropostaPdf);
+router.get('/:id/history', getPropostaHistory);
 router.get('/:id', getPropostaById);
 router.post('/', createProposta);
 router.patch('/:id/status', updateStatusProposta);

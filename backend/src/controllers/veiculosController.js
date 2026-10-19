@@ -49,7 +49,7 @@ const validateVehicle = (body, existing = {}) => {
   };
   if (!vehicle.marca || !vehicle.modelo) return { error: 'Marca e modelo são obrigatórios.' };
   if (!Number.isInteger(vehicle.anoFabricacao) || !Number.isInteger(vehicle.anoModelo) || vehicle.anoFabricacao < 1900 || vehicle.anoModelo < vehicle.anoFabricacao || vehicle.anoModelo > new Date().getFullYear() + 2) return { error: 'Informe anos de fabricação e modelo válidos.' };
-  if (!Number.isFinite(vehicle.precoSugerido) || !Number.isFinite(vehicle.precoMinimo) || vehicle.precoSugerido <= 0 || vehicle.precoMinimo <= 0) return { error: 'Preço sugerido e preço mínimo devem ser maiores que zero.' };
+  if (!Number.isFinite(vehicle.precoSugerido) || !Number.isFinite(vehicle.precoMinimo) || vehicle.precoSugerido < 0 || vehicle.precoMinimo < 0) return { error: 'Preço sugerido e preço mínimo não podem ser negativos.' };
   if (vehicle.precoSugerido < vehicle.precoMinimo) return { error: 'O preço sugerido não pode ser menor que o preço mínimo.' };
   if (!Number.isFinite(vehicle.valorFipe) || vehicle.valorFipe < 0) return { error: 'O valor FIPE não pode ser negativo.' };
   if (!['AVAILABLE', 'IN_NEGOTIATION', 'SOLD'].includes(vehicle.status)) return { error: 'Status do veículo inválido.' };
@@ -63,7 +63,7 @@ const validateVehicle = (body, existing = {}) => {
 };
 const vehicleData = (vehicle) => ({
   marca: vehicle.marca, modelo: vehicle.modelo, ano: vehicle.anoFabricacao, anoFabricacao: vehicle.anoFabricacao,
-  anoModelo: vehicle.anoModelo, codigoFipe: vehicle.codigoFipe || null, valorFipe: vehicle.valorFipe || null,
+  anoModelo: vehicle.anoModelo, codigoFipe: vehicle.codigoFipe || null, valorFipe: vehicle.valorFipe ?? null,
   precoSugerido: vehicle.precoSugerido, precoMinimo: vehicle.precoMinimo, placa: vehicle.placa || null,
   status: dbStatus(vehicle.status), observacoes: vehicle.observacoes || null,
   fotoDireita: vehicle.fotos.right, fotoEsquerda: vehicle.fotos.left, fotoFrente: vehicle.fotos.front,
@@ -146,7 +146,10 @@ export const lookupFipe = async (req, res) => {
 export const getVeiculoById = async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ success: false, error: 'INVALID_VEHICLE_ID', message: 'Identificador de veículo inválido.' });
-  const vehicle = await prisma.veiculo.findFirst({ where: { id, deletedAt: null, ...storeScope(req.user) }, include: { _count: { select: { propostas: { where: { status: { in: activeProposalStatuses }, deletedAt: null } } } } });
+  const vehicle = await prisma.veiculo.findFirst({
+    where: { id, deletedAt: null, ...storeScope(req.user) },
+    include: { _count: { select: { propostas: { where: { status: { in: activeProposalStatuses }, deletedAt: null } } } } },
+  });
   if (!vehicle) return notFound(res, 'Veículo não encontrado');
   return ok(res, normalizeVehicle(vehicle), 'Veículo encontrado');
 };
@@ -154,9 +157,14 @@ export const getVeiculoById = async (req, res) => {
 export const createVeiculo = async (req, res) => {
   const { vehicle, error } = validateVehicle(req.body);
   if (error) return res.status(400).json({ success: false, error: 'INVALID_VEHICLE', message: error });
+  if (vehicle.status !== 'AVAILABLE') return res.status(400).json({ success: false, error: 'STATUS_TRANSITION_REQUIRED', message: 'Veículos novos devem ser cadastrados como disponíveis.' });
   const lojaId = writeStoreId(req.user, req.body.lojaId);
   if (!lojaId) return res.status(400).json({ success: false, error: 'STORE_REQUIRED', message: 'Selecione uma loja específica antes de cadastrar o veículo.' });
-  const record = await prisma.veiculo.create({ data: { ...vehicleData(vehicle), lojaId }, include: { _count: { select: { propostas: true } } } });
+  const record = await prisma.$transaction(async (tx) => {
+    const createdVehicle = await tx.veiculo.create({ data: { ...vehicleData(vehicle), lojaId }, include: { _count: { select: { propostas: true } } } });
+    await tx.auditLog.create({ data: { actorId: Number(req.user.id), action: 'VEHICLE_CREATED', details: { veiculoId: createdVehicle.id, lojaId } } });
+    return createdVehicle;
+  });
   return created(res, normalizeVehicle(record), 'Veículo criado com sucesso');
 };
 
@@ -165,8 +173,11 @@ export const updateVeiculo = async (req, res) => {
   if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ success: false, error: 'INVALID_VEHICLE_ID', message: 'Identificador de veículo inválido.' });
   const existing = await prisma.veiculo.findFirst({ where: { id, deletedAt: null, ...storeScope(req.user) } });
   if (!existing) return notFound(res, 'Veículo não encontrado');
-  if (req.body.status !== undefined && dbStatus(normalizeStatus(req.body.status)) !== existing.status) {
-    return res.status(400).json({ success: false, error: 'STATUS_TRANSITION_REQUIRED', message: 'A alteração de status deve ser realizada pelo fluxo comercial correspondente.' });
+  if (req.body.status !== undefined) {
+    const statusKey = String(req.body.status).trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '_');
+    if (!statusAliases[statusKey] || dbStatus(statusAliases[statusKey]) !== existing.status) {
+      return res.status(400).json({ success: false, error: 'STATUS_TRANSITION_REQUIRED', message: 'A alteração de status deve ser realizada pelo fluxo comercial correspondente.' });
+    }
   }
   const { vehicle, error } = validateVehicle(req.body, normalizeVehicle(existing));
   if (error) return res.status(400).json({ success: false, error: 'INVALID_VEHICLE', message: error });

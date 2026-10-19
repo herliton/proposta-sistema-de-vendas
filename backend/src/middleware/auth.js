@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
+import { prisma } from '../config/database.js';
 
-export const authMiddleware = (req, res, next) => {
+export const authMiddleware = async (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -13,19 +14,33 @@ export const authMiddleware = (req, res, next) => {
 
   const token = authHeader.split(' ')[1];
 
+  let decoded;
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
-    req.user = decoded;
-    if (Object.hasOwn(decoded, 'lojaId')) return next();
-    import('../config/database.js').then(({ prisma }) => prisma.usuario.findUnique({ where: { id: Number(decoded.id) }, select: { lojaId: true } }))
-      .then((user) => { req.user.lojaId = user?.lojaId ?? null; next(); })
-      .catch(next);
-  } catch (error) {
+    decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
+  } catch {
     return res.status(401).json({
       success: false,
       message: 'Token inválido',
       error: 'INVALID_TOKEN',
     });
+  }
+
+  try {
+    const userId = Number(decoded.id);
+    if (!Number.isSafeInteger(userId) || userId < 1) {
+      return res.status(401).json({ success: false, message: 'Token inválido', error: 'INVALID_TOKEN' });
+    }
+    const currentUser = await prisma.usuario.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, perfil: true, status: true, lojaId: true, firstAccess: true },
+    });
+    if (!currentUser || currentUser.status === 'inativo') {
+      return res.status(401).json({ success: false, message: 'A conta foi desativada ou não está disponível.', error: 'ACCOUNT_INACTIVE' });
+    }
+    req.user = { ...decoded, ...currentUser };
+    return next();
+  } catch (error) {
+    return next(error);
   }
 };
 

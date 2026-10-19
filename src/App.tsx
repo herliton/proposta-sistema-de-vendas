@@ -520,18 +520,18 @@ type VehicleStatus = "AVAILABLE" | "IN_NEGOTIATION" | "SOLD";
 type InventoryVehicle = {
   id: number; marca: string; modelo: string; placa?: string; anoFabricacao: number; anoModelo: number;
   codigoFipe?: string; valorFipe: number; precoSugerido: number; precoMinimo: number;
-  status: VehicleStatus; simulacoesAtivas: number; fotos?: Record<string, string>; videoUrl?: string;
+  status: VehicleStatus; simulacoesAtivas: number; fotos?: Record<string, string>; videoUrl?: string; videoDuracao?: number; observacoes?: string;
 };
 type VehicleForm = {
   marca: string; modelo: string; placa: string; anoFabricacao: string; anoModelo: string; codigoFipe: string;
   valorFipe: string; precoSugerido: string; precoMinimo: string;
   fotos: { right: string; left: string; front: string; rear: string; interior: string };
-  videoUrl: string; videoDuracaoSegundos: string;
+  videoUrl: string; videoDuracaoSegundos: string; observacoes: string;
 };
 const emptyVehicleForm: VehicleForm = {
   marca: "", modelo: "", placa: "", anoFabricacao: "", anoModelo: "", codigoFipe: "",
   valorFipe: "", precoSugerido: "", precoMinimo: "",
-  fotos: { right: "", left: "", front: "", rear: "", interior: "" }, videoUrl: "", videoDuracaoSegundos: "",
+  fotos: { right: "", left: "", front: "", rear: "", interior: "" }, videoUrl: "", videoDuracaoSegundos: "", observacoes: "",
 };
 const moneyLabel = (value: number) => value ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value) : "—";
 const moneyValue = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(value || 0);
@@ -539,11 +539,20 @@ const moneyValue = (value: number) => new Intl.NumberFormat("pt-BR", { style: "c
 function VehiclesPage({ authToken, profile }: { authToken: string; profile: string }) {
   const [vehicles, setVehicles] = useState<InventoryVehicle[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [editingVehicle, setEditingVehicle] = useState<InventoryVehicle | null>(null);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [mfgYearFilter, setMfgYearFilter] = useState("ALL");
   const [modelYearFilter, setModelYearFilter] = useState("ALL");
   const [brandFilter, setBrandFilter] = useState("ALL");
   const [search, setSearch] = useState("");
+  const [minimumPrice, setMinimumPrice] = useState("");
+  const [maximumPrice, setMaximumPrice] = useState("");
+  const [sortBy, setSortBy] = useState("createdAt");
+  const [sortOrder, setSortOrder] = useState("desc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [pagination, setPagination] = useState({ total: 0, totalPages: 0 });
+  const [summary, setSummary] = useState({ available: 0, inNegotiation: 0, sold: 0 });
   const [form, setForm] = useState<VehicleForm>(emptyVehicleForm);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -561,7 +570,7 @@ function VehiclesPage({ authToken, profile }: { authToken: string; profile: stri
     if (!response.ok) throw new Error(payload?.message || "Não foi possível concluir a operação.");
     return payload?.data;
   };
-  const loadVehicles = async () => {
+  const loadVehicles = async (requestedPage = page) => {
     setLoading(true); setError("");
     const params = new URLSearchParams();
     if (search.trim()) params.set("search", search.trim());
@@ -569,13 +578,22 @@ function VehiclesPage({ authToken, profile }: { authToken: string; profile: stri
     if (mfgYearFilter !== "ALL") params.set("mfg_year", mfgYearFilter);
     if (modelYearFilter !== "ALL") params.set("model_year", modelYearFilter);
     if (statusFilter !== "ALL") params.set("status", statusFilter);
+    if (minimumPrice) params.set("minPrice", minimumPrice);
+    if (maximumPrice) params.set("maxPrice", maximumPrice);
+    params.set("sortBy", sortBy);
+    params.set("sortOrder", sortOrder);
+    params.set("page", String(requestedPage));
+    params.set("pageSize", String(pageSize));
     try {
       const records = await apiRequest(`/veiculos?${params.toString()}`);
-      setVehicles(Array.isArray(records) ? records : []);
+      const result = records && !Array.isArray(records) ? records as { items?: InventoryVehicle[]; pagination?: { total?: number; totalPages?: number }; summary?: { available?: number; inNegotiation?: number; sold?: number } } : null;
+      setVehicles(Array.isArray(records) ? records : Array.isArray(result?.items) ? result.items : []);
+      setPagination({ total: Number(result?.pagination?.total || 0), totalPages: Number(result?.pagination?.totalPages || 0) });
+      setSummary({ available: Number(result?.summary?.available || 0), inNegotiation: Number(result?.summary?.inNegotiation || 0), sold: Number(result?.summary?.sold || 0) });
     } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Falha ao carregar veículos."); }
     finally { setLoading(false); }
   };
-  useEffect(() => { void loadVehicles(); }, [authToken, search, brandFilter, mfgYearFilter, modelYearFilter, statusFilter]);
+  useEffect(() => { void loadVehicles(); }, [authToken, search, brandFilter, mfgYearFilter, modelYearFilter, statusFilter, minimumPrice, maximumPrice, sortBy, sortOrder, page, pageSize]);
   const uploadMedia = async (file: File, kind: "photo" | "video") => {
     setError(""); setUploading(kind);
     try {
@@ -620,13 +638,33 @@ function VehiclesPage({ authToken, profile }: { authToken: string; profile: stri
     const body = {
       ...form, anoFabricacao: Number(form.anoFabricacao), anoModelo: Number(form.anoModelo),
       valorFipe: Number(form.valorFipe), precoSugerido: Number(form.precoSugerido), precoMinimo: Number(form.precoMinimo),
-      videoDuracaoSegundos: form.videoUrl ? Number(form.videoDuracaoSegundos) : 0, status: "AVAILABLE",
+      videoDuracaoSegundos: form.videoUrl ? Number(form.videoDuracaoSegundos) : 0,
     };
     try {
-      await apiRequest("/veiculos", { method: "POST", body: JSON.stringify(body) });
-      setShowForm(false); setForm(emptyVehicleForm); setNotice("Veículo cadastrado no estoque."); await loadVehicles();
-    } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Falha ao cadastrar veículo."); }
+      await apiRequest(editingVehicle ? `/veiculos/${editingVehicle.id}` : "/veiculos", { method: editingVehicle ? "PUT" : "POST", body: JSON.stringify(body) });
+      setShowForm(false); setEditingVehicle(null); setForm(emptyVehicleForm); setNotice(editingVehicle ? "Veículo atualizado no estoque." : "Veículo cadastrado no estoque."); setPage(1); await loadVehicles(1);
+    } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Falha ao salvar veículo."); }
     finally { setSaving(false); }
+  };
+  const editVehicle = (vehicle: InventoryVehicle) => {
+    setError(""); setEditingVehicle(vehicle);
+    setForm({
+      marca: vehicle.marca, modelo: vehicle.modelo, placa: vehicle.placa || "",
+      anoFabricacao: String(vehicle.anoFabricacao), anoModelo: String(vehicle.anoModelo),
+      codigoFipe: vehicle.codigoFipe || "", valorFipe: String(vehicle.valorFipe || ""),
+      precoSugerido: String(vehicle.precoSugerido || ""), precoMinimo: String(vehicle.precoMinimo || ""),
+      fotos: { right: vehicle.fotos?.right || "", left: vehicle.fotos?.left || "", front: vehicle.fotos?.front || "", rear: vehicle.fotos?.rear || "", interior: vehicle.fotos?.interior || "" },
+      videoUrl: vehicle.videoUrl || "", videoDuracaoSegundos: String(vehicle.videoDuracao || ""), observacoes: vehicle.observacoes || "",
+    });
+    setShowForm(true);
+  };
+  const archiveVehicle = async (vehicle: InventoryVehicle) => {
+    if (!window.confirm(`Arquivar ${vehicle.marca} ${vehicle.modelo}? Veículos com histórico comercial não podem ser arquivados.`)) return;
+    setError(""); setNotice("");
+    try {
+      await apiRequest(`/veiculos/${vehicle.id}`, { method: "DELETE" });
+      setNotice("Veículo arquivado."); setPage(1); await loadVehicles(1);
+    } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Falha ao arquivar veículo."); }
   };
   const lookupFipe = async () => {
     setLookingUpFipe(true); setError("");
@@ -638,28 +676,30 @@ function VehiclesPage({ authToken, profile }: { authToken: string; profile: stri
     } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Falha ao consultar a FIPE."); }
     finally { setLookingUpFipe(false); }
   };
-  const closeForm = () => { setShowForm(false); setError(""); setForm(emptyVehicleForm); };
+  const closeForm = () => { setShowForm(false); setEditingVehicle(null); setError(""); setForm(emptyVehicleForm); };
 
   return <div className="content module-content">
     <section className="module-heading"><div><p>GESTÃO DE ESTOQUE</p><h1>Veículos</h1><span>Controle preços, mídias e disponibilidade do estoque.</span></div>{canManage && <button className="primary-button" onClick={() => { setError(""); setShowForm(true); }}><Icon name="plus" size={18}/>Cadastrar veículo</button>}</section>
     {notice && <div className="auth-notice success">{notice}</div>}{error && !showForm && <div className="auth-notice">{error}</div>}
-    <section className="module-summary"><div><span>Disponíveis</span><strong>{vehicles.filter((v) => v.status === "AVAILABLE").length}</strong></div><div><span>Em negociação</span><strong>{vehicles.filter((v) => v.status === "IN_NEGOTIATION").length}</strong></div><div><span>Vendidos</span><strong>{vehicles.filter((v) => v.status === "SOLD").length}</strong></div></section>
+    <section className="module-summary"><div><span>Disponíveis</span><strong>{summary.available}</strong></div><div><span>Em negociação</span><strong>{summary.inNegotiation}</strong></div><div><span>Vendidos</span><strong>{summary.sold}</strong></div></section>
     <section className="panel module-table">
-      <div className="module-toolbar vehicle-toolbar"><div className="search-box"><Icon name="search" size={17}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar marca, modelo ou placa..."/></div><div className="filter-fields"><select value={mfgYearFilter} onChange={(event) => setMfgYearFilter(event.target.value)}><option value="ALL">Todos os anos fab.</option>{[...new Set(vehicles.map((v) => v.anoFabricacao).filter(Boolean))].sort((a, b) => b - a).map((year) => <option key={year}>{year}</option>)}</select><select value={modelYearFilter} onChange={(event) => setModelYearFilter(event.target.value)}><option value="ALL">Todos os anos mod.</option>{[...new Set(vehicles.map((v) => v.anoModelo).filter(Boolean))].sort((a, b) => b - a).map((year) => <option key={year}>{year}</option>)}</select><select value={brandFilter} onChange={(event) => setBrandFilter(event.target.value)}><option value="ALL">Todas as marcas</option>{allBrands.map((brand) => <option key={brand}>{brand}</option>)}</select><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="ALL">Todos os status</option><option value="AVAILABLE">Disponível</option><option value="IN_NEGOTIATION">Em negociação</option><option value="SOLD">Vendido</option></select></div></div>
-      <div className="table-wrap"><table><thead><tr><th>VEÍCULO</th><th>ANO FAB. / MOD.</th><th>VALOR FIPE</th><th>PREÇO SUGERIDO</th><th>PREÇO MÍNIMO</th><th>SIMULAÇÕES ATIVAS</th><th>STATUS</th></tr></thead><tbody>
-        {loading ? <tr><td colSpan={7}>Carregando estoque...</td></tr> : vehicles.map((vehicle) => <tr key={vehicle.id}><td><div className="vehicle-cell"><div><Icon name="car" size={20}/></div><span><strong>{vehicle.marca} {vehicle.modelo}</strong><small>{vehicle.placa || vehicle.codigoFipe || ""}</small></span></div></td><td>{vehicle.anoFabricacao} / {vehicle.anoModelo}</td><td>{moneyLabel(vehicle.valorFipe)}</td><td><strong>{moneyLabel(vehicle.precoSugerido)}</strong></td><td>{moneyLabel(vehicle.precoMinimo)}</td><td><span className={`simulation-count ${vehicle.simulacoesAtivas ? "has-count" : ""}`}>{vehicle.simulacoesAtivas}</span></td><td><span className={`status ${vehicle.status === "AVAILABLE" ? "green" : vehicle.status === "SOLD" ? "red" : "yellow"}`}>{statusLabel[vehicle.status]}</span></td></tr>)}
-        {!loading && !vehicles.length && <tr><td colSpan={7}>Nenhum veículo encontrado para esses filtros.</td></tr>}
+      <div className="module-toolbar vehicle-toolbar"><div className="search-box"><Icon name="search" size={17}/><input value={search} onChange={(event) => { setPage(1); setSearch(event.target.value); }} placeholder="Buscar marca, modelo ou placa..."/></div><div className="filter-fields"><select value={mfgYearFilter} onChange={(event) => { setPage(1); setMfgYearFilter(event.target.value); }}><option value="ALL">Todos os anos fab.</option>{[...new Set(vehicles.map((v) => v.anoFabricacao).filter(Boolean))].sort((a, b) => b - a).map((year) => <option key={year}>{year}</option>)}</select><select value={modelYearFilter} onChange={(event) => { setPage(1); setModelYearFilter(event.target.value); }}><option value="ALL">Todos os anos mod.</option>{[...new Set(vehicles.map((v) => v.anoModelo).filter(Boolean))].sort((a, b) => b - a).map((year) => <option key={year}>{year}</option>)}</select><select value={brandFilter} onChange={(event) => { setPage(1); setBrandFilter(event.target.value); }}><option value="ALL">Todas as marcas</option>{allBrands.map((brand) => <option key={brand}>{brand}</option>)}</select><select value={statusFilter} onChange={(event) => { setPage(1); setStatusFilter(event.target.value); }}><option value="ALL">Todos os status</option><option value="AVAILABLE">Disponível</option><option value="IN_NEGOTIATION">Em negociação</option><option value="SOLD">Vendido</option></select><input aria-label="Preço mínimo" type="number" min="0" placeholder="Preço mín." value={minimumPrice} onChange={(event) => { setPage(1); setMinimumPrice(event.target.value); }}/><input aria-label="Preço máximo" type="number" min="0" placeholder="Preço máx." value={maximumPrice} onChange={(event) => { setPage(1); setMaximumPrice(event.target.value); }}/><select value={sortBy} onChange={(event) => { setPage(1); setSortBy(event.target.value); }}><option value="createdAt">Mais recentes</option><option value="suggestedPrice">Preço sugerido</option><option value="minimumPrice">Preço mínimo</option><option value="manufacturingYear">Ano fabricação</option><option value="model">Modelo</option></select><select value={sortOrder} onChange={(event) => { setPage(1); setSortOrder(event.target.value); }}><option value="desc">Decrescente</option><option value="asc">Crescente</option></select></div></div>
+      <div className="table-wrap"><table><thead><tr><th>VEÍCULO</th><th>ANO FAB. / MOD.</th><th>VALOR FIPE</th><th>PREÇO SUGERIDO</th><th>PREÇO MÍNIMO</th><th>SIMULAÇÕES ATIVAS</th><th>STATUS</th>{canManage && <th>AÇÕES</th>}</tr></thead><tbody>
+        {loading ? <tr><td colSpan={canManage ? 8 : 7}>Carregando estoque...</td></tr> : vehicles.map((vehicle) => <tr key={vehicle.id}><td><div className="vehicle-cell"><div><Icon name="car" size={20}/></div><span><strong>{vehicle.marca} {vehicle.modelo}</strong><small>{vehicle.placa || vehicle.codigoFipe || ""}</small></span></div></td><td>{vehicle.anoFabricacao} / {vehicle.anoModelo}</td><td>{moneyLabel(vehicle.valorFipe)}</td><td><strong>{moneyLabel(vehicle.precoSugerido)}</strong></td><td>{moneyLabel(vehicle.precoMinimo)}</td><td><span className={`simulation-count ${vehicle.simulacoesAtivas ? "has-count" : ""}`}>{vehicle.simulacoesAtivas}</span></td><td><span className={`status ${vehicle.status === "AVAILABLE" ? "green" : vehicle.status === "SOLD" ? "red" : "yellow"}`}>{statusLabel[vehicle.status]}</span></td>{canManage && <td><div className="flex gap-2"><button type="button" className="text-blue-700" onClick={() => editVehicle(vehicle)}>Editar</button><button type="button" className="text-red-600" onClick={() => void archiveVehicle(vehicle)}>Arquivar</button></div></td>}</tr>)}
+        {!loading && !vehicles.length && <tr><td colSpan={canManage ? 8 : 7}>Nenhum veículo encontrado para esses filtros.</td></tr>}
       </tbody></table></div>
+      <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-slate-600"><span>{pagination.total} veículo(s) · Página {page} de {Math.max(1, pagination.totalPages)}</span><div className="flex items-center gap-2"><select aria-label="Itens por página" value={pageSize} onChange={(event) => { setPage(1); setPageSize(Number(event.target.value)); }}><option value={10}>10 por página</option><option value={20}>20 por página</option><option value={50}>50 por página</option></select><button type="button" disabled={page <= 1 || loading} onClick={() => setPage((current) => current - 1)}>Anterior</button><button type="button" disabled={page >= pagination.totalPages || loading} onClick={() => setPage((current) => current + 1)}>Próxima</button></div></div>
     </section>
     {showForm && <div className="page-form-layer"><form onSubmit={submitVehicle} className="modal-card wide-modal vehicle-modal page-form-card">
       <button type="button" className="page-back" onClick={closeForm}><Icon name="arrow" size={16}/>Voltar para veículos</button>
-      <div className="modal-title"><div><span>NOVO ITEM DO ESTOQUE</span><h2>Cadastrar veículo</h2><p>Informe os dados e URLs das cinco fotos obrigatórias.</p></div></div>
+      <div className="modal-title"><div><span>{editingVehicle ? "EDITAR ESTOQUE" : "NOVO ITEM DO ESTOQUE"}</span><h2>{editingVehicle ? `Editar ${editingVehicle.marca} ${editingVehicle.modelo}` : "Cadastrar veículo"}</h2><p>Informe os dados e URLs das cinco fotos obrigatórias.</p></div></div>
       <div className="form-section-title">Identificação</div>
       <div className="modal-row"><label>Marca<input required value={form.marca} onChange={(event) => setForm({ ...form, marca: event.target.value })} placeholder="Ex.: Jeep"/></label><label>Modelo<input required value={form.modelo} onChange={(event) => setForm({ ...form, modelo: event.target.value })} placeholder="Ex.: Compass Limited"/></label></div>
       <div className="modal-row"><label>Ano de fabricação<input required type="number" min="1900" max={new Date().getFullYear() + 2} value={form.anoFabricacao} onChange={(event) => setForm({ ...form, anoFabricacao: event.target.value })}/></label><label>Ano do modelo<input required type="number" min="1900" max={new Date().getFullYear() + 2} value={form.anoModelo} onChange={(event) => setForm({ ...form, anoModelo: event.target.value })}/></label></div>
       <div className="modal-row"><label>Código FIPE<input value={form.codigoFipe} onChange={(event) => setForm({ ...form, codigoFipe: event.target.value })} placeholder="000000-0"/></label><label>Placa<input value={form.placa} onChange={(event) => setForm({ ...form, placa: event.target.value.toUpperCase() })} placeholder="ABC1D23"/></label></div>
       <div className="form-section-title">Precificação</div>
       <div className="pricing-grid"><label>Valor FIPE<div className="input-action"><input required type="number" min="0" step="0.01" value={form.valorFipe} onChange={(event) => setForm({ ...form, valorFipe: event.target.value })} placeholder="R$ 0,00"/><button type="button" disabled={lookingUpFipe || !form.codigoFipe} onClick={() => void lookupFipe()}>{lookingUpFipe ? "Consultando..." : "Consultar FIPE"}</button></div></label><label>Preço sugerido<input required type="number" min="0.01" step="0.01" value={form.precoSugerido} onChange={(event) => setForm({ ...form, precoSugerido: event.target.value })} placeholder="R$ 0,00"/></label><label>Preço mínimo<input required type="number" min="0.01" step="0.01" value={form.precoMinimo} onChange={(event) => setForm({ ...form, precoMinimo: event.target.value })} placeholder="R$ 0,00"/></label></div>
+      <label>Observações<textarea value={form.observacoes} onChange={(event) => setForm({ ...form, observacoes: event.target.value })} rows={3}/></label>
       <div className="form-section-title">Fotos obrigatórias · até 10 MB cada</div>
       <div className="media-grid vehicle-upload-grid">
         {([{ key: "front", label: "Frente" }, { key: "right", label: "Lateral direita" }, { key: "left", label: "Lateral esquerda" }, { key: "rear", label: "Traseira" }, { key: "interior", label: "Interior" }] as const).map(({ key, label }) => <label className={form.fotos[key] ? "uploaded" : ""} key={key}><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void choosePhoto(key, event.target.files?.[0])}/><Icon name={form.fotos[key] ? "check" : "plus"} size={18}/><span>{uploading === "photo" ? "Enviando foto..." : form.fotos[key] ? `${label} enviada` : label}</span></label>)}
@@ -667,7 +707,7 @@ function VehiclesPage({ authToken, profile }: { authToken: string; profile: stri
       </div>
       {form.videoUrl && <p className="table-subcopy">Duração validada: {form.videoDuracaoSegundos} segundos.</p>}
       {error && <div className="auth-notice">{error}</div>}
-      <div className="modal-actions"><button type="button" onClick={closeForm}>Cancelar</button><button type="submit" className="primary-button" disabled={saving || Boolean(uploading)}>{saving ? "Salvando..." : "Cadastrar veículo"}</button></div>
+      <div className="modal-actions"><button type="button" onClick={closeForm}>Cancelar</button><button type="submit" className="primary-button" disabled={saving || Boolean(uploading)}>{saving ? "Salvando..." : editingVehicle ? "Salvar alterações" : "Cadastrar veículo"}</button></div>
     </form></div>}
   </div>;
 }
@@ -738,6 +778,11 @@ const emptyCustomerForm: CustomerForm = {
 function CustomersPage({ profile, userName, authToken }: { profile: string; userName: string; authToken: string }) {
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [search, setSearch] = useState("");
+  const [customerTypeFilter, setCustomerTypeFilter] = useState("ALL");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [pagination, setPagination] = useState({ total: 0, totalPages: 0 });
+  const [summary, setSummary] = useState({ total: 0, pf: 0, pj: 0 });
   const [showForm, setShowForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<CustomerRecord | null>(null);
   const [form, setForm] = useState<CustomerForm>(emptyCustomerForm);
@@ -756,16 +801,20 @@ function CustomersPage({ profile, userName, authToken }: { profile: string; user
     if (!response.ok) throw new Error(payload?.message || "Não foi possível concluir a operação.");
     return payload?.data;
   };
-  const loadCustomers = async () => {
+  const loadCustomers = async (requestedPage = page) => {
     setLoading(true); setError("");
     try {
-      const query = search.trim() ? `?search=${encodeURIComponent(search.trim())}` : "";
-      const records = await apiRequest(`/clientes${query}`);
-      setCustomers(Array.isArray(records) ? records : []);
+      const params = new URLSearchParams({ page: String(requestedPage), pageSize: String(pageSize), sortBy: "createdAt", sortOrder: "desc" });
+      if (search.trim()) params.set("search", search.trim());
+      if (customerTypeFilter !== "ALL") params.set("tipo", customerTypeFilter);
+      const result = await apiRequest(`/clientes?${params.toString()}`) as { items?: CustomerRecord[]; pagination?: { total?: number; totalPages?: number }; summary?: { total?: number; pf?: number; pj?: number } } | null;
+      setCustomers(Array.isArray(result?.items) ? result.items : []);
+      setPagination({ total: Number(result?.pagination?.total || 0), totalPages: Number(result?.pagination?.totalPages || 0) });
+      setSummary({ total: Number(result?.summary?.total || 0), pf: Number(result?.summary?.pf || 0), pj: Number(result?.summary?.pj || 0) });
     } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Falha ao carregar clientes."); }
     finally { setLoading(false); }
   };
-  useEffect(() => { void loadCustomers(); }, [authToken, search]);
+  useEffect(() => { void loadCustomers(); }, [authToken, search, customerTypeFilter, page, pageSize]);
 
   const openCustomerForm = (customer: CustomerRecord | null) => {
     setEditingCustomer(customer);
@@ -790,26 +839,32 @@ function CustomersPage({ profile, userName, authToken }: { profile: string; user
       const path = editingCustomer ? `/clientes/${editingCustomer.id}` : "/clientes";
       await apiRequest(path, { method: editingCustomer ? "PUT" : "POST", body: JSON.stringify(form) });
       setNotice(editingCustomer ? "Cadastro atualizado." : "Cliente cadastrado.");
-      setShowForm(false); await loadCustomers();
+      setShowForm(false); setPage(1); await loadCustomers(1);
     } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Falha ao salvar cliente."); }
     finally { setSaving(false); }
   };
   const removeCustomer = async (customer: CustomerRecord) => {
     if (!window.confirm(`Arquivar o cadastro de ${customer.nome}?`)) return;
-    try { await apiRequest(`/clientes/${customer.id}`, { method: "DELETE" }); await loadCustomers(); }
+    try { await apiRequest(`/clientes/${customer.id}`, { method: "DELETE" }); setPage(1); await loadCustomers(1); }
     catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Falha ao arquivar cliente."); }
   };
-  const formatDocument = (customer: CustomerRecord) => customer.tipoPessoa === "pj" ? customer.documento : customer.documento;
+  const formatDocument = (customer: CustomerRecord) => {
+    const digits = customer.documento.replace(/\D/g, "");
+    return customer.tipoPessoa === "pj"
+      ? digits.replace(/^(\d{2})(\d)/, "$1.$2").replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3").replace(/\.(\d{3})(\d)/, ".$1/$2").replace(/(\d{4})(\d)/, "$1-$2")
+      : digits.replace(/^(\d{3})(\d)/, "$1.$2").replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3").replace(/\.(\d{3})(\d)/, ".$1-$2");
+  };
   const money = (value: number) => value ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(value) : "—";
 
   return <div className="content module-content">
     <section className="module-heading"><div><p>OPERAÇÃO COMERCIAL</p><h1>Clientes</h1><span>Cadastre clientes pessoa física ou jurídica e acompanhe os atendimentos de {userName}.</span></div><button className="primary-button" onClick={() => openCustomerForm(null)}><Icon name="plus" size={18}/>Novo cliente</button></section>
-    <section className="module-summary"><div><span>Clientes visíveis</span><strong>{customers.length}</strong></div><div><span>Pessoa física</span><strong>{customers.filter((c) => c.tipoPessoa === "pf").length}</strong></div><div><span>Pessoa jurídica</span><strong>{customers.filter((c) => c.tipoPessoa === "pj").length}</strong></div></section>
+    <section className="module-summary"><div><span>Clientes visíveis</span><strong>{summary.total}</strong></div><div><span>Pessoa física</span><strong>{summary.pf}</strong></div><div><span>Pessoa jurídica</span><strong>{summary.pj}</strong></div></section>
     {error && <div className="auth-notice">{error}</div>}{notice && <div className="auth-notice success">{notice}</div>}
-    <section className="panel module-table"><div className="module-toolbar"><div className="search-box"><Icon name="search" size={17}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar por nome, CPF/CNPJ ou e-mail..."/></div><button onClick={() => void loadCustomers()}><Icon name="search" size={16}/>Atualizar</button></div>
+    <section className="panel module-table"><div className="module-toolbar"><div className="search-box"><Icon name="search" size={17}/><input value={search} onChange={(event) => { setPage(1); setSearch(event.target.value); }} placeholder="Buscar nome, CPF/CNPJ, telefone ou e-mail..."/></div><div className="flex gap-2"><select aria-label="Filtrar tipo de pessoa" value={customerTypeFilter} onChange={(event) => { setPage(1); setCustomerTypeFilter(event.target.value); }}><option value="ALL">Todas as pessoas</option><option value="pf">Pessoa física</option><option value="pj">Pessoa jurídica</option></select><button onClick={() => void loadCustomers()}><Icon name="search" size={16}/>Atualizar</button></div></div>
       <div className="table-wrap"><table><thead><tr><th>CLIENTE</th><th>CPF/CNPJ</th><th>CONTATO</th><th>RENDA</th><th>LOCALIDADE</th><th>TIPO</th><th></th></tr></thead><tbody>
         {loading ? <tr><td colSpan={7}>Carregando clientes...</td></tr> : customers.length ? customers.map((customer) => <tr key={customer.id}><td>{customer.nome}</td><td>{formatDocument(customer)}</td><td>{customer.telefone}<br/><small>{customer.email}</small></td><td>{money(customer.rendaMensal)}</td><td>{customer.cidade}/{customer.estado}</td><td><span className="status blue">{customer.tipoPessoa.toUpperCase()}</span></td><td><button className="edit-customer-button" onClick={() => openCustomerForm(customer)}>Editar <Icon name="arrow" size={14}/></button><button className="edit-customer-button" onClick={() => void removeCustomer(customer)}>Arquivar</button></td></tr>) : <tr><td colSpan={7}>Nenhum cliente encontrado.</td></tr>}
       </tbody></table></div>
+      <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm text-slate-600"><span>{pagination.total} cliente(s) · Página {page} de {Math.max(1, pagination.totalPages)}</span><div className="flex items-center gap-2"><select aria-label="Clientes por página" value={pageSize} onChange={(event) => { setPage(1); setPageSize(Number(event.target.value)); }}><option value={10}>10 por página</option><option value={20}>20 por página</option><option value={50}>50 por página</option></select><button type="button" disabled={page <= 1 || loading} onClick={() => setPage((current) => current - 1)}>Anterior</button><button type="button" disabled={page >= pagination.totalPages || loading} onClick={() => setPage((current) => current + 1)}>Próxima</button></div></div>
     </section>
     {showForm && <div className="page-form-layer"><div className="modal-card wide-modal page-form-card"><button className="page-back" onClick={() => setShowForm(false)}><Icon name="arrow" size={16}/>Voltar para clientes</button>
       <div className="modal-title"><div><span>CADASTRO COMERCIAL</span><h2>{editingCustomer ? "Editar cliente" : "Novo cliente"}</h2><p>Dados pessoais, documento e endereço necessários para propostas e contratos.</p></div></div>

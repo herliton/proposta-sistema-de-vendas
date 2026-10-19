@@ -6,36 +6,109 @@ import { storeScope } from '../utils/storeScope.js';
 
 const rolesWithGlobalView = ['ADMIN', 'SUPPORT'];
 const activeStatuses = ['pendente', 'em análise', 'em analise', 'aguardando', 'simulation', 'proposal', 'simulacao', 'proposta'];
-const roleOf = (user) => String(user?.perfil || user?.role || '').toUpperCase();
+const roleAliases = { ADMINISTRADOR: 'ADMIN', GERENTE: 'MANAGER', VENDEDOR: 'SELLER', SUPORTE: 'SUPPORT' };
+const roleOf = (user) => {
+  const role = String(user?.perfil || user?.role || '').trim().toUpperCase();
+  return roleAliases[role] || role;
+};
 const proposalInclude = { cliente: true, vendedor: { include: { usuario: { select: { id: true, nome: true } } } }, veiculo: true };
 const presentProposal = (proposal) => ({ ...proposal, valorProposta: Number(proposal.valorProposta), entrada: Number(proposal.entrada || 0), taxaJuros: Number(proposal.taxaJuros || 0), valorParcela: Number(proposal.valorParcela || 0), totalFinanciado: Number(proposal.totalFinanciado || 0), vendedor: proposal.vendedor ? { ...proposal.vendedor, nome: proposal.vendedor.usuario?.nome || proposal.vendedor.nome } : null, veiculo: proposal.veiculo ? { ...proposal.veiculo, precoSugerido: Number(proposal.veiculo.precoSugerido || 0), precoMinimo: Number(proposal.veiculo.precoMinimo || 0), valorFipe: Number(proposal.veiculo.valorFipe || 0), fotos: { right: proposal.veiculo.fotoDireita || '', left: proposal.veiculo.fotoEsquerda || '', front: proposal.veiculo.fotoFrente || '', rear: proposal.veiculo.fotoTraseira || '', interior: proposal.veiculo.fotoInterior || '' } } : null });
-const sellerForUser = (id) => prisma.vendedor.findFirst({ where: { usuarioId: Number(id) } });
+const sellerForUser = (id) => prisma.vendedor.findFirst({ where: { usuarioId: Number(id), status: 'ativo', usuario: { status: 'ativo' } } });
 const visibleWhere = async (user) => {
   const role = roleOf(user);
-  if (rolesWithGlobalView.includes(role)) return storeScope(user);
+  if (rolesWithGlobalView.includes(role)) return { deletedAt: null, ...storeScope(user) };
   const seller = await sellerForUser(user.id);
-  if (role === 'MANAGER') return { AND: [{ OR: [{ vendedorId: seller?.id ?? -1 }, { vendedor: { usuario: { gerenteId: Number(user.id) } } }] }, storeScope(user)] };
-  return { vendedorId: seller?.id ?? -1, ...storeScope(user) };
+  if (role === 'MANAGER') return { AND: [{ deletedAt: null }, { OR: [{ vendedorId: seller?.id ?? -1 }, { vendedor: { usuario: { gerenteId: Number(user.id) } } }] }, storeScope(user)] };
+  return { deletedAt: null, vendedorId: seller?.id ?? -1, ...storeScope(user) };
 };
 
 export const listPropostas = async (req, res) => {
-  const where = await visibleWhere(req.user);
-  const proposals = await prisma.proposta.findMany({ where, include: proposalInclude, orderBy: { createdAt: 'desc' } });
-  return ok(res, proposals.map(presentProposal), 'Propostas carregadas com sucesso');
+  const baseWhere = await visibleWhere(req.user);
+  const search = String(req.query.search || req.query.q || '').trim();
+  if (search.length > 191) return res.status(400).json({ success: false, error: 'SEARCH_TOO_LONG', message: 'A busca deve ter no máximo 191 caracteres.' });
+  const status = String(req.query.status || '').trim();
+  const customerId = req.query.clienteId === undefined ? undefined : Number(req.query.clienteId);
+  const vehicleId = req.query.veiculoId === undefined ? undefined : Number(req.query.veiculoId);
+  const sellerId = req.query.vendedorId === undefined ? undefined : Number(req.query.vendedorId);
+  const startDateValue = String(req.query.startDate || '');
+  const endDateValue = String(req.query.endDate || '');
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/;
+  if ([customerId, vehicleId, sellerId].some((id) => id !== undefined && (!Number.isSafeInteger(id) || id < 1))) return res.status(400).json({ success: false, error: 'INVALID_FILTER', message: 'Um identificador de filtro é inválido.' });
+  if (status && ![...activeStatuses, 'CREDIT_REJECTED', 'CONTRACT_EFFECTIVE', 'CANCELLED', 'REJECTED'].includes(status)) return res.status(400).json({ success: false, error: 'INVALID_STATUS', message: 'O status do filtro é inválido.' });
+  if (Boolean(startDateValue) !== Boolean(endDateValue) || startDateValue && (!dateOnly.test(startDateValue) || !dateOnly.test(endDateValue))) return res.status(400).json({ success: false, error: 'INVALID_DATE_RANGE', message: 'Informe início e fim do período no formato AAAA-MM-DD.' });
+  let dateFilter;
+  if (startDateValue) {
+    const start = new Date(`${startDateValue}T00:00:00.000Z`);
+    const end = new Date(`${endDateValue}T23:59:59.999Z`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start.toISOString().slice(0, 10) !== startDateValue || end.toISOString().slice(0, 10) !== endDateValue || end < start || end.getTime() - start.getTime() > 366 * 24 * 60 * 60 * 1000) return res.status(400).json({ success: false, error: 'INVALID_DATE_RANGE', message: 'O período informado é inválido ou superior a um ano.' });
+    dateFilter = { createdAt: { gte: start, lte: end } };
+  }
+  const paginated = req.query.page !== undefined || req.query.pageSize !== undefined;
+  const page = req.query.page === undefined ? 1 : Number(req.query.page);
+  const pageSize = req.query.pageSize === undefined ? 25 : Number(req.query.pageSize);
+  if (paginated && (!Number.isSafeInteger(page) || page < 1 || !Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 100 || !Number.isSafeInteger((page - 1) * pageSize))) return res.status(400).json({ success: false, error: 'INVALID_PAGINATION', message: 'A página deve ser positiva e o tamanho deve estar entre 1 e 100.' });
+  const sortFields = { createdAt: 'createdAt', status: 'status', amount: 'valorProposta', valorProposta: 'valorProposta' };
+  const sortField = sortFields[String(req.query.sortBy || 'createdAt')];
+  const sortOrder = String(req.query.sortOrder || 'desc').toLowerCase();
+  if (!sortField || !['asc', 'desc'].includes(sortOrder)) return res.status(400).json({ success: false, error: 'INVALID_SORT', message: 'A ordenação solicitada não é permitida.' });
+  const where = {
+    ...baseWhere,
+    ...(status ? { status } : {}),
+    ...(customerId ? { clienteId: customerId } : {}),
+    ...(vehicleId ? { veiculoId: vehicleId } : {}),
+    ...(sellerId ? { vendedorId: sellerId } : {}),
+    ...dateFilter,
+    ...(search ? { OR: [
+      { cliente: { nome: { contains: search } } },
+      { cliente: { documento: { contains: search.replace(/\D/g, '') || search } } },
+      { veiculo: { marca: { contains: search } } },
+      { veiculo: { modelo: { contains: search } } },
+      { vendedor: { nome: { contains: search } } },
+    ] } : {}),
+  };
+  const [proposals, total] = await Promise.all([
+    prisma.proposta.findMany({
+      where,
+      include: proposalInclude,
+      orderBy: [{ [sortField]: sortOrder }, { id: 'desc' }],
+      ...(paginated ? { skip: (page - 1) * pageSize, take: pageSize } : {}),
+    }),
+    paginated ? prisma.proposta.count({ where }) : Promise.resolve(null),
+  ]);
+  const records = proposals.map(presentProposal);
+  if (!paginated) return ok(res, records, 'Propostas carregadas com sucesso');
+  return ok(res, { items: records, pagination: { page, pageSize, total: total || 0, totalPages: Math.ceil((total || 0) / pageSize) } }, 'Propostas carregadas com sucesso');
 };
 
 export const getPropostaById = async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ success: false, error: 'INVALID_PROPOSAL_ID', message: 'Identificador de proposta inválido.' });
   const where = await visibleWhere(req.user);
-  const proposal = await prisma.proposta.findFirst({ where: { id: Number(req.params.id), ...where }, include: proposalInclude });
+  const proposal = await prisma.proposta.findFirst({ where: { id, ...where }, include: proposalInclude });
   if (!proposal) return notFound(res, 'Proposta não encontrada');
   return ok(res, presentProposal(proposal), 'Proposta encontrada');
+};
+
+export const getPropostaHistory = async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ success: false, error: 'INVALID_PROPOSAL_ID', message: 'Identificador de proposta inválido.' });
+  const where = await visibleWhere(req.user);
+  const proposal = await prisma.proposta.findFirst({ where: { id, ...where }, select: { id: true } });
+  if (!proposal) return notFound(res, 'Proposta não encontrada');
+  const events = await prisma.aprovacao.findMany({
+    where: { entidade: 'PROPOSTA', entidadeId: id },
+    select: { id: true, acao: true, observacao: true, createdAt: true, usuario: { select: { id: true, nome: true } } },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+  });
+  return ok(res, events, 'Histórico da proposta carregado com sucesso');
 };
 
 export const createProposta = async (req, res) => {
   const clienteId = Number(req.body.clienteId);
   const veiculoId = Number(req.body.veiculoId);
+  if (![clienteId, veiculoId].every((id) => Number.isSafeInteger(id) && id > 0)) return res.status(400).json({ success: false, error: 'INVALID_REFERENCE', message: 'Selecione um cliente e um veículo válidos.' });
   const [cliente, veiculo] = await Promise.all([
-    prisma.cliente.findFirst({ where: { id: clienteId, deletedAt: null, ...storeScope(req.user) } }),
+    prisma.cliente.findFirst({ where: { id: clienteId, deletedAt: null, status: 'ativo', ...storeScope(req.user) } }),
     prisma.veiculo.findFirst({ where: { id: veiculoId, deletedAt: null, ...storeScope(req.user) } }),
   ]);
   if (!cliente) return res.status(400).json({ success: false, error: 'CUSTOMER_NOT_FOUND', message: 'Selecione um cliente ativo.' });
@@ -50,7 +123,12 @@ export const createProposta = async (req, res) => {
 
   const role = roleOf(req.user);
   let seller = await sellerForUser(req.user.id);
-  if (['ADMIN', 'SUPPORT'].includes(role) && req.body.vendedorId) seller = await prisma.vendedor.findUnique({ where: { id: Number(req.body.vendedorId) } });
+  if (['ADMIN', 'SUPPORT'].includes(role) && req.body.vendedorId) {
+    const requestedSellerId = Number(req.body.vendedorId);
+    seller = Number.isSafeInteger(requestedSellerId) && requestedSellerId > 0
+      ? await prisma.vendedor.findFirst({ where: { id: requestedSellerId, status: 'ativo', usuario: { status: 'ativo' } } })
+      : null;
+  }
   if (!seller) return res.status(409).json({ success: false, error: 'SELLER_PROFILE_MISSING', message: 'Não há vendedor vinculado a esta sessão. Associe um vendedor à proposta.' });
   if (seller.lojaId !== cliente.lojaId || seller.lojaId !== veiculo.lojaId) return res.status(409).json({ success: false, error: 'CROSS_STORE_DEAL', message: 'Cliente, vendedor e veículo precisam pertencer à mesma loja.' });
   if (!['ADMIN', 'SUPPORT'].includes(role) && cliente.vendedorId && cliente.vendedorId !== seller.id) return res.status(409).json({ success: false, error: 'CUSTOMER_OWNED', message: 'Este cliente está sendo atendido por outro vendedor. Solicite a transferência ao gerente.' });
@@ -65,50 +143,131 @@ export const createProposta = async (req, res) => {
   const principal = negotiatedPrice - downPayment;
   const rate = interestRate / 100;
   const installmentValue = rate ? principal * (rate * (1 + rate) ** installments) / ((1 + rate) ** installments - 1) : principal / installments;
-  const proposal = await prisma.$transaction(async (tx) => {
-    const createdProposal = await tx.proposta.create({ data: {
-      clienteId, vendedorId: seller.id, veiculoId, lojaId: veiculo.lojaId, valorProposta: negotiatedPrice, entrada: downPayment, parcelas: installments,
-      taxaJuros: interestRate, valorParcela: Math.round(installmentValue * 100) / 100,
-      totalFinanciado: Math.round(installmentValue * installments * 100) / 100,
-      status: 'pendente', observacoes: String(req.body.observacoes || '').trim() || null,
-    } });
-    await tx.veiculo.update({ where: { id: veiculoId }, data: { status: 'em_negociacao' } });
-    return tx.proposta.findUnique({ where: { id: createdProposal.id }, include: proposalInclude });
-  });
+  if (String(req.body.observacoes || '').length > 191) return res.status(400).json({ success: false, error: 'INVALID_NOTES', message: 'As observações devem ter no máximo 191 caracteres.' });
+  let proposal;
+  try {
+    proposal = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM Veiculo WHERE id = ${veiculoId} FOR UPDATE`;
+      const lockedVehicle = await tx.veiculo.findFirst({ where: { id: veiculoId, deletedAt: null, lojaId: veiculo.lojaId } });
+      const activeCustomer = await tx.cliente.findFirst({ where: { id: clienteId, deletedAt: null, status: 'ativo', lojaId: veiculo.lojaId }, select: { id: true } });
+      const activeSeller = await tx.vendedor.findFirst({ where: { id: seller.id, status: 'ativo', lojaId: veiculo.lojaId, usuario: { status: 'ativo' } }, select: { id: true } });
+      if (!lockedVehicle || !activeCustomer || !activeSeller) {
+        const conflict = new Error('Cliente, vendedor ou veículo deixou de estar disponível.');
+        conflict.code = 'DEAL_REFERENCE_UNAVAILABLE';
+        throw conflict;
+      }
+      if (['vendido', 'SOLD'].includes(String(lockedVehicle.status))) {
+        const conflict = new Error('Este veículo já foi vendido.');
+        conflict.code = 'VEHICLE_SOLD';
+        throw conflict;
+      }
+      if (negotiatedPrice < Number(lockedVehicle.precoMinimo || 0)) {
+        const conflict = new Error('O preço negociado não pode ser inferior ao preço mínimo autorizado.');
+        conflict.code = 'BELOW_MINIMUM_PRICE';
+        throw conflict;
+      }
+      const createdProposal = await tx.proposta.create({ data: {
+        clienteId, vendedorId: seller.id, veiculoId, lojaId: lockedVehicle.lojaId, valorProposta: negotiatedPrice, entrada: downPayment, parcelas: installments,
+        taxaJuros: interestRate, valorParcela: Math.round(installmentValue * 100) / 100,
+        totalFinanciado: Math.round(installmentValue * installments * 100) / 100,
+        status: 'pendente', observacoes: String(req.body.observacoes || '').trim() || null,
+      } });
+      if (lockedVehicle.status !== 'em_negociacao') await tx.veiculo.update({ where: { id: veiculoId }, data: { status: 'em_negociacao' } });
+      await tx.aprovacao.create({ data: { entidade: 'PROPOSTA', entidadeId: createdProposal.id, usuarioId: Number(req.user.id), acao: 'CRIADA' } });
+      return tx.proposta.findUnique({ where: { id: createdProposal.id }, include: proposalInclude });
+    });
+  } catch (error) {
+    if (['DEAL_REFERENCE_UNAVAILABLE', 'VEHICLE_SOLD', 'BELOW_MINIMUM_PRICE'].includes(error.code)) {
+      const response = { DEAL_REFERENCE_UNAVAILABLE: 409, VEHICLE_SOLD: 409, BELOW_MINIMUM_PRICE: 400 }[error.code];
+      return res.status(response).json({ success: false, error: error.code, message: error.message });
+    }
+    throw error;
+  }
   return created(res, presentProposal(proposal), 'Simulação criada e veículo reservado para negociação');
 };
 
 export const updateStatusProposta = async (req, res) => {
   const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ success: false, error: 'INVALID_PROPOSAL_ID', message: 'Identificador de proposta inválido.' });
   const role = roleOf(req.user);
   const where = await visibleWhere(req.user);
-  const proposal = await prisma.proposta.findFirst({ where: { id, ...where }, include: { veiculo: true, vendedor: { include: { usuario: true } } } });
-  if (!proposal) return notFound(res, 'Proposta não encontrada');
   const statusInput = String(req.body.status || '').trim().toUpperCase();
   const nextStatus = ({ REJECTED: 'CREDIT_REJECTED', RECUSADA: 'CREDIT_REJECTED', CREDIT_REJECTED: 'CREDIT_REJECTED', APROVADA: 'CONTRACT_EFFECTIVE', APPROVED: 'CONTRACT_EFFECTIVE', CONTRACT_EFFECTIVE: 'CONTRACT_EFFECTIVE', CANCELLED: 'CANCELLED', CANCELADA: 'CANCELLED', PROPOSAL: 'proposal', PROPOSTA: 'proposal' })[statusInput];
   if (!nextStatus) return res.status(400).json({ success: false, error: 'INVALID_STATUS', message: 'Status de proposta inválido.' });
   if (nextStatus === 'CONTRACT_EFFECTIVE' && !['ADMIN', 'SUPPORT'].includes(role)) return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Somente suporte ou administrador pode efetivar o contrato.' });
-  if (['CREDIT_REJECTED', 'CONTRACT_EFFECTIVE', 'CANCELLED'].includes(nextStatus) && !activeStatuses.includes(String(proposal.status).toLowerCase())) return res.status(409).json({ success: false, error: 'INVALID_TRANSITION', message: 'Esta proposta já saiu de uma etapa ativa.' });
-  const updated = await prisma.$transaction(async (tx) => {
-    const changed = await tx.proposta.update({ where: { id }, data: { status: nextStatus, updatedAt: new Date(), ...(nextStatus === 'CREDIT_REJECTED' ? { motivoRecusa: String(req.body.motivo || 'Proposta recusada') } : {}) } });
-    if (nextStatus === 'CONTRACT_EFFECTIVE') {
-      await tx.veiculo.update({ where: { id: proposal.veiculoId }, data: { status: 'vendido' } });
-      await tx.proposta.updateMany({ where: { veiculoId: proposal.veiculoId, id: { not: id }, status: { in: activeStatuses } }, data: { status: 'REJECTED', motivoRecusa: 'Veículo vendido', updatedAt: new Date() } });
-      await ensureContractAndCommissions(tx, id);
-    } else if (['CREDIT_REJECTED', 'CANCELLED'].includes(nextStatus)) {
-      const others = await tx.proposta.count({ where: { veiculoId: proposal.veiculoId, id: { not: id }, status: { in: activeStatuses } } });
-      if (!others) await tx.veiculo.update({ where: { id: proposal.veiculoId }, data: { status: 'disponivel' } });
-      if (nextStatus === 'CREDIT_REJECTED') {
-        await tx.oportunidadeCredito.upsert({
-          where: { propostaId: id },
-          create: { clienteId: proposal.clienteId, lojaId: proposal.lojaId, propostaId: id, responsavelId: proposal.vendedor.usuarioId, tipo: 'REANALISE_CREDITO', status: 'ABERTA', motivo: proposal.motivoRecusa || String(req.body.motivo || '').trim() || null },
-          update: {},
-        });
+  const initial = await prisma.proposta.findFirst({ where: { id, ...where }, select: { id: true, veiculoId: true } });
+  if (!initial) return notFound(res, 'Proposta não encontrada');
+  const reason = String(req.body.motivo || 'Proposta recusada').trim();
+  if (nextStatus === 'CREDIT_REJECTED' && (!reason || reason.length > 191)) return res.status(400).json({ success: false, error: 'INVALID_REJECTION_REASON', message: 'Informe um motivo de recusa com até 191 caracteres.' });
+  try {
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM Veiculo WHERE id = ${initial.veiculoId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM Proposta WHERE id = ${id} FOR UPDATE`;
+      const proposal = await tx.proposta.findFirst({ where: { id, ...where }, include: { veiculo: true, vendedor: { include: { usuario: true } } } });
+      if (!proposal) {
+        const error = new Error('Proposta não encontrada.');
+        error.code = 'PROPOSAL_NOT_FOUND';
+        throw error;
       }
+      if (!activeStatuses.includes(String(proposal.status).toLowerCase())) {
+        const error = new Error('Esta proposta já saiu de uma etapa ativa.');
+        error.code = 'INVALID_TRANSITION';
+        throw error;
+      }
+      if (nextStatus === 'CONTRACT_EFFECTIVE' && ['vendido', 'SOLD'].includes(String(proposal.veiculo.status))) {
+        const error = new Error('Este veículo já foi vendido por outra proposta.');
+        error.code = 'VEHICLE_ALREADY_SOLD';
+        throw error;
+      }
+      if (nextStatus === 'CONTRACT_EFFECTIVE' && Number(proposal.valorProposta) < Number(proposal.veiculo.precoMinimo || 0)) {
+        const error = new Error('A proposta está abaixo do preço mínimo vigente do veículo.');
+        error.code = 'BELOW_MINIMUM_PRICE';
+        throw error;
+      }
+      const changed = await tx.proposta.update({
+        where: { id },
+        data: { status: nextStatus, updatedAt: new Date(), ...(nextStatus === 'CREDIT_REJECTED' ? { motivoRecusa: reason } : {}) },
+      });
+      if (nextStatus === 'CONTRACT_EFFECTIVE') {
+        await tx.veiculo.update({ where: { id: proposal.veiculoId }, data: { status: 'vendido' } });
+        const otherProposals = await tx.proposta.findMany({
+          where: { veiculoId: proposal.veiculoId, id: { not: id }, status: { in: activeStatuses } },
+          select: { id: true },
+        });
+        await tx.proposta.updateMany({
+          where: { id: { in: otherProposals.map((item) => item.id) } },
+          data: { status: 'REJECTED', motivoRecusa: 'Veículo vendido', updatedAt: new Date() },
+        });
+        for (const other of otherProposals) {
+          await tx.aprovacao.create({ data: { entidade: 'PROPOSTA', entidadeId: other.id, usuarioId: Number(req.user.id), acao: 'RECUSADA_VEICULO_VENDIDO' } });
+        }
+        await ensureContractAndCommissions(tx, id);
+      } else if (['CREDIT_REJECTED', 'CANCELLED'].includes(nextStatus)) {
+        const others = await tx.proposta.count({ where: { veiculoId: proposal.veiculoId, id: { not: id }, status: { in: activeStatuses } } });
+        if (!others && !['vendido', 'SOLD'].includes(String(proposal.veiculo.status))) {
+          await tx.veiculo.update({ where: { id: proposal.veiculoId }, data: { status: 'disponivel' } });
+        }
+        if (nextStatus === 'CREDIT_REJECTED') {
+          await tx.oportunidadeCredito.upsert({
+            where: { propostaId: id },
+            create: { clienteId: proposal.clienteId, lojaId: proposal.lojaId, propostaId: id, responsavelId: proposal.vendedor.usuarioId, tipo: 'REANALISE_CREDITO', status: 'ABERTA', motivo: reason },
+            update: {},
+          });
+        }
+      }
+      await tx.aprovacao.create({
+        data: { entidade: 'PROPOSTA', entidadeId: id, usuarioId: Number(req.user.id), acao: nextStatus, observacao: nextStatus === 'CREDIT_REJECTED' ? reason : null },
+      });
+      return tx.proposta.findUnique({ where: { id: changed.id }, include: proposalInclude });
+    });
+    return ok(res, presentProposal(updated), 'Status da proposta atualizado com sucesso');
+  } catch (error) {
+    if (['PROPOSAL_NOT_FOUND', 'INVALID_TRANSITION', 'VEHICLE_ALREADY_SOLD', 'BELOW_MINIMUM_PRICE'].includes(error.code)) {
+      const response = error.code === 'PROPOSAL_NOT_FOUND' ? 404 : error.code === 'BELOW_MINIMUM_PRICE' ? 400 : 409;
+      return res.status(response).json({ success: false, error: error.code, message: error.message });
     }
-    return tx.proposta.findUnique({ where: { id: changed.id }, include: proposalInclude });
-  });
-  return ok(res, presentProposal(updated), 'Status da proposta atualizado com sucesso');
+    throw error;
+  }
 };
 
 
