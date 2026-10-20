@@ -674,6 +674,7 @@ const emptyVehicleForm: VehicleForm = {
 };
 const moneyLabel = (value: number) => value ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value) : "—";
 const moneyValue = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(value || 0);
+const formatCurrency = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
 
 function VehiclesPage({ authToken, profile }: { authToken: string; profile: string }) {
   const [vehicles, setVehicles] = useState<InventoryVehicle[]>([]);
@@ -1437,7 +1438,7 @@ function TeamsCommissionsPage({ profile, userId, userName, authToken }: { profil
           <div className="panel-header"><div><h3>Equipes de vendas</h3><p>{teamsLoading ? "Carregando equipes..." : `${visibleTeams.length} equipes ativas · ${activeSellers} membros`}</p></div></div>
           {teamsLoading ? <p className="empty-state">Carregando equipes...</p> : visibleTeams.length ? visibleTeams.map((team, index) => {
             const results = salesForTeam(team);
-            return <div className="team-card" key={team.id}><div className={`team-icon team-${(index % 3) + 1}`}><Icon name="users" size={19}/></div><div><strong>{team.nome}</strong><span>Gerente: {team.gerente.nome} · {team._count.membros} membros</span></div><div><strong>{money(results?.sales || 0)}</strong><span>{dashboardLoading ? "Atualizando..." : `${results?.contracts || 0} contratos no período`}</span></div>{profile !== "SUPPORT" && (profile === "ADMIN" || team.gerenteId === userId) && <div className="team-actions"><button className="edit-link" onClick={() => openTeamForm(team)}>Editar</button>{profile === "ADMIN" && <button className="staff-action deactivate" onClick={() => void deactivateTeam(team)}>Desativar</button>}</div>}</div>;
+            return <div className="team-card" key={team.id}><div className={`team-icon team-${(index % 3) + 1}`}><Icon name="users" size={19}/></div><div><strong>{team.nome}</strong><span>Gerente: {team.gerente.nome} · {team._count.membros} membros</span></div><div><strong>{formatCurrency(results?.sales || 0)}</strong><span>{dashboardLoading ? "Atualizando..." : `${results?.contracts || 0} contratos no período`}</span></div>{profile !== "SUPPORT" && (profile === "ADMIN" || team.gerenteId === userId) && <div className="team-actions"><button className="edit-link" onClick={() => openTeamForm(team)}>Editar</button>{profile === "ADMIN" && <button className="staff-action deactivate" onClick={() => void deactivateTeam(team)}>Desativar</button>}</div>}</div>;
           }) : <p className="empty-state">{teamError || "Nenhuma equipe cadastrada."}</p>}
         </section>
         <section className="panel commission-config">
@@ -1446,7 +1447,7 @@ function TeamsCommissionsPage({ profile, userId, userName, authToken }: { profil
             <label>Comissão do vendedor<div className="percent-input"><input type="number" step=".1" value={sellerRate} onChange={(e) => setSellerRate(e.target.value)}/><span>%</span></div><small>Aplicada sobre o valor total vendido pelo vendedor.</small></label>
             <label>Comissão do gerente<div className="percent-input"><input type="number" step=".1" value={managerRate} onChange={(e) => setManagerRate(e.target.value)}/><span>%</span></div><small>Aplicada sobre as vendas de toda a equipe gerenciada.</small></label>
             {commissionError && <div className="auth-notice">{commissionError}</div>}{commissionNotice && <div className="auth-notice success">{commissionNotice}</div>}
-            <div className="commission-preview"><span>Simulação · Resultado no período</span><div><p>Volume vendido<strong>{money(totalSales)}</strong></p><p>Vendedores<strong>{money(totalSales * Number(sellerRate) / 100)}</strong></p><p>Gerência<strong>{money(totalSales * Number(managerRate) / 100)}</strong></p></div></div>
+            <div className="commission-preview"><span>Simulação · Resultado no período</span><div><p>Volume vendido<strong>{formatCurrency(totalSales)}</strong></p><p>Vendedores<strong>{formatCurrency(totalSales * Number(sellerRate) / 100)}</strong></p><p>Gerência<strong>{formatCurrency(totalSales * Number(managerRate) / 100)}</strong></p></div></div>
             <button className="auth-submit" disabled={savingRules || profile !== "ADMIN"} onClick={() => void saveCommissionRules()}>{savingRules ? "Salvando..." : profile === "ADMIN" ? "Salvar regras de comissão" : "Somente administrador pode alterar"}</button>
           </div>
         </section>
@@ -1641,7 +1642,7 @@ function MyTeamPage({ authToken }: { authToken: string }) {
   return (
     <div className="content module-content">
       <section className="module-heading"><div><p>GESTÃO DA EQUIPE</p><h1>Minha equipe</h1><span>Gerencie os vendedores sob sua responsabilidade sem perder o histórico.</span></div><div className="heading-actions"><DateRangePicker value={dateRange} onChange={setDateRange}/><button className="primary-button" onClick={() => { setError(""); setShowCreateForm(true); }}><Icon name="plus" size={18}/>Adicionar vendedor</button></div></section>
-      <section className="module-summary"><div><span>Vendedores ativos</span><strong>{loading ? "…" : activeSellers}</strong></div><div><span>Contratos no período</span><strong>{dashboardLoading ? "…" : dashboard?.summary.contracts ?? "—"}</strong></div><div><span>Produção da equipe</span><strong>{dashboardLoading ? "Atualizando..." : dashboard ? money(dashboard.summary.salesVolume) : "—"}</strong></div></section>
+      <section className="module-summary"><div><span>Vendedores ativos</span><strong>{loading ? "…" : activeSellers}</strong></div><div><span>Contratos no período</span><strong>{dashboardLoading ? "…" : dashboard?.summary.contracts ?? "—"}</strong></div><div><span>Produção da equipe</span><strong>{dashboardLoading ? "Atualizando..." : dashboard ? formatCurrency(dashboard.summary.salesVolume) : "—"}</strong></div></section>
       <div className="audit-notice"><div><Icon name="settings" size={18}/></div><p><strong>Histórico preservado</strong><span>Vendedores desligados não são excluídos. O acesso é revogado, mas propostas, contratos e registros permanecem disponíveis para auditoria.</span></p></div>
       {notice && <div className="auth-notice success" role="status">{notice}</div>}
       {error && !showCreateForm && <div className="auth-notice" role="alert">{error}</div>}
@@ -1652,7 +1653,7 @@ function MyTeamPage({ authToken }: { authToken: string }) {
             const sales = dashboard?.sellers.find((row) => row.id === seller.id)?.sales ?? 0;
             const initials = seller.nome.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toLocaleUpperCase("pt-BR");
             const active = seller.status === "ativo" && seller.usuario?.status !== "inativo";
-            return <tr key={seller.id} className={!active ? "inactive-row" : ""}><td><div className="seller-cell"><div className={`mini-avatar ${active ? "blue" : ""}`}>{initials}</div><strong>{seller.nome}</strong></div></td><td>{seller.email}</td><td>{new Date(seller.createdAt).toLocaleDateString("pt-BR")}</td><td><strong>{dashboardLoading ? "…" : money(sales)}</strong></td><td><span className={`status ${active ? "green" : "red"}`}>{active ? "Ativo" : "Inativo"}</span></td><td><button className={`staff-action ${active ? "deactivate" : "activate"}`} onClick={() => active ? setConfirmIndex(index) : void toggleSeller(seller)}>{active ? "Desativar" : "Reativar acesso"}</button></td></tr>;
+            return <tr key={seller.id} className={!active ? "inactive-row" : ""}><td><div className="seller-cell"><div className={`mini-avatar ${active ? "blue" : ""}`}>{initials}</div><strong>{seller.nome}</strong></div></td><td>{seller.email}</td><td>{new Date(seller.createdAt).toLocaleDateString("pt-BR")}</td><td><strong>{dashboardLoading ? "…" : formatCurrency(sales)}</strong></td><td><span className={`status ${active ? "green" : "red"}`}>{active ? "Ativo" : "Inativo"}</span></td><td><button className={`staff-action ${active ? "deactivate" : "activate"}`} onClick={() => active ? setConfirmIndex(index) : void toggleSeller(seller)}>{active ? "Desativar" : "Reativar acesso"}</button></td></tr>;
           }) : <tr><td colSpan={6}>{error ? "Não foi possível carregar os vendedores." : "Nenhum vendedor encontrado."}</td></tr>}</tbody>
         </table></div>
       </section>
