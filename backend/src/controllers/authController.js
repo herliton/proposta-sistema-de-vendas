@@ -6,6 +6,12 @@ import { prisma } from '../config/database.js';
 import { sendTemporaryAccessEmail, sendPasswordResetEmail } from '../utils/email.js';
 
 const roles = ['ADMIN', 'MANAGER', 'SELLER', 'SUPPORT'];
+const bootstrapCompletedKey = 'INITIAL_ADMIN_BOOTSTRAP_COMPLETED';
+const bootstrapAttemptsKey = 'INITIAL_ADMIN_BOOTSTRAP_ATTEMPTS';
+const bootstrapLockName = 'vfc_initial_admin_setup';
+const bootstrapAttemptLimit = 10;
+const bootstrapWindowMs = 15 * 60 * 1000;
+const activeAdminProfiles = ['ADMIN', 'ADMINISTRADOR'];
 const normalizedEmail = (value) => String(value || '').trim().toLowerCase();
 const userResponse = (user) => ({
   id: user.id, nome: user.nome, email: user.email, perfil: user.perfil, status: user.status || 'ativo',
@@ -36,14 +42,157 @@ const profileFields = (body) => ({
   status: String(body.status || 'ativo').trim().toLowerCase(),
 });
 export const register = async (req, res) => {
-  const nome = String(req.body.nome || '').trim();
-  const email = normalizedEmail(req.body.email);
-  const senha = String(req.body.senha || '');
-  if (!nome || !email || !senha) return res.status(400).json({ success: false, message: 'Nome, email e senha são obrigatórios', error: 'BAD_REQUEST' });
-  if (await conflictEmail(email)) return res.status(409).json({ success: false, message: 'Usuário com este e-mail já existe', error: 'USER_EXISTS' });
-  const user = await prisma.usuario.create({ data: { nome, email, senhaHash: await bcrypt.hash(senha, 10), perfil: 'SELLER', firstAccess: true, status: 'ativo' } });
-  const firstAccess = true;
-  return created(res, { user: userResponse(user), token: tokenFor(user, firstAccess) }, 'Usuário criado com sucesso');
+  return res.status(410).json({ success: false, message: 'O cadastro público foi desativado.', error: 'PUBLIC_REGISTRATION_DISABLED' });
+};
+
+const acquireBootstrapLock = async (tx) => {
+  const rows = await tx.$queryRaw`SELECT GET_LOCK(${bootstrapLockName}, 10) AS acquired`;
+  return Number(rows[0]?.acquired) === 1;
+};
+
+const releaseBootstrapLock = async (tx) => {
+  await tx.$queryRaw`SELECT RELEASE_LOCK(${bootstrapLockName})`;
+};
+
+const bootstrapAlreadyCompleted = async (tx) => {
+  const marker = await tx.configuracao.findUnique({ where: { chave: bootstrapCompletedKey } });
+  if (marker?.valor === true) return true;
+
+  const adminCount = await tx.usuario.count({ where: { perfil: { in: activeAdminProfiles } } });
+  if (adminCount === 0) return false;
+
+  await tx.configuracao.upsert({
+    where: { chave: bootstrapCompletedKey },
+    create: { chave: bootstrapCompletedKey, valor: true },
+    update: { valor: true },
+  });
+  return true;
+};
+
+const isBootstrapCompleted = async () => prisma.$transaction(async (tx) => {
+  if (!(await acquireBootstrapLock(tx))) {
+    const error = new Error('Não foi possível verificar a configuração inicial. Tente novamente.');
+    error.code = 'BOOTSTRAP_LOCK_TIMEOUT';
+    throw error;
+  }
+  try {
+    return await bootstrapAlreadyCompleted(tx);
+  } finally {
+    await releaseBootstrapLock(tx);
+  }
+}, { maxWait: 15000, timeout: 20000 });
+
+const bootstrapCodeMatches = (providedCode, configuredCode) => {
+  const providedHash = createHash('sha256').update(providedCode).digest();
+  const configuredHash = createHash('sha256').update(configuredCode).digest();
+  return timingSafeEqual(providedHash, configuredHash);
+};
+
+export const initialAdminSetupStatus = async (req, res) => {
+  const pending = !(await isBootstrapCompleted());
+  return ok(res, { pending }, 'Estado da configuração inicial carregado.');
+};
+
+export const createInitialAdmin = async (req, res) => {
+  if (await isBootstrapCompleted()) {
+    delete process.env.INITIAL_ADMIN_SETUP_TOKEN;
+    return res.status(409).json({ success: false, message: 'A configuração inicial já foi concluída.', error: 'BOOTSTRAP_ALREADY_COMPLETED' });
+  }
+
+  const configuredCode = process.env.INITIAL_ADMIN_SETUP_TOKEN || '';
+  if (!configuredCode) {
+    return res.status(503).json({ success: false, message: 'A configuração inicial não está habilitada no servidor.', error: 'BOOTSTRAP_NOT_CONFIGURED' });
+  }
+
+  const nome = String(req.body?.nome || '').trim();
+  const email = normalizedEmail(req.body?.email);
+  const senha = String(req.body?.senha || '');
+  const setupToken = String(req.body?.setupToken || '');
+  if (!nome || nome.length > 191 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 191) {
+    return res.status(400).json({ success: false, message: 'Informe nome e e-mail válidos.', error: 'BAD_REQUEST' });
+  }
+  if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{12,}/.test(senha)) {
+    return res.status(400).json({ success: false, message: 'Use uma senha com ao menos 12 caracteres, incluindo maiúscula, minúscula e número.', error: 'WEAK_PASSWORD' });
+  }
+  if (Buffer.byteLength(senha, 'utf8') > 72) {
+    return res.status(400).json({ success: false, message: 'A senha deve ter no máximo 72 bytes.', error: 'PASSWORD_TOO_LONG' });
+  }
+  if (!setupToken || setupToken.length > 512) {
+    return res.status(401).json({ success: false, message: 'Código de configuração inválido.', error: 'INVALID_SETUP_TOKEN' });
+  }
+
+  const setupCodeValid = bootstrapCodeMatches(setupToken, configuredCode);
+  const senhaHash = setupCodeValid ? await bcrypt.hash(senha, 12) : '';
+  const result = await prisma.$transaction(async (tx) => {
+    if (!(await acquireBootstrapLock(tx))) return { status: 'lock-timeout' };
+
+    try {
+      if (await bootstrapAlreadyCompleted(tx)) return { status: 'complete' };
+
+      const now = Date.now();
+      const savedAttempts = await tx.configuracao.findUnique({ where: { chave: bootstrapAttemptsKey } });
+      const attemptData = savedAttempts?.valor && typeof savedAttempts.valor === 'object' ? savedAttempts.valor : {};
+      const resetAt = Number(attemptData.resetAt) || 0;
+      const attempts = resetAt > now ? Number(attemptData.count) || 0 : 0;
+      if (attempts >= bootstrapAttemptLimit) {
+        return { status: 'rate-limited', retryAfter: Math.max(1, Math.ceil((resetAt - now) / 1000)) };
+      }
+      await tx.configuracao.upsert({
+        where: { chave: bootstrapAttemptsKey },
+        create: { chave: bootstrapAttemptsKey, valor: { count: attempts + 1, resetAt: now + bootstrapWindowMs } },
+        update: { valor: { count: attempts + 1, resetAt: resetAt > now ? resetAt : now + bootstrapWindowMs } },
+      });
+
+      if (!setupCodeValid) return { status: 'invalid-code' };
+
+      const existingUser = await tx.usuario.findUnique({ where: { email } });
+      const existingSeller = await tx.vendedor.findUnique({ where: { email } });
+      if (existingUser || existingSeller) return { status: 'email-conflict' };
+
+      const store = await tx.loja.findFirst({ where: { status: 'ativo' }, orderBy: { id: 'asc' }, select: { id: true } });
+      if (!store) return { status: 'store-not-configured' };
+
+      const user = await tx.usuario.create({
+        data: { nome, email, senhaHash, perfil: 'ADMIN', firstAccess: false, status: 'ativo', lojaId: store.id },
+        include: { loja: true },
+      });
+      await tx.auditLog.create({
+        data: { actorId: user.id, action: 'INITIAL_ADMIN_BOOTSTRAP_COMPLETED', details: { usuarioId: user.id } },
+      });
+      await tx.configuracao.upsert({
+        where: { chave: bootstrapCompletedKey },
+        create: { chave: bootstrapCompletedKey, valor: true },
+        update: { valor: true },
+      });
+      return { status: 'created', user };
+    } finally {
+      await releaseBootstrapLock(tx);
+    }
+  }, { maxWait: 15000, timeout: 20000 });
+
+  if (result.status === 'complete') {
+    delete process.env.INITIAL_ADMIN_SETUP_TOKEN;
+    return res.status(409).json({ success: false, message: 'A configuração inicial já foi concluída.', error: 'BOOTSTRAP_ALREADY_COMPLETED' });
+  }
+  if (result.status === 'lock-timeout') {
+    return res.status(503).json({ success: false, message: 'Não foi possível iniciar a configuração. Tente novamente.', error: 'BOOTSTRAP_LOCK_TIMEOUT' });
+  }
+  if (result.status === 'store-not-configured') {
+    return res.status(503).json({ success: false, message: 'Cadastre uma loja ativa antes de criar o administrador inicial.', error: 'INITIAL_STORE_NOT_CONFIGURED' });
+  }
+  if (result.status === 'rate-limited') {
+    res.set('Retry-After', String(result.retryAfter));
+    return res.status(429).json({ success: false, message: 'Muitas tentativas. Aguarde antes de tentar novamente.', error: 'TOO_MANY_ATTEMPTS' });
+  }
+  if (result.status === 'invalid-code') {
+    return res.status(401).json({ success: false, message: 'Código de configuração inválido.', error: 'INVALID_SETUP_TOKEN' });
+  }
+  if (result.status === 'email-conflict') {
+    return res.status(409).json({ success: false, message: 'Não foi possível usar este e-mail para a configuração inicial.', error: 'EMAIL_UNAVAILABLE' });
+  }
+
+  delete process.env.INITIAL_ADMIN_SETUP_TOKEN;
+  return created(res, { user: userResponse(result.user), token: tokenFor(result.user, false) }, 'Administrador inicial criado com sucesso.');
 };
 
 export const login = async (req, res) => {
@@ -57,7 +206,6 @@ export const login = async (req, res) => {
 };
 
 const userSortFields = { name: 'nome', nome: 'nome', email: 'email', profile: 'perfil', perfil: 'perfil', status: 'status', createdAt: 'createdAt' };
-const activeAdminProfiles = ['ADMIN', 'ADMINISTRADOR'];
 const validateUserId = (value) => {
   const id = Number(value);
   return Number.isSafeInteger(id) && id > 0 ? id : null;

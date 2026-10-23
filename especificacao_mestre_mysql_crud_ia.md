@@ -15,7 +15,7 @@ Atue como engenheiro de software sênior, arquiteto full-stack e
 especialista em segurança de aplicações. Implemente um sistema web
 funcional para gestão de estoque de veículos, clientes PF/PJ, equipes,
 usuários, simulações, propostas, aprovação de crédito, contratos
-efetivados, consultoria de recuperação de crédito, comissões, permissões
+efetivados, consultoria de recuperação de crédito, comu366207451_vfc_userissões, permissões
 e auditoria.
 
 Esta especificação é o contrato funcional da implementação. Não entregue
@@ -398,6 +398,12 @@ Se a implementação precisar avançar sem resposta, propor um modelo
 inicial em migração separada e marcá-lo como decisão pendente de
 validação.
 
+## 5.11 PDF - Requisito Especial
+- Use biblioteca pdfkit no backend.
+- Proposta deve conter: Logo da loja (de /imagem/), dados do cliente, foto principal do veículo, valores, entrada, financiado, parcelas, taxa, validade.
+- Salvar em storage privado: /imagem/documentos/ e guardar hash_arquivo no banco.
+- Retornar URL temporária assinada.
+
 # 6. PADRÃO DE ENDPOINTS REST E CRUD
 
 Use nomes de recursos consistentes em inglês na URL, mantendo o conteúdo
@@ -452,6 +458,11 @@ por meio do backend, com timeout e tratamento de falhas.
 ## 6.3 Resposta e erros padronizados
 
 Resposta de lista:
+## 9.4 PDF - Requisito Especial
+- Use biblioteca pdfkit no backend.
+- Proposta deve conter: Logo da loja (de /imagem/), dados do cliente, foto principal do veículo, valores, entrada, financiado, parcelas, taxa, validade.
+- Salvar em storage privado: /imagem/documentos/ e guardar hash_arquivo no banco.
+- Retornar URL temporária assinada.
 
 ``` json
 {

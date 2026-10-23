@@ -209,23 +209,85 @@ const proposals = [
   { id: "#0839", client: "Fernanda Dias", car: "Honda HR-V Touring", seller: "Amanda Silva", value: "R$ 176.200", status: "Recusada", tone: "red" },
 ];
 
-type AuthMode = "login" | "forgot" | "change" | "reset";
+type AuthMode = "checking" | "setup" | "login" | "forgot" | "change" | "reset";
 
 type AuthUser = { id: number; nome: string; email: string; perfil: string; firstAccess?: boolean; lojaId?: number | null; lojaNome?: string };
 
 function AuthScreen({ onAuthenticated }: { onAuthenticated: (token: string, user: AuthUser) => void }) {
   const [resetToken, setResetToken] = useState(() => new URLSearchParams(window.location.search).get("resetToken") || "");
-  const [mode, setMode] = useState<AuthMode>(() => resetToken ? "reset" : "login");
-  const [email, setEmail] = useState("herliton@allos.net.br");
+  const [mode, setMode] = useState<AuthMode>(() => resetToken ? "reset" : "checking");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [setupName, setSetupName] = useState("");
+  const [setupEmail, setSetupEmail] = useState("");
+  const [setupToken, setSetupToken] = useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [notice, setNotice] = useState("");
   const [pendingToken, setPendingToken] = useState("");
   const [pendingUser, setPendingUser] = useState<AuthUser | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (resetToken) return;
+    let cancelled = false;
+    fetch(`${API_BASE_URL}/auth/initial-admin/status`)
+      .then(async (response) => {
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(payload?.message || "Não foi possível verificar a configuração inicial.");
+        if (typeof payload?.data?.pending !== "boolean") throw new Error("Resposta inválida ao verificar a configuração inicial.");
+        if (!cancelled) setMode(payload.data.pending ? "setup" : "login");
+      })
+      .catch((requestError) => {
+        if (!cancelled) {
+          setMode("login");
+          setNotice(requestError instanceof Error ? requestError.message : "Não foi possível verificar a configuração inicial.");
+        }
+      });
+    return () => { cancelled = true; };
+  }, [resetToken]);
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setNotice("");
+    if (mode === "setup") {
+      if (!setupName.trim() || !setupEmail.includes("@") || !setupToken) {
+        setNotice("Preencha nome, e-mail e código de configuração.");
+        return;
+      }
+      if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{12,}/.test(password)) {
+        setNotice("Use ao menos 12 caracteres, com maiúscula, minúscula e número.");
+        return;
+      }
+      if (new TextEncoder().encode(password).length > 72) {
+        setNotice("A senha deve ter no máximo 72 bytes.");
+        return;
+      }
+      if (password !== passwordConfirmation) {
+        setNotice("A confirmação de senha não corresponde.");
+        return;
+      }
+      setSubmitting(true);
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/initial-admin`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nome: setupName, email: setupEmail, senha: password, setupToken }),
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(payload?.message || "Não foi possível criar o administrador inicial.");
+        const session = payload?.data;
+        if (!session?.token || !session?.user?.nome) throw new Error("O servidor retornou uma sessão inválida.");
+        setPassword("");
+        setPasswordConfirmation("");
+        setSetupToken("");
+        onAuthenticated(session.token, session.user);
+      } catch (requestError) {
+        setNotice(requestError instanceof Error ? requestError.message : "Falha ao criar o administrador inicial.");
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
     if (mode === "forgot") {
       if (!email.includes("@")) { setNotice("Informe um e-mail válido."); return; }
       setSubmitting(true);
@@ -317,6 +379,23 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (token: string, user
       </div>
       <div className="auth-form-side">
         <form className="auth-card" onSubmit={submit}>
+          {mode === "checking" && <>
+            <span className="auth-kicker">VERIFICANDO CONFIGURAÇÃO</span>
+            <h2>Preparando o acesso</h2>
+            <p>Estamos verificando se este sistema precisa da configuração inicial.</p>
+          </>}
+          {mode === "setup" && <>
+            <span className="auth-kicker">PRIMEIRO ACESSO</span>
+            <h2>Configuração inicial</h2>
+            <p>Crie a conta do administrador responsável por este sistema.</p>
+            <label>Nome completo<input required autoComplete="name" value={setupName} onChange={(event) => setSetupName(event.target.value)} placeholder="Nome do administrador"/></label>
+            <label>E-mail<input required type="email" autoComplete="email" value={setupEmail} onChange={(event) => setSetupEmail(event.target.value)} placeholder="administrador@empresa.com.br"/></label>
+            <label>Senha<input required type="password" autoComplete="new-password" maxLength={72} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Crie uma senha forte"/></label>
+            <div className="password-rules"><span className={password.length >= 12 ? "valid" : ""}>12+ caracteres</span><span className={/[A-Z]/.test(password) ? "valid" : ""}>Uma maiúscula</span><span className={/[a-z]/.test(password) ? "valid" : ""}>Uma minúscula</span><span className={/\d/.test(password) ? "valid" : ""}>Um número</span></div>
+            <label>Confirmar senha<input required type="password" autoComplete="new-password" value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} placeholder="Digite a senha novamente"/></label>
+            <label>Código temporário de configuração<input required type="password" autoComplete="off" value={setupToken} onChange={(event) => setSetupToken(event.target.value)} placeholder="Código fornecido pelo responsável técnico"/></label>
+            <button className="auth-submit" type="submit" disabled={submitting}>{submitting ? "Criando administrador..." : "Criar administrador e entrar"}</button>
+          </>}
           {mode === "login" && <>
             <span className="auth-kicker">BEM-VINDO DE VOLTA</span>
             <h2>Acesse o painel comercial</h2>
@@ -1021,126 +1100,83 @@ function CustomersPage({ profile, userName, authToken }: { profile: string; user
   </div>;
 }
 
-const classifiedVehicles = [
-  {
-    name: "Jeep Compass Limited",
-    year: "2024 / 2025",
-    price: "R$ 168.900",
-    mileage: "8.420 km",
-    transmission: "Automático",
-    fuel: "Flex",
-    color: "Preto Carbon",
-    status: "Em negociação",
-    simulations: 4,
-    image: "https://images.unsplash.com/photo-1632081831947-24ffdea2cd04?auto=format&fit=crop&w=1200&q=85",
-    description: "SUV premium com acabamento em couro, central multimídia, teto solar panorâmico e pacote completo de assistência à condução.",
-  },
-  {
-    name: "Volkswagen T-Cross Highline",
-    year: "2024 / 2024",
-    price: "R$ 134.900",
-    mileage: "14.810 km",
-    transmission: "Automático",
-    fuel: "Flex",
-    color: "Cinza Platinum",
-    status: "Disponível",
-    simulations: 0,
-    image: "https://images.unsplash.com/photo-1642888374507-d1fd1362ff9f?auto=format&fit=crop&w=1200&q=85",
-    description: "SUV versátil com motor turbo, painel digital, conectividade sem fio e excelente espaço interno para toda a família.",
-  },
-  {
-    name: "Hyundai Creta Platinum",
-    year: "2023 / 2024",
-    price: "R$ 98.500",
-    mileage: "27.300 km",
-    transmission: "Automático",
-    fuel: "Flex",
-    color: "Vermelho Magic",
-    status: "Em negociação",
-    simulations: 2,
-    image: "https://images.unsplash.com/photo-1605152276590-819c25679592?auto=format&fit=crop&w=1200&q=85",
-    description: "Design marcante, bancos em couro, câmera 360°, carregador por indução e revisões realizadas na concessionária.",
-  },
-  {
-    name: "Chevrolet Tracker Premier",
-    year: "2023 / 2023",
-    price: "R$ 112.900",
-    mileage: "31.200 km",
-    transmission: "Automático",
-    fuel: "Flex",
-    color: "Branco Summit",
-    status: "Disponível",
-    simulations: 1,
-    image: "https://images.unsplash.com/photo-1714703394026-dcbbcd822489?auto=format&fit=crop&w=1200&q=85",
-    description: "Motor turbo econômico, teto solar, alerta de ponto cego e seis airbags. Laudo cautelar aprovado.",
-  },
-  {
-    name: "Toyota Corolla Cross XRE",
-    year: "2024 / 2024",
-    price: "R$ 159.800",
-    mileage: "11.580 km",
-    transmission: "Automático",
-    fuel: "Flex",
-    color: "Prata Lua Nova",
-    status: "Disponível",
-    simulations: 0,
-    image: "https://images.unsplash.com/photo-1714703394022-b46582c0e56b?auto=format&fit=crop&w=1200&q=85",
-    description: "Conforto e confiabilidade com piloto automático adaptativo, frenagem autônoma e amplo porta-malas.",
-  },
-  {
-    name: "Nissan Kicks Exclusive",
-    year: "2023 / 2024",
-    price: "R$ 119.500",
-    mileage: "19.740 km",
-    transmission: "CVT",
-    fuel: "Flex",
-    color: "Azul Magnetic",
-    status: "Disponível",
-    simulations: 1,
-    image: "https://images.unsplash.com/photo-1574023240744-64c47c8c0676?auto=format&fit=crop&w=1200&q=85",
-    description: "Versão completa com sistema de som premium, câmera 360°, chave presencial e bancos com tecnologia Zero Gravity.",
-  },
-];
-
-function ClassifiedsPage({ onSimulate }: { onSimulate: () => void }) {
-  const [selectedVehicle, setSelectedVehicle] = useState<number | null>(null);
+function ClassifiedsPage({ authToken, onSimulate }: { authToken: string; onSimulate: (vehicleId: number) => void }) {
+  const [vehicles, setVehicles] = useState<InventoryVehicle[]>([]);
+  const [selectedVehicle, setSelectedVehicle] = useState<InventoryVehicle | null>(null);
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState("Todos");
-  const visibleVehicles = classifiedVehicles.filter((vehicle) =>
-    vehicle.name.toLowerCase().includes(query.toLowerCase()) &&
-    (status === "Todos" || vehicle.status === status)
-  );
+  const [status, setStatus] = useState("ALL");
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, totalPages: 0 });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const pageSize = 12;
 
-  if (selectedVehicle !== null) {
-    const vehicle = classifiedVehicles[selectedVehicle];
-    const gallery = [
-      vehicle.image,
-      "https://images.unsplash.com/photo-1642888374507-d1fd1362ff9f?auto=format&fit=crop&w=800&q=82",
-      "https://images.unsplash.com/photo-1714703394026-dcbbcd822489?auto=format&fit=crop&w=800&q=82",
-      "https://images.unsplash.com/photo-1574023240744-64c47c8c0676?auto=format&fit=crop&w=800&q=82",
-    ];
+  useEffect(() => {
+    let cancelled = false;
+    const loadVehicles = async () => {
+      setLoading(true);
+      setError("");
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), sortBy: "createdAt", sortOrder: "desc" });
+      if (query.trim()) params.set("search", query.trim());
+      if (status !== "ALL") params.set("status", status);
+      try {
+        const response = await fetch(`${API_BASE_URL}/veiculos?${params}`, {
+          headers: { Authorization: `Bearer ${authToken}` },
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(payload?.message || "Não foi possível carregar os classificados.");
+        if (cancelled) return;
+        const result = payload?.data;
+        const records = Array.isArray(result) ? result : result?.items;
+        setVehicles(Array.isArray(records) ? records : []);
+        setPagination({
+          total: Number(result?.pagination?.total || 0),
+          totalPages: Number(result?.pagination?.totalPages || 0),
+        });
+      } catch (requestError) {
+        if (!cancelled) setError(requestError instanceof Error ? requestError.message : "Falha ao carregar classificados.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void loadVehicles();
+    return () => { cancelled = true; };
+  }, [authToken, page, query, status]);
+
+  const statusLabel: Record<VehicleStatus, string> = {
+    AVAILABLE: "Disponível",
+    IN_NEGOTIATION: "Em negociação",
+    SOLD: "Vendido",
+  };
+  const vehicleName = (vehicle: InventoryVehicle) => `${vehicle.marca} ${vehicle.modelo}`;
+  const vehicleYear = (vehicle: InventoryVehicle) => `${vehicle.anoFabricacao} / ${vehicle.anoModelo}`;
+  const vehiclePhotos = (vehicle: InventoryVehicle) => Object.values(vehicle.fotos || {}).filter(Boolean);
+  const firstPhoto = (vehicle: InventoryVehicle) => vehiclePhotos(vehicle)[0] || "";
+  const formatVehiclePrice = (price: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(price || 0);
+
+  if (selectedVehicle) {
+    const gallery = vehiclePhotos(selectedVehicle);
     return (
       <div className="content module-content classified-detail">
         <button className="standalone-back" onClick={() => setSelectedVehicle(null)}><Icon name="arrow" size={16}/>Voltar aos classificados</button>
-        <div className="detail-heading"><div><span>{vehicle.status.toUpperCase()}</span><h1>{vehicle.name}</h1><p>{vehicle.year} · {vehicle.mileage} · {vehicle.color}</p></div><div><span>Preço de venda</span><strong>{vehicle.price}</strong></div></div>
+        <div className="detail-heading"><div><span>{statusLabel[selectedVehicle.status]}</span><h1>{vehicleName(selectedVehicle)}</h1><p>{vehicleYear(selectedVehicle)}</p></div><div><span>Preço sugerido</span><strong>{formatVehiclePrice(selectedVehicle.precoSugerido)}</strong></div></div>
         <div className="vehicle-gallery">
-          <div className="gallery-main"><img src={gallery[0]} alt={`${vehicle.name} em vista externa`}/><span>Foto principal</span></div>
-          {gallery.slice(1).map((photo, index) => <button key={photo}><img src={photo} alt={`${vehicle.name}, vista ${index + 2}`}/>{index === 2 && <span className="photo-count">+ 5 fotos</span>}</button>)}
-          <button className="video-thumbnail"><img src={vehicle.image} alt={`Vídeo de apresentação do ${vehicle.name}`}/><span className="play-button"><Icon name="play" size={22}/></span><small>Assistir vídeo · 00:48</small></button>
+          {gallery.length ? gallery.map((photo, index) => index === 0
+            ? <div className="gallery-main" key={photo}><img src={photo} alt={`${vehicleName(selectedVehicle)} - foto ${index + 1}`}/><span>Foto principal</span></div>
+            : <button type="button" key={photo}><img src={photo} alt={`${vehicleName(selectedVehicle)} - foto ${index + 1}`}/></button>) : <div className="gallery-main gallery-empty">Sem fotos cadastradas</div>}
+          {selectedVehicle.videoUrl && <video controls preload="metadata" src={selectedVehicle.videoUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }}>Seu navegador não suporta a reprodução de vídeo.</video>}
         </div>
         <div className="classified-detail-grid">
           <section className="panel vehicle-information">
             <h3>Informações do veículo</h3>
-            <div className="specification-grid"><div><span>Ano / Modelo</span><strong>{vehicle.year}</strong></div><div><span>Quilometragem</span><strong>{vehicle.mileage}</strong></div><div><span>Câmbio</span><strong>{vehicle.transmission}</strong></div><div><span>Combustível</span><strong>{vehicle.fuel}</strong></div><div><span>Cor</span><strong>{vehicle.color}</strong></div><div><span>Garantia</span><strong>12 meses</strong></div></div>
-            <h3>Sobre este veículo</h3><p>{vehicle.description}</p>
-            <div className="feature-list">{["Laudo cautelar aprovado", "Revisões em dia", "Chave reserva", "Manual do proprietário"].map((feature) => <span key={feature}><Icon name="check" size={14}/>{feature}</span>)}</div>
+            <div className="specification-grid"><div><span>Ano / Modelo</span><strong>{vehicleYear(selectedVehicle)}</strong></div><div><span>Preço mínimo</span><strong>{formatVehiclePrice(selectedVehicle.precoMinimo)}</strong></div><div><span>Referência FIPE</span><strong>{formatVehiclePrice(selectedVehicle.valorFipe)}</strong></div><div><span>Código FIPE</span><strong>{selectedVehicle.codigoFipe || "Não informado"}</strong></div></div>
+            <h3>Sobre este veículo</h3><p>{selectedVehicle.observacoes || "Nenhuma descrição adicional cadastrada."}</p>
           </section>
           <aside className="panel seller-action-card">
-            <span>DISPONIBILIDADE</span><div className={`availability ${vehicle.status === "Disponível" ? "available" : ""}`}><i/>{vehicle.status}</div>
-            <p>Este veículo possui <strong>{vehicle.simulations} {vehicle.simulations === 1 ? "simulação ativa" : "simulações ativas"}</strong> no momento.</p>
-            <button className="auth-submit" onClick={onSimulate}>Iniciar simulação <Icon name="arrow" size={16}/></button>
-            <button className="outline-action"><Icon name="users" size={17}/>Compartilhar com cliente</button>
-            <small>O veículo continuará disponível até a efetivação de um contrato.</small>
+            <span>DISPONIBILIDADE</span><div className={`availability ${selectedVehicle.status === "AVAILABLE" ? "available" : ""}`}><i/>{statusLabel[selectedVehicle.status]}</div>
+            <p>Este veículo possui <strong>{selectedVehicle.simulacoesAtivas} {selectedVehicle.simulacoesAtivas === 1 ? "simulação ativa" : "simulações ativas"}</strong> no momento.</p>
+            <button className="auth-submit" disabled={selectedVehicle.status === "SOLD"} onClick={() => onSimulate(selectedVehicle.id)}>Iniciar simulação <Icon name="arrow" size={16}/></button>
+            <small>Os dados e a disponibilidade são carregados do estoque cadastrado.</small>
           </aside>
         </div>
       </div>
@@ -1149,25 +1185,24 @@ function ClassifiedsPage({ onSimulate }: { onSimulate: () => void }) {
 
   return (
     <div className="content module-content">
-      <section className="module-heading classified-heading"><div><p>ESTOQUE PARA VENDA</p><h1>Classificados de veículos</h1><span>Apresente ao cliente os veículos disponíveis e em negociação.</span></div><div className="classified-total"><strong>{visibleVehicles.length}</strong><span>veículos encontrados</span></div></section>
-      <section className="classified-filters"><div className="search-box"><Icon name="search" size={17}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por marca ou modelo..."/></div><select><option>Todos os anos</option><option>2025</option><option>2024</option><option>2023</option></select><select><option>Todos os preços</option><option>Até R$ 100 mil</option><option>R$ 100 a 150 mil</option><option>Acima de R$ 150 mil</option></select><select value={status} onChange={(event) => setStatus(event.target.value)}><option>Todos</option><option>Disponível</option><option>Em negociação</option></select></section>
+      <section className="module-heading classified-heading"><div><p>ESTOQUE PARA VENDA</p><h1>Classificados de veículos</h1><span>Veículos cadastrados no estoque e disponíveis para negociação.</span></div><div className="classified-total"><strong>{pagination.total}</strong><span>veículos encontrados</span></div></section>
+      {error && <div className="auth-notice" role="alert">{error}</div>}
+      <section className="classified-filters"><div className="search-box"><Icon name="search" size={17}/><input value={query} onChange={(event) => { setPage(1); setQuery(event.target.value); }} placeholder="Buscar por marca ou modelo..."/></div><select aria-label="Filtrar classificados por status" value={status} onChange={(event) => { setPage(1); setStatus(event.target.value); }}><option value="ALL">Todos os status</option><option value="AVAILABLE">Disponível</option><option value="IN_NEGOTIATION">Em negociação</option><option value="SOLD">Vendido</option></select></section>
       <section className="classified-grid">
-        {visibleVehicles.map((vehicle) => {
-          const vehicleIndex = classifiedVehicles.indexOf(vehicle);
-          return <article className="classified-card" key={vehicle.name}>
-            <button className="classified-image" onClick={() => setSelectedVehicle(vehicleIndex)}><img src={vehicle.image} alt={vehicle.name}/><span className={`classified-status ${vehicle.status === "Disponível" ? "available" : ""}`}>{vehicle.status}</span><span className="media-badge"><Icon name="play" size={12}/> Fotos e vídeo</span></button>
-            <div className="classified-body"><span>{vehicle.year} · {vehicle.mileage}</span><h2>{vehicle.name}</h2><div className="compact-specs"><span>{vehicle.transmission}</span><span>{vehicle.fuel}</span><span>{vehicle.color}</span></div><div className="classified-price"><div><small>A partir de</small><strong>{vehicle.price}</strong></div><span><Icon name="proposal" size={14}/>{vehicle.simulations} ativas</span></div><button onClick={() => setSelectedVehicle(vehicleIndex)}>Ver veículo <Icon name="arrow" size={15}/></button></div>
-          </article>;
-        })}
+        {loading ? <div className="classified-empty">Carregando veículos cadastrados...</div> : vehicles.map((vehicle) => <article className="classified-card" key={vehicle.id}>
+          <button className="classified-image" onClick={() => setSelectedVehicle(vehicle)}>{firstPhoto(vehicle) ? <img src={firstPhoto(vehicle)} alt={vehicleName(vehicle)}/> : <span className="classified-image-placeholder">Sem foto cadastrada</span>}<span className={`classified-status ${vehicle.status === "AVAILABLE" ? "available" : ""}`}>{statusLabel[vehicle.status]}</span><span className="media-badge"><Icon name="play" size={12}/> {vehicle.videoUrl ? "Fotos e vídeo" : "Fotos"}</span></button>
+          <div className="classified-body"><span>{vehicleYear(vehicle)}</span><h2>{vehicleName(vehicle)}</h2><div className="compact-specs"><span>{vehicle.placa || "Placa não informada"}</span><span>{vehicle.codigoFipe ? `FIPE ${vehicle.codigoFipe}` : "Sem código FIPE"}</span></div><div className="classified-price"><div><small>Preço sugerido</small><strong>{formatVehiclePrice(vehicle.precoSugerido)}</strong></div><span><Icon name="proposal" size={14}/>{vehicle.simulacoesAtivas} ativas</span></div><button onClick={() => setSelectedVehicle(vehicle)}>Ver veículo <Icon name="arrow" size={15}/></button></div>
+        </article>)}
+        {!loading && !error && vehicles.length === 0 && <div className="classified-empty">Nenhum veículo disponível para os filtros selecionados.</div>}
       </section>
-      <p className="photo-credit">Fotografias demonstrativas via Unsplash.</p>
+      <div className="pagination-controls"><span>{pagination.total} veículo(s) · Página {page} de {Math.max(pagination.totalPages, 1)}</span><button disabled={page <= 1 || loading} onClick={() => setPage((current) => current - 1)}>Anterior</button><button disabled={page >= pagination.totalPages || loading} onClick={() => setPage((current) => current + 1)}>Próxima</button></div>
     </div>
   );
 }
 
 type SaleVehicle = { id: number; marca: string; modelo: string; anoFabricacao: number; anoModelo: number; precoSugerido: number; precoMinimo: number; status: string; simulacoesAtivas: number };
 type SaleCustomer = { id: number; nome: string; tipoPessoa: string; documento: string; status: string };
-function SimulationPage({ profile, userName, authToken }: { profile: string; userName: string; authToken: string }) {
+function SimulationPage({ profile, userName, authToken, initialVehicleId }: { profile: string; userName: string; authToken: string; initialVehicleId: number | null }) {
   const [customers, setCustomers] = useState<SaleCustomer[]>([]);
   const [vehicles, setVehicles] = useState<SaleVehicle[]>([]);
   const [customerId, setCustomerId] = useState("");
@@ -1198,11 +1233,12 @@ function SimulationPage({ profile, userName, authToken }: { profile: string; use
       const availableVehicles = Array.isArray(vehicleRows) ? vehicleRows.filter((item) => !item.deletedAt && item.status !== "SOLD") : [];
       setCustomers(availableClients); setVehicles(availableVehicles);
       if (availableClients.length) setCustomerId(String(availableClients[0].id));
-      if (availableVehicles.length) { setVehicleId(String(availableVehicles[0].id)); setSalePrice(String(availableVehicles[0].precoSugerido || "")); }
+      const selectedVehicle = availableVehicles.find((item) => item.id === initialVehicleId) || availableVehicles[0];
+      if (selectedVehicle) { setVehicleId(String(selectedVehicle.id)); setSalePrice(String(selectedVehicle.precoSugerido || "")); }
     }).catch((loadError) => { if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Falha ao carregar dados para simulação."); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [authToken]);
+  }, [authToken, initialVehicleId]);
   const currentVehicle = vehicles.find((item) => String(item.id) === vehicleId);
   const isBelowMinimum = Boolean(currentVehicle && Number(salePrice) < Number(currentVehicle.precoMinimo || 0));
   const principal = Math.max(Number(salePrice || 0) - Number(downPayment || 0), 0);
@@ -1849,6 +1885,7 @@ export default function App() {
   });
   const [authenticated, setAuthenticated] = useState(() => Boolean(localStorage.getItem("vfcAuthToken") && localStorage.getItem("vfcAuthUser")));
   const [active, setActive] = useState("Dashboard");
+  const [simulationVehicleId, setSimulationVehicleId] = useState<number | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange>(() => getCurrentWeekRange());
   const [serverPermissions, setServerPermissions] = useState<{ role: string; allowedModules: string[] } | null>(null);
@@ -1973,7 +2010,7 @@ export default function App() {
           </div>
         </header>
 
-        {visibleActive === "Recuperação de crédito" ? <CreditRecoveryPage authToken={authToken} profile={profile}/> : visibleActive === "Clientes" ? <CustomersPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Classificados" ? <ClassifiedsPage onSimulate={() => setActive("Simulações")}/> : visibleActive === "Simulações" ? <SimulationPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Usuários e perfis" && profile === "ADMIN" ? <UsersPage authToken={authToken}/> : visibleActive === "Lojas" && profile === "ADMIN" ? <StoresPage authToken={authToken}/> : visibleActive === "Permissões de acesso" && profile === "ADMIN" ? <PermissionsPage authToken={authToken}/> : visibleActive === "Configurações" && profile === "ADMIN" ? <EmailSettingsPage authToken={authToken}/> : visibleActive === "Veículos" ? <VehiclesPage authToken={authToken} profile={profile}/> : visibleActive === "Painel do gerente" && profile === "MANAGER" ? <ManagerDashboard/> : visibleActive === "Minha equipe" && profile === "MANAGER" ? <MyTeamPage authToken={authToken}/> : visibleActive === "Painel de suporte" && profile === "SUPPORT" ? <SupportDashboard/> : visibleActive === "Propostas" && ["ADMIN", "SUPPORT"].includes(profile) ? <ProposalReviewPage authToken={authToken}/> : visibleActive === "Propostas" ? <SellerProposalsPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Equipes e comissões" && ["ADMIN", "MANAGER", "SUPPORT"].includes(profile) ? <TeamsCommissionsPage profile={profile} userId={sessionUser.id} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Relatórios" && ["ADMIN", "MANAGER", "SUPPORT"].includes(profile) ? <ReportsPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive !== "Dashboard" ? <ModulePage name={visibleActive} profile={profile} userName={sessionUser.nome}/> : <div className="content">
+        {visibleActive === "Recuperação de crédito" ? <CreditRecoveryPage authToken={authToken} profile={profile}/> : visibleActive === "Clientes" ? <CustomersPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Classificados" ? <ClassifiedsPage authToken={authToken} onSimulate={(vehicleId) => { setSimulationVehicleId(vehicleId); setActive("Simulações"); }}/> : visibleActive === "Simulações" ? <SimulationPage profile={profile} userName={sessionUser.nome} authToken={authToken} initialVehicleId={simulationVehicleId}/> : visibleActive === "Usuários e perfis" && profile === "ADMIN" ? <UsersPage authToken={authToken}/> : visibleActive === "Lojas" && profile === "ADMIN" ? <StoresPage authToken={authToken}/> : visibleActive === "Permissões de acesso" && profile === "ADMIN" ? <PermissionsPage authToken={authToken}/> : visibleActive === "Configurações" && profile === "ADMIN" ? <EmailSettingsPage authToken={authToken}/> : visibleActive === "Veículos" ? <VehiclesPage authToken={authToken} profile={profile}/> : visibleActive === "Painel do gerente" && profile === "MANAGER" ? <ManagerDashboard/> : visibleActive === "Minha equipe" && profile === "MANAGER" ? <MyTeamPage authToken={authToken}/> : visibleActive === "Painel de suporte" && profile === "SUPPORT" ? <SupportDashboard/> : visibleActive === "Propostas" && ["ADMIN", "SUPPORT"].includes(profile) ? <ProposalReviewPage authToken={authToken}/> : visibleActive === "Propostas" ? <SellerProposalsPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Equipes e comissões" && ["ADMIN", "MANAGER", "SUPPORT"].includes(profile) ? <TeamsCommissionsPage profile={profile} userId={sessionUser.id} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Relatórios" && ["ADMIN", "MANAGER", "SUPPORT"].includes(profile) ? <ReportsPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive !== "Dashboard" ? <ModulePage name={visibleActive} profile={profile} userName={sessionUser.nome}/> : <div className="content">
           <section className="page-heading">
             <div>
               <p>{currentDateLabel}</p>
