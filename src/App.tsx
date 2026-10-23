@@ -1,10 +1,9 @@
 import { createContext, useContext, useEffect, useState, type FormEvent } from "react";
 import logoSemFundo from "../logo-sem-fundo.png";
+import { API_BASE_URL, apiAssetUrl } from "./api/baseUrl";
 import { downloadCommissionReport } from "./api/reports";
 import { dateFromInput, formatDateRange, getCurrentWeekRange, isDateRangeValid, toApiDate, type DateRange } from "./utils/dateRange";
 import { transitionSalesStage, type SalesStage } from "./utils/salesLifecycle";
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
 
 const clientCompany = "VFC Multimarcas";
 const currentDateLabel = new Intl.DateTimeFormat("pt-BR", {
@@ -1150,7 +1149,7 @@ function ClassifiedsPage({ authToken, onSimulate }: { authToken: string; onSimul
   };
   const vehicleName = (vehicle: InventoryVehicle) => `${vehicle.marca} ${vehicle.modelo}`;
   const vehicleYear = (vehicle: InventoryVehicle) => `${vehicle.anoFabricacao} / ${vehicle.anoModelo}`;
-  const vehiclePhotos = (vehicle: InventoryVehicle) => Object.values(vehicle.fotos || {}).filter(Boolean);
+  const vehiclePhotos = (vehicle: InventoryVehicle) => Object.values(vehicle.fotos || {}).filter(Boolean).map(apiAssetUrl);
   const firstPhoto = (vehicle: InventoryVehicle) => vehiclePhotos(vehicle)[0] || "";
   const formatVehiclePrice = (price: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(price || 0);
 
@@ -1164,7 +1163,7 @@ function ClassifiedsPage({ authToken, onSimulate }: { authToken: string; onSimul
           {gallery.length ? gallery.map((photo, index) => index === 0
             ? <div className="gallery-main" key={photo}><img src={photo} alt={`${vehicleName(selectedVehicle)} - foto ${index + 1}`}/><span>Foto principal</span></div>
             : <button type="button" key={photo}><img src={photo} alt={`${vehicleName(selectedVehicle)} - foto ${index + 1}`}/></button>) : <div className="gallery-main gallery-empty">Sem fotos cadastradas</div>}
-          {selectedVehicle.videoUrl && <video controls preload="metadata" src={selectedVehicle.videoUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }}>Seu navegador não suporta a reprodução de vídeo.</video>}
+          {selectedVehicle.videoUrl && <video controls preload="metadata" src={apiAssetUrl(selectedVehicle.videoUrl)} style={{ width: "100%", height: "100%", objectFit: "cover" }}>Seu navegador não suporta a reprodução de vídeo.</video>}
         </div>
         <div className="classified-detail-grid">
           <section className="panel vehicle-information">

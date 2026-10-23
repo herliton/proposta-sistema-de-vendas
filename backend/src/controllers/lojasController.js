@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { prisma } from '../config/database.js';
+import { getJwtSecret } from '../config/security.js';
 import { created, notFound, ok } from '../utils/response.js';
 
 const roleOf = (user) => String(user?.perfil || user?.role || '').toUpperCase();
@@ -47,6 +48,6 @@ export const selectStore = async (req, res) => {
   if (!['ADMIN', 'SUPPORT'].includes(role) && requested !== user.lojaId) return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Você só pode acessar sua loja.' });
   const store = requested === null ? null : await prisma.loja.findFirst({ where: { id: requested, status: 'ativo' } });
   if (requested !== null && !store) return notFound(res, 'Loja não encontrada ou inativa.');
-  const token = jwt.sign({ id: user.id, email: user.email, perfil: user.perfil, firstAccess: user.firstAccess, lojaId: requested }, process.env.JWT_SECRET || 'dev-secret', { expiresIn: '8h' });
+  const token = jwt.sign({ id: user.id, email: user.email, perfil: user.perfil, firstAccess: user.firstAccess, lojaId: requested }, getJwtSecret(), { expiresIn: '8h' });
   return ok(res, { token, lojaId: requested, lojaNome: store?.nome || 'Todas as lojas' }, 'Contexto da loja atualizado.');
 };

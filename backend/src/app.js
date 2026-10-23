@@ -24,8 +24,18 @@ dotenv.config();
 
 const app = express();
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const allowedOrigins = (process.env.CORS_ORIGINS || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5173'))
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
-app.use(cors());
+if (process.env.NODE_ENV === 'production' && allowedOrigins.length === 0) {
+  throw new Error('CORS_ORIGINS must contain the frontend origin in production.');
+}
+
+app.use(cors({
+  origin: (origin, callback) => callback(null, !origin || allowedOrigins.includes(origin)),
+}));
 app.use(express.json());
 app.use('/uploads', express.static(path.join(currentDir, '..', 'uploads'), { fallthrough: false, index: false }));
 

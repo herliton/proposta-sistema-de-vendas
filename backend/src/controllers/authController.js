@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import { created, ok } from '../utils/response.js';
 import { prisma } from '../config/database.js';
+import { getJwtSecret } from '../config/security.js';
 import { sendTemporaryAccessEmail, sendPasswordResetEmail } from '../utils/email.js';
 
 const roles = ['ADMIN', 'MANAGER', 'SELLER', 'SUPPORT'];
@@ -19,7 +20,7 @@ const userResponse = (user) => ({
   numero: user.numero || '', complemento: user.complemento || '', bairro: user.bairro || '', cidade: user.cidade || '', estado: user.estado || '',
   firstAccess: Boolean(user.firstAccess), lojaId: user.lojaId ?? 1, lojaNome: user.loja?.nome || '', gerenteId: user.gerenteId ?? null, equipeId: user.equipeId ?? null,
 });
-const tokenFor = (user, firstAccess) => jwt.sign({ id: user.id, email: user.email, perfil: user.perfil, firstAccess, lojaId: user.lojaId ?? 1 }, process.env.JWT_SECRET || 'dev-secret', { expiresIn: '8h' });
+const tokenFor = (user, firstAccess) => jwt.sign({ id: user.id, email: user.email, perfil: user.perfil, firstAccess, lojaId: user.lojaId ?? 1 }, getJwtSecret(), { expiresIn: '8h' });
 const mailError = (error) => {
   if (error.code === 'SMTP_NOT_CONFIGURED') return { status: 503, message: error.message };
   if (error.code === 'EAUTH') return { status: 502, message: 'O Titan recusou a autenticação SMTP. Confira o endereço e a senha da caixa postal e habilite o acesso de aplicativos.' };

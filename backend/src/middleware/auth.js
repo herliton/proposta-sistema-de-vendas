@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { prisma } from '../config/database.js';
+import { getJwtSecret } from '../config/security.js';
 
 export const authMiddleware = async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -16,7 +17,7 @@ export const authMiddleware = async (req, res, next) => {
 
   let decoded;
   try {
-    decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret');
+    decoded = jwt.verify(token, getJwtSecret());
   } catch {
     return res.status(401).json({
       success: false,

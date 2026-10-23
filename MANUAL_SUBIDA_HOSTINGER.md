@@ -1,14 +1,24 @@
 # Manual de execução local e publicação na Hostinger
 
-Este manual descreve a situação encontrada no repositório e um caminho de
-publicação para uma **VPS Hostinger com Ubuntu, acesso SSH/root, Node.js
-persistente e Nginx**. Não é um guia para hospedagem compartilhada. Antes
-de iniciar, confirme no hPanel se o plano permite manter uma API Express
-em execução e oferece acesso ao MySQL necessário.
+Este manual descreve a situação encontrada no repositório e os caminhos de
+publicação na Hostinger. O site atual usa hospedagem Cloud/Business com
+frontend Vite estático; a API Express precisa ser publicada como uma
+aplicação Node.js separada, preferencialmente em um subdomínio `api`.
+A seção de VPS é uma alternativa separada.
 
 > **Estado atual: não liberar para produção ainda.** Há bloqueadores de
 > segurança e requisitos funcionais incompletos listados abaixo. Os
 > comandos de infraestrutura não substituem a correção desses itens.
+
+**Diagnóstico da publicação atual:** o build `593b3cf` foi publicado como
+Vite estático. `https://solucoesfinanceiras.net.br/` responde `200`, mas
+`/api/health` responde `404`; não há processo backend nem variáveis de
+ambiente Node.js configuradas nesse site. A configuração local conecta ao
+MySQL da Hostinger. O banco já foi salvo em backup privado antes da
+intervenção; as quatro migrações Prisma foram aplicadas de forma aditiva
+após verificar que as duas tabelas preexistentes não colidiam com as
+tabelas da aplicação. Essas duas tabelas foram preservadas. A API ainda
+precisa ser publicada e configurada para que o site funcione.
 
 ## 1. O que existe hoje
 
@@ -17,7 +27,7 @@ em execução e oferece acesso ao MySQL necessário.
 | Frontend | React/Vite; consulta alguns endpoints da API | Não há suíte de testes de frontend nem verificação fim a fim de todos os CRUDs e estados da interface. |
 | Classificados | Ligado ao estoque via `GET /api/veiculos`, com pesquisa, status, paginação, dados e mídias cadastradas; “Iniciar simulação” transfere o ID do veículo | Validar manualmente com usuário autenticado, veículos com/sem foto e cada status; o backend ainda exige cinco fotos no cadastro e a opção “Todos” inclui vendidos, que não podem iniciar simulação. |
 | Backend | Node.js, Express, ES Modules e Prisma | A especificação permite manter o ORM existente; não é necessário migrar para `mysql2` apenas para publicar. |
-| Banco | MySQL, schema Prisma e quatro migrações | Existem tabelas para lojas, usuários, equipes, clientes, veículos, propostas, contratos, financeiro, comissões e auditoria/aprovação; isso não comprova que todos os fluxos estejam completos. |
+| Banco | MySQL Hostinger conectado; quatro migrações aplicadas | O schema da aplicação agora está criado no banco; isso não comprova que todos os fluxos estejam completos. |
 | Usuários e equipes | CRUD administrativo e fluxo inicial de administrador com segredo temporário, bloqueio transacional, auditoria e limite persistido de tentativas | Validar os cenários de configuração em banco local/homologação. O antigo `/api/auth/register` retorna `410` e não cria usuários. |
 | Módulos e permissões | Consulta de módulos e leitura/atualização da matriz por perfil | O catálogo não tem CRUD completo nem há CRUD individual de permissão como especificado. |
 | Clientes e veículos | CRUD, validações e consulta FIPE existentes | Não foi encontrada rota ViaCEP. Conferir transferência, escopo, exclusão lógica, contagem de propostas ativas e transições de status contra os requisitos. |
@@ -25,27 +35,24 @@ em execução e oferece acesso ao MySQL necessário.
 | Comissões e auditoria | Tabelas, relatórios e geração de comissão existentes | Não há recurso `/api/commissions` com todas as operações de ajuste, pagamento e estorno. Percentuais padrão precisam de aprovação comercial. Validar a cobertura e imutabilidade da auditoria. |
 | Financiamento bancário | Modelo não encontrado no schema/migrações | A própria especificação deixa o modelo pendente de definição. |
 | PDF | PDFKit e endpoint de proposta existentes | O contrato pede arquivo privado persistido, hash no banco e URL temporária assinada; confirmar/implementar esse armazenamento. |
-| Testes | Um teste unitário de validação de cliente encontrado | Faltam testes de CRUD/API, autorização, isolamento por loja/equipe/vendedor, concorrência, PDF, SMTP e transições comerciais. |
-| Publicação | Não havia `.env.example` nem configuração versionada de Nginx/systemd | Use o modelo de variáveis desta documentação e finalize os bloqueadores antes de expor a aplicação. |
+| Testes | Testes unitários de validação e configuração de segurança | Faltam testes de CRUD/API, autorização, isolamento por loja/equipe/vendedor, concorrência, PDF, SMTP e transições comerciais. |
+| Publicação | O domínio está publicado como frontend Vite estático; API e variáveis Node.js ainda não estão configuradas | Publique o backend separadamente, configure `DATABASE_URL`, `JWT_SECRET`, `INITIAL_ADMIN_SETUP_TOKEN` e `CORS_ORIGINS`; aplique migrações somente após backup. |
 
 ### Bloqueadores antes de expor a API à internet
 
-1. **Segredo JWT padrão:** login e middleware usam `dev-secret` quando
-   `JWT_SECRET` está ausente. A aplicação deve falhar ao iniciar em
-   produção sem segredo configurado. Gere um segredo exclusivo e
-   rotacione-o se já tiver sido usado.
+1. **Segredo JWT:** a aplicação agora falha ao iniciar em produção sem
+   `JWT_SECRET`; gere um segredo exclusivo e não reutilize valores antigos.
 2. **Cadastro público fechado:** `/api/auth/register` retorna `410` e
    não cria usuários. O primeiro administrador usa a tela de
    configuração inicial protegida por segredo de servidor; teste esse
    fluxo antes de publicar.
-3. **Permissões alteradas na inicialização:** `ensureSystemSeed()` faz
-   upsert atualizando as permissões para os valores padrão sempre que a
-   API inicia. Separe o seed inicial da sincronização de módulos e
-   preserve permissões customizadas.
-4. **Hardening HTTP:** CORS está aberto; login e recuperação de senha
-   ainda não têm limite de tentativas. O limite do bootstrap é persistido
-   no MySQL. O handler global envia `err.message` ao cliente. Restringir
-   origens e retornar erro genérico sem detalhes internos.
+3. **Seed de módulos/permissões:** a inicialização agora insere somente
+   registros ausentes em lotes; permissões personalizadas existentes não
+   são sobrescritas e o seed evita transações longas no MySQL remoto.
+4. **Hardening HTTP:** CORS agora exige origens explícitas em produção,
+   mas login e recuperação de senha ainda não têm limite de tentativas. O
+   handler global envia `err.message` ao cliente. Corrigir esses itens
+   antes de expor a API.
 5. **Primeiro administrador:** não foi encontrado seed/migração de usuário
    `ADMIN`. Implementar o fluxo inicial pela aplicação descrito na
    seção 5.3.1 abaixo. Não usar o cadastro público nem armazenar senha em
@@ -69,7 +76,8 @@ Na inspeção desta máquina foram encontrados:
 - MySQL `8.4.11`, compatível com o requisito MySQL 8+.
 - Docker `29.1.3`.
 - Dependências npm ainda não instaladas na raiz nem em `backend/`.
-- Nenhum arquivo `.env` ou `.env.example` existente no projeto.
+- O arquivo local `backend/.env` não é versionado. Nunca publique valores
+  reais de `.env` ou de arquivos de exemplo.
 
 Use Node.js 22 para alinhar desenvolvimento, testes e VPS. Com `mise`
 instalado:
@@ -119,6 +127,8 @@ NODE_ENV=development
 PORT=4000
 DATABASE_URL="mysql://vfc_user:SENHA_CODIFICADA@127.0.0.1:3306/vfc_multimarcas"
 JWT_SECRET=SEGREDO_ALEATORIO_LOCAL
+INITIAL_ADMIN_SETUP_TOKEN=OUTRO_SEGREDO_ALEATORIO
+CORS_ORIGINS=http://localhost:5173
 SMTP_HOST=
 SMTP_PORT=587
 SMTP_SECURE=false
@@ -177,8 +187,12 @@ npm run build
 ```
 
 O artefato é gerado em `dist/`. `VITE_API_URL` é público e fica embutido
-no bundle; nunca coloque segredos nele. Em produção, o padrão recomendado
-é manter `/api` e encaminhar as requisições pelo Nginx no mesmo domínio.
+no bundle; nunca coloque segredos nele. Em VPS, o padrão recomendado é
+manter `/api` e encaminhar as requisições pelo Nginx no mesmo domínio. Na
+hospedagem Cloud/Business atual, publique a API em um subdomínio Node.js e
+faça o build do frontend com
+`VITE_API_URL=https://api.SEUDOMINIO/api`; configure o mesmo domínio do
+frontend em `CORS_ORIGINS` no backend.
 
 ### Testes existentes
 
