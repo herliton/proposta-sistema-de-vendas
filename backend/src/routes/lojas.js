@@ -1,10 +1,12 @@
 import { Router } from 'express';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
-import { createStore, listStores, selectStore, updateStore } from '../controllers/lojasController.js';
+import { getStoreProposalSettings, updateStoreProposalSettings, createStore, listStores, selectStore, updateStore } from '../controllers/lojasController.js';
 const router = Router();
 router.use(authMiddleware);
 router.get('/', listStores);
 router.post('/', requireRole('ADMIN'), createStore);
 router.put('/:id', requireRole('ADMIN'), updateStore);
+router.get('/:id/proposal-settings', requireRole('ADMIN'), getStoreProposalSettings);
+router.put('/:id/proposal-settings', requireRole('ADMIN'), updateStoreProposalSettings);
 router.post('/select', selectStore);
 export default router;

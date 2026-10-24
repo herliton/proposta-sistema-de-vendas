@@ -31,6 +31,7 @@ model Loja {
   contratos     Contrato[]
   oportunidades OportunidadeCredito[]
   equipes       Equipe[]
+  configuracaoProposta ConfiguracaoProposta?
 }
 
 model Usuario {
@@ -73,6 +74,8 @@ model Usuario {
   @@index([perfil, status])
   @@index([gerenteId])
   @@index([equipeId, status])
+  tabelasFinanciamentoAtualizadas TabelaFinanciamento[] @relation("TabelaFinanciamentoAtualizadoPor")
+  beneficiosAtualizados Beneficio[] @relation("BeneficioAtualizadoPor")
 }
 
 model Equipe {
@@ -224,6 +227,7 @@ model Proposta {
   contrato        Contrato?
   comissoes       Comissao[]
   oportunidade    OportunidadeCredito?
+  beneficios      PropostaBeneficio[]
   loja            Loja                 @relation(fields: [lojaId], references: [id], onDelete: Restrict)
 
   @@index([veiculoId, status])
@@ -309,6 +313,68 @@ model AuditLog {
 
   @@index([actorId, createdAt])
   @@index([action, createdAt])
+}
+
+model ConfiguracaoProposta {
+  id                        Int      @id @default(autoincrement())
+  lojaId                    Int      @unique
+  validadeDias              Int      @default(7)
+  prazoEntrega              String   @db.VarChar(255)
+  documentacaoTransferencia String   @db.VarChar(255)
+  textoPrazos               String   @db.Text
+  textoGarantia             String   @db.Text
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+  loja                      Loja     @relation(fields: [lojaId], references: [id], onDelete: Cascade)
+}
+
+model TabelaFinanciamento {
+  id              Int       @id @default(autoincrement())
+  instituicao     String    @db.VarChar(120)
+  produto         String    @db.VarChar(120)
+  taxa            Decimal   @db.Decimal(7, 4)
+  periodicidade   String    @default("mensal") @db.VarChar(20)
+  parcelasMin     Int
+  parcelasMax     Int
+  vigenciaInicio  DateTime  @db.Date
+  vigenciaFim     DateTime? @db.Date
+  status          String    @default("ativo") @db.VarChar(20)
+  atualizadoPorId Int?
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  atualizadoPor   Usuario?  @relation("TabelaFinanciamentoAtualizadoPor", fields: [atualizadoPorId], references: [id], onDelete: SetNull)
+
+  @@index([status, vigenciaInicio])
+}
+
+model PropostaBeneficio {
+  id          Int       @id @default(autoincrement())
+  propostaId  Int
+  beneficioId Int
+  nome        String    @db.VarChar(120)
+  descricao   String?   @db.VarChar(255)
+  createdAt   DateTime  @default(now())
+  proposta    Proposta  @relation(fields: [propostaId], references: [id], onDelete: Cascade)
+  beneficio   Beneficio @relation(fields: [beneficioId], references: [id], onDelete: Restrict)
+
+  @@unique([propostaId, beneficioId])
+  @@index([beneficioId])
+}
+
+model Beneficio {
+  id              Int       @id @default(autoincrement())
+  nome            String    @db.VarChar(120)
+  descricao       String?   @db.VarChar(255)
+  status          String    @default("ativo") @db.VarChar(20)
+  atualizadoPorId Int?
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  atualizadoPor   Usuario?  @relation("BeneficioAtualizadoPor", fields: [atualizadoPorId], references: [id], onDelete: SetNull)
+  propostas       PropostaBeneficio[]
+
+  @@index([status])
 }
 
 model Configuracao {

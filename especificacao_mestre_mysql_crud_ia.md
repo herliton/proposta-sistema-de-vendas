@@ -398,6 +398,20 @@ Se a implementação precisar avançar sem resposta, propor um modelo
 inicial em migração separada e marcá-lo como decisão pendente de
 validação.
 
+**Implementação inicial (pendente de validação comercial):** tabelas
+`TabelaFinanciamento` e `Beneficio` (migração
+`20261023040000_financing_rates_benefits`), com exclusão lógica e auditoria.
+API: `/api/financing-rates` (leitura pelo módulo RATES; escrita ADMIN/SUPPORT) e
+`/api/benefits` (leitura pelo módulo BENEFITS; escrita ADMIN/SUPPORT). A
+simulação usa apenas tabelas ativas, vigentes e mensais, e o backend recusa
+taxa/parcelas que não constem em tabela vigente. Os valores antes fixos na
+simulação foram semeados como registros editáveis.
+
+Os benefícios escolhidos na simulação são gravados em `PropostaBeneficio`
+(migração `20261023050000_proposal_benefits`), com cópia do nome e da
+descrição no momento da proposta, e listados no PDF (seção 3). O backend
+rejeita benefícios inexistentes ou inativos (`beneficioIds`).
+
 ## 5.11 PDF - Requisito Especial
 - Use biblioteca pdfkit no backend.
 - Proposta deve conter: Logo da loja (de /imagem/), dados do cliente, foto principal do veículo, valores, entrada, financiado, parcelas, taxa, validade.
@@ -640,6 +654,12 @@ Cada entidade CRUD deve ter, conforme aplicável:
 Não exibir ações proibidas ao perfil atual; ainda assim, o servidor deve
 bloquear requisições não autorizadas.
 
+Na tela de nova simulação do vendedor, permitir filtrar clientes por parte
+do nome e por CPF/CNPJ, e veículos por placa ou outras informações
+cadastrais, como marca, modelo, ano e código FIPE. O filtro deve apenas
+facilitar a seleção dos registros autorizados e disponíveis, sem alterar
+as validações de acesso e negócio da API.
+
 # 12. INTEGRAÇÕES
 
 ## 12.1 ViaCEP
@@ -801,3 +821,11 @@ ou implemente-os como configuração provisória claramente identificada:
 especificado, mantenha rastreabilidade entre requisito, endpoint, tela,
 migração e teste, e apresente as decisões pendentes de forma objetiva.
 Não altere regras comerciais silenciosamente.
+
+## Textos da proposta comercial em PDF
+
+O PDF da proposta usa somente dados reais do banco. Validade, prazo de
+entrega, documentação/transferência e textos de prazos e garantia ficam na
+tabela `ConfiguracaoProposta` (uma linha por loja, com textos padrão quando
+ainda não editada). O ADMIN altera esses campos em Configurações, pelas rotas
+`GET/PUT /api/stores/:id/proposal-settings`.

@@ -16,6 +16,7 @@ import reportsRoutes from './routes/reports.js';
 import creditRecoveryRoutes from './routes/creditRecovery.js';
 import dealsRoutes from './routes/deals.js';
 import lojasRoutes from './routes/lojas.js';
+import { ratesRoutes, benefitsRoutes } from './routes/financiamento.js';
 import equipesRoutes from './routes/equipes.js';
 import auditLogsRoutes from './routes/auditLogs.js';
 import { prisma } from './config/database.js';
@@ -60,6 +61,8 @@ app.use('/api/reports', reportsRoutes);
 app.use('/api/credit-recovery', creditRecoveryRoutes);
 app.use('/api/deals', dealsRoutes);
 app.use('/api/stores', lojasRoutes);
+app.use('/api/financing-rates', ratesRoutes);
+app.use('/api/benefits', benefitsRoutes);
 app.use('/api/teams', equipesRoutes);
 app.use('/api/audit-logs', auditLogsRoutes);
 

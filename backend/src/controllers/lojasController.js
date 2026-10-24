@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import { prisma } from '../config/database.js';
 import { getJwtSecret } from '../config/security.js';
 import { created, notFound, ok } from '../utils/response.js';
+import { getProposalSettings, validateProposalSettings } from '../utils/proposalSettings.js';
 
 const roleOf = (user) => String(user?.perfil || user?.role || '').toUpperCase();
 const present = (store) => ({ ...store, usuariosCount: store._count?.usuarios || 0, clientesCount: store._count?.clientes || 0, veiculosCount: store._count?.veiculos || 0 });
@@ -50,4 +51,19 @@ export const selectStore = async (req, res) => {
   if (requested !== null && !store) return notFound(res, 'Loja não encontrada ou inativa.');
   const token = jwt.sign({ id: user.id, email: user.email, perfil: user.perfil, firstAccess: user.firstAccess, lojaId: requested }, getJwtSecret(), { expiresIn: '8h' });
   return ok(res, { token, lojaId: requested, lojaNome: store?.nome || 'Todas as lojas' }, 'Contexto da loja atualizado.');
+};
+
+export const getStoreProposalSettings = async (req, res) => {
+  const id = Number(req.params.id);
+  if (!await prisma.loja.findUnique({ where: { id }, select: { id: true } })) return notFound(res, 'Loja não encontrada.');
+  return ok(res, await getProposalSettings(id), 'Configurações da proposta carregadas.');
+};
+
+export const updateStoreProposalSettings = async (req, res) => {
+  const id = Number(req.params.id);
+  if (!await prisma.loja.findUnique({ where: { id }, select: { id: true } })) return notFound(res, 'Loja não encontrada.');
+  const { data, error } = validateProposalSettings(req.body);
+  if (error) return res.status(400).json({ success: false, error: 'INVALID_PROPOSAL_SETTINGS', message: error });
+  await prisma.configuracaoProposta.upsert({ where: { lojaId: id }, create: { lojaId: id, ...data }, update: data });
+  return ok(res, await getProposalSettings(id), 'Configurações da proposta salvas.');
 };
