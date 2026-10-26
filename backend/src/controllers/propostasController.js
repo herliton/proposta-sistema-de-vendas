@@ -1,3 +1,4 @@
+import { ensureFichaFromRejection } from './fichaRecuperacaoController.js';
 import { prisma } from '../config/database.js';
 import PDFDocument from 'pdfkit';
 import { fileURLToPath } from 'node:url';
@@ -262,11 +263,12 @@ export const updateStatusProposta = async (req, res) => {
           await tx.veiculo.update({ where: { id: proposal.veiculoId }, data: { status: 'disponivel' } });
         }
         if (nextStatus === 'CREDIT_REJECTED') {
-          await tx.oportunidadeCredito.upsert({
+          const opportunity = await tx.oportunidadeCredito.upsert({
             where: { propostaId: id },
             create: { clienteId: proposal.clienteId, lojaId: proposal.lojaId, propostaId: id, responsavelId: proposal.vendedor.usuarioId, tipo: 'REANALISE_CREDITO', status: 'ABERTA', motivo: reason },
             update: {},
           });
+          await ensureFichaFromRejection(tx, { proposal, oportunidadeId: opportunity.id });
         }
       }
       await tx.aprovacao.create({

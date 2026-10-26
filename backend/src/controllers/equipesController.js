@@ -2,6 +2,7 @@ import { prisma } from '../config/database.js';
 import { normalizeRole } from './permissionsController.js';
 import { created, notFound, ok } from '../utils/response.js';
 import { storeScope } from '../utils/storeScope.js';
+import { createUser } from './authController.js';
 
 const roleOf = (user) => normalizeRole(user?.perfil || user?.role);
 const teamScope = (user) => {
@@ -80,7 +81,6 @@ export const createTeam = async (req, res) => {
         perfil: { in: ['SELLER', 'VENDEDOR'] },
         status: 'ativo',
         lojaId,
-        ...(roleOf(req.user) === 'MANAGER' ? { gerenteId: Number(req.user.id) } : {}),
       },
       select: { id: true },
     })
@@ -101,7 +101,9 @@ export const createTeam = async (req, res) => {
         data: { nome, gerenteId, lojaId },
         include: teamInclude,
       });
+      let movedFrom = [];
       if (selectedMemberIds?.length) {
+        movedFrom = (await tx.usuario.findMany({ where: { id: { in: selectedMemberIds }, equipeId: { not: null } }, select: { id: true, equipeId: true } })).map((item) => ({ usuarioId: item.id, equipeId: item.equipeId }));
         await tx.usuario.updateMany({ where: { id: { in: selectedMemberIds } }, data: { equipeId: createdTeam.id, gerenteId } });
       } else if (!selectedMemberIds) {
         await tx.usuario.updateMany({
@@ -110,7 +112,7 @@ export const createTeam = async (req, res) => {
         });
       }
       await tx.auditLog.create({
-        data: { actorId: Number(req.user.id), action: 'TEAM_CREATED', details: { equipeId: createdTeam.id, gerenteId, lojaId } },
+        data: { actorId: Number(req.user.id), action: 'TEAM_CREATED', details: { equipeId: createdTeam.id, gerenteId, lojaId, movedFrom } },
       });
       return tx.equipe.findUnique({ where: { id: createdTeam.id }, include: teamListInclude });
     });
@@ -164,7 +166,6 @@ export const updateTeam = async (req, res) => {
             OR: [{ status: 'ativo' }, { equipeId: id }],
             lojaId: existing.lojaId,
           },
-          ...(role === 'MANAGER' ? [{ OR: [{ gerenteId: Number(req.user.id) }, { equipeId: id }] }] : []),
         ],
       },
       select: { id: true },
@@ -185,6 +186,9 @@ export const updateTeam = async (req, res) => {
       }
       await tx.$queryRaw`SELECT id FROM Equipe WHERE id = ${id} FOR UPDATE`;
       await tx.equipe.update({ where: { id }, data: { nome, gerenteId, updatedAt: new Date() } });
+      const movedFrom = selectedMemberIds?.length
+        ? (await tx.usuario.findMany({ where: { id: { in: selectedMemberIds }, equipeId: { notIn: [id] }, NOT: { equipeId: null } }, select: { id: true, equipeId: true } })).map((item) => ({ usuarioId: item.id, equipeId: item.equipeId }))
+        : [];
       if (selectedMemberIds) {
         const removedFilter = selectedMemberIds.length
           ? { equipeId: id, id: { notIn: selectedMemberIds } }
@@ -197,7 +201,7 @@ export const updateTeam = async (req, res) => {
         await tx.usuario.updateMany({ where: { equipeId: id }, data: { gerenteId } });
       }
       await tx.auditLog.create({
-        data: { actorId: Number(req.user.id), action: 'TEAM_UPDATED', details: { equipeId: id, before: { nome: existing.nome, gerenteId: existing.gerenteId, memberIds: existing.membros.map((member) => member.id) }, after: { nome, gerenteId, memberIds: selectedMemberIds || existing.membros.map((member) => member.id) } } },
+        data: { actorId: Number(req.user.id), action: 'TEAM_UPDATED', details: { equipeId: id, before: { nome: existing.nome, gerenteId: existing.gerenteId, memberIds: existing.membros.map((member) => member.id) }, after: { nome, gerenteId, memberIds: selectedMemberIds || existing.membros.map((member) => member.id) }, movedFrom } },
       });
       return tx.equipe.findUnique({ where: { id }, include: teamListInclude });
     });
@@ -232,4 +236,26 @@ export const deleteTeam = async (req, res) => {
     throw error;
   }
   return ok(res, null, 'Equipe desativada.');
+};
+
+export const listSellerOptions = async (req, res) => {
+  const role = roleOf(req.user);
+  const lojaId = role === 'ADMIN' && req.query.lojaId ? Number(req.query.lojaId) : Number(req.user.lojaId);
+  if (!Number.isInteger(lojaId) || lojaId < 1) return res.status(400).json({ success: false, error: 'BAD_REQUEST', message: 'Loja inválida.' });
+  const rows = await prisma.usuario.findMany({
+    where: { lojaId, perfil: { in: ['SELLER', 'VENDEDOR'] }, status: 'ativo' },
+    select: { id: true, nome: true, email: true, gerenteId: true, equipeId: true, equipeComercial: { select: { id: true, nome: true, gerenteId: true, gerente: { select: { nome: true } } } } },
+    orderBy: { nome: 'asc' },
+  });
+  return ok(res, rows.map(({ equipeComercial, ...item }) => ({ ...item, equipeNome: equipeComercial?.nome || null, equipeGerenteId: equipeComercial?.gerenteId || null, equipeGerenteNome: equipeComercial?.gerente?.nome || null })), 'Vendedores carregados.');
+};
+
+export const createTeamSeller = async (req, res, next) => {
+  try {
+    const lojaId = Number(req.user.lojaId);
+    const team = await prisma.equipe.findFirst({ where: { gerenteId: Number(req.user.id), lojaId, status: 'ativo', deletedAt: null }, select: { id: true } });
+    req.body = { ...req.body, perfil: 'SELLER', lojaId, status: 'ativo' };
+    req.teamAssignment = { gerenteId: Number(req.user.id), ...(team ? { equipeId: team.id } : {}) };
+    return await createUser(req, res);
+  } catch (error) { return next(error); }
 };

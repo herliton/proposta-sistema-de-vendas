@@ -412,6 +412,43 @@ Os benefícios escolhidos na simulação são gravados em `PropostaBeneficio`
 descrição no momento da proposta, e listados no PDF (seção 3). O backend
 rejeita benefícios inexistentes ou inativos (`beneficioIds`).
 
+### Equipes e vendedores
+
+Um vendedor pertence a no máximo uma equipe (`Usuario.equipeId`). O
+gerente cria/edita a sua equipe associando vendedores ativos da mesma
+loja (`memberIds`); quem estava em outra equipe é movido e a auditoria
+registra `movedFrom`. O gerente também pode cadastrar um vendedor novo
+(`POST /teams/sellers`), já vinculado a ele e à sua equipe. As opções vêm
+de `GET /teams/seller-options`.
+
+### Ficha de recuperação de crédito
+
+Consultoria vendida para elevar o score. Todo financiamento recusado
+(`CREDIT_REJECTED`) cria a `OportunidadeCredito` e a `FichaRecuperacao`
+(1:1, opcional) com os dados da proposta; também é possível criar a ficha
+direto, com cliente existente ou novo (`POST /credit-recovery/fichas`).
+Nome, e-mail, telefone e endereço ficam em `Cliente` (fonte única).
+Vendedor e gerente complementam; só ADMIN/SUPPORT/MANAGER excluem registros.
+
+Escopo: ADMIN/SUPPORT por loja; MANAGER as fichas suas ou de seus
+vendedores; SELLER só as suas. Uma ficha aberta por cliente.
+
+Passos (abas):
+1. **Ficha cadastral**: identificação, documentos, CNH, endereço (ViaCEP),
+   residência, contatos, referências (Amigo/Pai/Mãe/Filho/Outros), empresa,
+   simulação e segunda opção de veículo, cada uma com parcelas
+   (quantidade, mínima, máxima).
+2. **Controle administrativo** (`FichaContato`): contatos numerados, com
+   protocolo automático DDMMHHmm, SPC, dívida, consultor(a), setor, tratativa.
+3. **Análise bancária** (`FichaAnaliseBancaria`): instituição, data/hora,
+   resposta, quem submeteu e a proposta completa.
+4. **Acompanhamento financeiro** (`FichaAcompanhamento`): contatos com
+   checklist OK/Não de 9 requisitos fixos, responsável e data/hora; score de
+   início e de término do acompanhamento com data/hora (`PATCH .../score`).
+
+O primeiro contato, análise ou acompanhamento muda o status de ABERTA
+para EM_ANDAMENTO.
+
 ## 5.11 PDF - Requisito Especial
 - Use biblioteca pdfkit no backend.
 - Proposta deve conter: Logo da loja (de /imagem/), dados do cliente, foto principal do veículo, valores, entrada, financiado, parcelas, taxa, validade.

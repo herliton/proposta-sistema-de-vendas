@@ -69,6 +69,10 @@ app.use('/api/audit-logs', auditLogsRoutes);
 app.use((err, req, res, next) => {
   console.error(err);
 
+  if (['P2021', 'P2022'].includes(err.code)) {
+    return res.status(503).json({ success: false, error: 'DATABASE_NOT_MIGRATED', message: 'O banco de dados está desatualizado. Execute as migrações (npm run db:migrate:deploy) ou o script backend/prisma/manual/financing_benefits_tables.sql.' });
+  }
+
   res.status(500).json({
     success: false,
     message: 'Erro interno do servidor',

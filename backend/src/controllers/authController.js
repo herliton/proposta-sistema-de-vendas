@@ -283,7 +283,7 @@ export const createUser = async (req, res) => {
   try { await sendTemporaryAccessEmail({ nome: fields.nome, email, temporaryPassword }); }
   catch (error) { const mapped = mailError(error); if (error.code !== 'SMTP_NOT_CONFIGURED') console.error('Falha no SMTP:', error.code || 'UNKNOWN', error.responseCode || ''); return res.status(mapped.status).json({ success: false, error: error.code || 'EMAIL_DELIVERY_FAILED', message: mapped.message }); }
   const user = await prisma.$transaction(async (tx) => {
-    const createdUser = await tx.usuario.create({ data: { ...fields, email, lojaId, senhaHash: await bcrypt.hash(temporaryPassword, 10), firstAccess: true } });
+    const createdUser = await tx.usuario.create({ data: { ...fields, email, lojaId, senhaHash: await bcrypt.hash(temporaryPassword, 10), firstAccess: true, ...(req.teamAssignment || {}) } });
     if (['SELLER', 'MANAGER'].includes(fields.perfil)) await tx.vendedor.create({ data: { nome: fields.nome, email, telefone: fields.telefone, cargo: fields.perfil === 'MANAGER' ? 'Gerente' : 'Vendedor', status: fields.status, usuarioId: createdUser.id, lojaId } });
     await tx.auditLog.create({ data: { actorId: Number(req.user.id), action: 'USER_CREATED', details: { usuarioId: createdUser.id, perfil: fields.perfil, lojaId } } });
     return tx.usuario.findUnique({ where: { id: createdUser.id }, include: { vendedores: { take: 1 }, loja: true } });
