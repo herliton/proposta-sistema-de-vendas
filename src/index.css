@@ -506,6 +506,10 @@ td strong { color: #2a3549; font-weight: 600; }
 .ficha-toggle button.off { border-color: #b1545b; color: #fff; background: #b1545b; }
 .ficha-toolbar { padding: 14px 16px 0; display: grid; grid-template-columns: 1fr 190px auto; gap: 10px; align-items: center; }
 .ficha-head-actions { display: flex; gap: 8px; align-items: center; }
+.ficha-toolbar input, .ficha-toolbar select, .ficha-head-actions select { height: 38px; padding: 0 12px; border: 1px solid #dfe4ec; border-radius: 7px; outline: none; color: #26324a; background: #fbfcfe; font-size: 11px; }
+.ficha-toolbar input:focus, .ficha-toolbar select:focus, .ficha-head-actions select:focus { border-color: #8fb0f0; }
+.ficha-toolbar .primary-button { height: 38px; white-space: nowrap; }
+.ficha-head-actions .secondary-button { white-space: nowrap; }
 .ficha-score-info { align-self: center; color: #718098; }
 .link-button { border: 0; color: #2867df; background: none; font-size: 10px; font-weight: 700; cursor: pointer; }
 .link-button.danger { color: #b1545b; }

@@ -1,3 +1,4 @@
+import { fichaPdfFilename, renderFichaPdf } from '../services/fichaPdfService.js';
 import { prisma } from '../config/database.js';
 import { created, notFound, ok } from '../utils/response.js';
 import { storeScope, writeStoreId } from '../utils/storeScope.js';
@@ -289,7 +290,7 @@ const scopeFor = (user) => {
   const role = roleOf(user);
   if (isOversight(user)) return { ...base, ...storeScope(user) };
   const me = userId(user);
-  if (role === 'MANAGER') return { AND: [base, storeScope(user), { OR: [{ gerenteId: me }, { vendedorId: me }, { vendedor: { gerenteId: me } }] }] };
+  if (role === 'MANAGER') return { ...base, ...storeScope(user) };
   return { ...base, vendedorId: me, ...storeScope(user) };
 };
 
@@ -435,10 +436,57 @@ export const createFicha = async (req, res) => {
   }
 };
 
+const CAMPOS = {
+  rg: 'RG', orgaoEmissor: 'Órgão emissor', ufEmissor: 'UF do órgão emissor', dataEmissaoRg: 'Data de emissão do RG',
+  naturalidade: 'Naturalidade', naturalidadeUf: 'UF da naturalidade', dataNascimento: 'Data de nascimento',
+  cnhNumero: 'Número da CNH', cnhValidade: 'Validade da CNH', cnhCategoria: 'Categoria da CNH', sexo: 'Sexo',
+  estadoCivil: 'Estado civil', residenciaTipo: 'Residência', tempoResidencia: 'Tempo de residência',
+  telefoneFixo: 'Telefone fixo', telefoneCelular: 'Telefone celular', whatsapp: 'WhatsApp',
+  empresaCnpj: 'CNPJ da empresa', empresaNome: 'Nome da empresa', dataAdmissao: 'Data de admissão', renda: 'Renda',
+  cargoFuncao: 'Cargo/função', classificacaoTrabalho: 'Classificação de trabalho', valorVeiculo: 'Valor do veículo',
+  valorEntrada: 'Valor de entrada', valorFinanciado: 'Valor financiado', valorTarifaTramite: 'Tarifa de trâmite',
+  dataEntradaFicha: 'Data de entrada da ficha', status: 'Status',
+  nome: 'Nome do cliente', email: 'E-mail', telefone: 'Telefone', cep: 'CEP', logradouro: 'Logradouro', numero: 'Número',
+  complemento: 'Complemento', bairro: 'Bairro', cidade: 'Cidade', estado: 'UF do endereço',
+};
+const CAMPOS_VALOR = new Set(['renda', 'valorVeiculo', 'valorEntrada', 'valorFinanciado', 'valorTarifaTramite']);
+const ROTULOS_VALOR = {
+  MASCULINO: 'Masculino', FEMININO: 'Feminino', PROPRIA: 'Própria', ALUGADA: 'Alugada', CEDIDA: 'Cedida',
+  CARTEIRA_ASSINADA: 'Carteira assinada', AUTONOMO: 'Autônomo',
+  ABERTA: 'Aberta', EM_ANDAMENTO: 'Em andamento', CONCLUIDA: 'Concluída', CANCELADA: 'Cancelada',
+};
+
+const humanValue = (key, value) => {
+  if (value === null || value === undefined || value === '') return 'vazio';
+  if (value instanceof Date) {
+    const midnight = value.getUTCHours() === 0 && value.getUTCMinutes() === 0 && value.getUTCSeconds() === 0;
+    return midnight ? value.toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : value.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  }
+  if (CAMPOS_VALOR.has(key)) return Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  return ROTULOS_VALOR[value] || String(value);
+};
+
+const comparable = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'object' && typeof value.toNumber === 'function') return value.toNumber().toFixed(2);
+  if (typeof value === 'number') return value.toFixed(2);
+  return String(value);
+};
+
+const diffFields = (before, patch) => Object.keys(patch)
+  .filter((key) => CAMPOS[key] && comparable(before?.[key]) !== comparable(patch[key]))
+  .map((key) => ({ campo: CAMPOS[key], antes: humanValue(key, before?.[key]), depois: humanValue(key, patch[key]) }));
+
+const refsSummary = (rows) => (rows.length ? rows.map((row) => `${row.nome} (${row.tipo}) ${row.telefone || ''}`.trim()).join('; ') : 'vazio');
+const opcoesSummary = (rows) => (rows.length
+  ? rows.map((row, index) => `${index + 1}ª: ${[row.marca, row.modelo, `${row.anoModelo ?? ''}/${row.anoFabricacao ?? ''}`].join(' ')} - ${(row.parcelas || []).map((parcel) => `${parcel.quantidade}x ${Number(parcel.parcelaMinima ?? 0).toFixed(2)}-${Number(parcel.parcelaMaxima ?? 0).toFixed(2)}`).join(', ')}`).join('; ')
+  : 'vazio');
+
 export const updateFicha = async (req, res) => {
   const id = parseId(req.params.id);
   if (!id) return fail(res, 'Identificador de ficha inválido.');
-  const existing = await prisma.fichaRecuperacao.findFirst({ where: { id, ...scopeFor(req.user) } });
+  const existing = await prisma.fichaRecuperacao.findFirst({ where: { id, ...scopeFor(req.user) }, include: { cliente: true, referencias: { orderBy: { id: 'asc' } }, opcoes: { orderBy: { ordem: 'asc' }, include: { parcelas: { orderBy: { id: 'asc' } } } }, vendedor: { select: { nome: true } }, gerente: { select: { nome: true } } } });
   if (!existing) return notFound(res, 'Ficha de recuperação não encontrada.');
   const ficha = parseFicha(req.body);
   const clientePatch = parseClientePatch(req.body.cliente);
@@ -466,7 +514,22 @@ export const updateFicha = async (req, res) => {
         await tx.fichaOpcaoVeiculo.create({ data: { ...vehicle, ordem: index + 1, fichaId: id, parcelas: { create: parcelas } } });
       }
     }
-    await audit(tx, req, 'FICHA_RECUPERACAO_UPDATED', { fichaId: id, campos: Object.keys(ficha.data) });
+    const alteracoes = [...diffFields(existing, ficha.data), ...diffFields(existing.cliente, clientePatch.data)];
+    if (!referencias.skip) {
+      const antes = refsSummary(existing.referencias); const depois = refsSummary(referencias.rows);
+      if (antes !== depois) alteracoes.push({ campo: 'Referências pessoais', antes, depois });
+    }
+    if (!opcoes.skip) {
+      const antes = opcoesSummary(existing.opcoes); const depois = opcoesSummary(opcoes.rows);
+      if (antes !== depois) alteracoes.push({ campo: 'Opções de veículo e parcelas', antes, depois });
+    }
+    if (people && (people.vendedorId !== existing.vendedorId || people.gerenteId !== existing.gerenteId)) {
+      const ids = [people.vendedorId, people.gerenteId].filter(Boolean);
+      const names = new Map((await tx.usuario.findMany({ where: { id: { in: ids } }, select: { id: true, nome: true } })).map((user) => [user.id, user.nome]));
+      if (people.vendedorId !== existing.vendedorId) alteracoes.push({ campo: 'Vendedor', antes: existing.vendedor?.nome || 'vazio', depois: names.get(people.vendedorId) || 'vazio' });
+      if (people.gerenteId !== existing.gerenteId) alteracoes.push({ campo: 'Gerente', antes: existing.gerente?.nome || 'vazio', depois: names.get(people.gerenteId) || 'vazio' });
+    }
+    if (alteracoes.length) await audit(tx, req, 'FICHA_RECUPERACAO_UPDATED', { fichaId: id, alteracoes });
   });
   return ok(res, await loadFicha(req.user, id), 'Ficha atualizada.');
 };
@@ -486,7 +549,7 @@ export const updateScore = async (req, res) => {
   }
   await prisma.$transaction(async (tx) => {
     await tx.fichaRecuperacao.update({ where: { id }, data });
-    await audit(tx, req, 'FICHA_RECUPERACAO_SCORE_UPDATED', { fichaId: id, scoreInicio: data.scoreInicio, scoreTermino: data.scoreTermino });
+    await audit(tx, req, 'FICHA_RECUPERACAO_SCORE_UPDATED', { fichaId: id, scoreInicio: data.scoreInicio, scoreTermino: data.scoreTermino, anteriorInicio: existing.scoreInicio, anteriorTermino: existing.scoreTermino });
   });
   return ok(res, await loadFicha(req.user, id), 'Score atualizado.');
 };
@@ -544,6 +607,72 @@ export const updateContato = withFicha(async (req, res, ficha) => {
     await audit(tx, req, 'FICHA_CONTATO_UPDATED', { fichaId: ficha.id, contatoId: itemId });
   });
   return ok(res, await loadFicha(req.user, ficha.id), 'Contato atualizado.');
+});
+
+const ACOES = {
+  FICHA_RECUPERACAO_CREATED: 'Ficha de recuperação criada',
+  FICHA_RECUPERACAO_UPDATED: 'Ficha cadastral atualizada',
+  FICHA_RECUPERACAO_SCORE_UPDATED: 'Score atualizado',
+  FICHA_CONTATO_CREATED: 'Contato registrado no controle administrativo',
+  FICHA_CONTATO_UPDATED: 'Contato do controle administrativo alterado',
+  FICHA_CONTATO_DELETED: 'Contato do controle administrativo removido',
+  FICHA_ANALISE_CREATED: 'Análise bancária registrada',
+  FICHA_ANALISE_UPDATED: 'Análise bancária atualizada',
+  FICHA_ANALISE_DELETED: 'Análise bancária removida',
+  FICHA_ACOMPANHAMENTO_CREATED: 'Contato de acompanhamento financeiro registrado',
+  FICHA_ACOMPANHAMENTO_UPDATED: 'Contato de acompanhamento financeiro alterado',
+  FICHA_ACOMPANHAMENTO_DELETED: 'Contato de acompanhamento financeiro removido',
+  FICHA_DELETED: 'Ficha excluída',
+};
+
+const scoreText = (value) => (value === null || value === undefined ? 'sem valor' : String(value));
+
+const describeLog = (log) => {
+  const details = log.details || {};
+  const base = ACOES[log.action] || log.action;
+  if (log.action === 'FICHA_RECUPERACAO_SCORE_UPDATED') {
+    const parts = [];
+    for (const [label, novo, antes] of [['início', details.scoreInicio, details.anteriorInicio], ['término', details.scoreTermino, details.anteriorTermino]]) {
+      if (novo === undefined || novo === antes || (novo === null && antes === undefined)) continue;
+      parts.push(`${label}: ${scoreText(antes)} para ${scoreText(novo)}`);
+    }
+    return { acao: base, detalhe: parts.join('; ') };
+  }
+  if (log.action === 'FICHA_RECUPERACAO_UPDATED') {
+    if (Array.isArray(details.alteracoes)) return { acao: base, detalhe: details.alteracoes.map((item) => `${item.campo}: ${item.antes} para ${item.depois}`).join('\n') };
+    if (Array.isArray(details.campos)) return { acao: base, detalhe: `Campos: ${details.campos.join(', ')}` };
+  }
+  if (log.action === 'FICHA_ANALISE_UPDATED' && details.resposta) return { acao: base, detalhe: `Resposta: ${details.resposta}` };
+  return { acao: base, detalhe: '' };
+};
+
+const loadHistorico = async (fichaId) => {
+  const logs = await prisma.auditLog.findMany({
+    where: { action: { startsWith: 'FICHA_' }, details: { path: '$.fichaId', equals: fichaId } },
+    orderBy: { createdAt: 'asc' },
+    include: { actor: { select: { nome: true, perfil: true } } },
+  });
+  return logs.map((log) => ({ id: log.id, em: log.createdAt, por: log.actor?.nome || '—', perfil: log.actor?.perfil || null, ...describeLog(log) }));
+};
+
+export const getFichaHistorico = withFicha(async (req, res, ficha) => ok(res, await loadHistorico(ficha.id)));
+
+export const downloadFichaPdf = withFicha(async (req, res, ficha) => {
+  const full = await loadFicha(req.user, ficha.id);
+  const loja = await prisma.loja.findUnique({ where: { id: full.lojaId } });
+  const dossie = req.path.endsWith('/dossie');
+  const historico = dossie ? await loadHistorico(full.id) : null;
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${fichaPdfFilename(full, dossie)}"`);
+  if (dossie) await audit(prisma, req, 'FICHA_DOSSIE_GENERATED', { fichaId: full.id });
+  renderFichaPdf(full, loja, res, { historico });
+});
+
+export const removeFicha = withFicha(async (req, res, ficha) => {
+  if (!canRemove(req, res)) return null;
+  await prisma.fichaRecuperacao.update({ where: { id: ficha.id }, data: { deletedAt: new Date() } });
+  await audit(prisma, req, 'FICHA_DELETED', { fichaId: ficha.id, clienteId: ficha.clienteId });
+  return ok(res, { id: ficha.id }, 'Ficha removida.');
 });
 
 export const removeContato = withFicha(async (req, res, ficha) => {

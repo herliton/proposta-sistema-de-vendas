@@ -449,6 +449,24 @@ Passos (abas):
 O primeiro contato, análise ou acompanhamento muda o status de ABERTA
 para EM_ANDAMENTO.
 
+Complementos:
+- Exclusão: `DELETE /credit-recovery/fichas/:id` (lógica, `deletedAt`,
+  auditoria `FICHA_DELETED`), só ADMIN/SUPPORT/MANAGER.
+- Evolução do score: diferença término − início exibida como `+N pts`
+  (verde), `-N pts` (vermelho) ou `0 pts` na lista e no passo 4.
+- Gerente: vê e complementa todas as fichas da loja (como Admin/Suporte).
+- Ficha cadastral editável por Vendedor, Gerente, Admin e Suporte (só
+  CPF/CNPJ é fixo). Cada alteração grava em `AuditLog`
+  (`FICHA_RECUPERACAO_UPDATED.alteracoes`: campo, valor antes, valor depois,
+  usuário e data/hora); salvar sem mudança não gera registro.
+- Passo 5 - Dossiê: `GET /credit-recovery/fichas/:id/dossie` gera o PDF com
+  a ficha completa + linha do tempo (quem, quando, o quê) montada a partir
+  de `AuditLog` (ações `FICHA_*`, incluindo mudanças de score com valor
+  anterior). `GET /credit-recovery/fichas/:id/historico` alimenta a aba.
+- PDF: `GET /credit-recovery/fichas/:id/pdf` (PDFKit, `fichaPdfService.js`),
+  com logo/dados da loja, os 4 passos, valores em R$ e datas pt-BR; mesmo
+  escopo por perfil. Botão "Baixar PDF" no cabeçalho da ficha.
+
 ## 5.11 PDF - Requisito Especial
 - Use biblioteca pdfkit no backend.
 - Proposta deve conter: Logo da loja (de /imagem/), dados do cliente, foto principal do veículo, valores, entrada, financiado, parcelas, taxa, validade.

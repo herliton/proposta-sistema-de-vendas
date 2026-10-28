@@ -3,8 +3,8 @@ import { authMiddleware } from '../middleware/auth.js';
 import { requireModuleAccess } from '../middleware/requireModuleAccess.js';
 import { createCreditOpportunity, listCreditOpportunities, updateCreditOpportunity } from '../controllers/creditRecoveryController.js';
 import {
-  addAcompanhamento, addAnalise, addContato, createFicha, getFicha, getRequisitos, listFichas, listResponsaveis,
-  removeAcompanhamento, removeAnalise, removeContato, updateAcompanhamento, updateAnalise, updateContato, updateFicha, updateScore,
+  addAcompanhamento, addAnalise, addContato, createFicha, downloadFichaPdf, getFichaHistorico, getFicha, getRequisitos, listFichas, listResponsaveis,
+  removeAcompanhamento, removeAnalise, removeContato, removeFicha, updateAcompanhamento, updateAnalise, updateContato, updateFicha, updateScore,
 } from '../controllers/fichaRecuperacaoController.js';
 
 const router = Router();
@@ -19,7 +19,11 @@ router.get('/fichas/responsaveis', wrap(listResponsaveis));
 router.get('/fichas', wrap(listFichas));
 router.post('/fichas', wrap(createFicha));
 router.get('/fichas/:id', wrap(getFicha));
+router.get('/fichas/:id/pdf', wrap(downloadFichaPdf));
+router.get('/fichas/:id/dossie', wrap(downloadFichaPdf));
+router.get('/fichas/:id/historico', wrap(getFichaHistorico));
 router.put('/fichas/:id', wrap(updateFicha));
+router.delete('/fichas/:id', wrap(removeFicha));
 router.patch('/fichas/:id/score', wrap(updateScore));
 router.post('/fichas/:id/contatos', wrap(addContato));
 router.put('/fichas/:id/contatos/:itemId', wrap(updateContato));

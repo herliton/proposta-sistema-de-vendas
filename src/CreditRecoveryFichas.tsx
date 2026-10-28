@@ -30,7 +30,7 @@ const STATUS_TONE: Record<string, string> = { ABERTA: "yellow", EM_ANDAMENTO: "b
 const RESPOSTA_LABELS: Record<string, string> = { EM_ANALISE: "Em análise", APROVADA: "Aprovada", RECUSADA: "Recusada", CONDICIONADA: "Aprovada com condições" };
 const SETORES = ["PÓS VENDA", "PÓS ANÁLISE", "PLANO DE AÇÃO", "SAC/ OUVIDORIA"];
 const ESTADOS_CIVIS = ["Solteiro(a)", "Casado(a)", "União estável", "Divorciado(a)", "Viúvo(a)", "Separado(a)"];
-const STEPS = ["1. Ficha cadastral", "2. Controle administrativo", "3. Análise bancária", "4. Acompanhamento financeiro"];
+const STEPS = ["1. Ficha cadastral", "2. Controle administrativo", "3. Análise bancária", "4. Acompanhamento financeiro", "5. Dossiê"];
 
 const digits = (value: unknown) => String(value ?? "").replace(/\D/g, "");
 const maskPhone = (value: string) => {
@@ -68,6 +68,11 @@ const makeApi = (token: string) => async <T,>(path: string, method = "GET", body
 
 const emptyOpcao = (): Opcao => ({ marca: "", modelo: "", anoModelo: "", anoFabricacao: "", parcelas: [{ quantidade: "", parcelaMinima: "", parcelaMaxima: "" }] });
 
+const evolution = (start: number | null | undefined, end: number | null | undefined) => {
+  if (start == null || end == null) return null;
+  const diff = end - start;
+  return { diff, label: `${diff > 0 ? "+" : ""}${diff} pts`, tone: diff > 0 ? "green" : diff < 0 ? "red" : "yellow" };
+};
 const toDraft = (ficha: Ficha): Draft => {
   const text = (key: string) => String(ficha[key] ?? "");
   const dates = ["dataEmissaoRg", "dataNascimento", "cnhValidade", "dataAdmissao"];
@@ -268,7 +273,7 @@ function FichaDetail({ id, authToken, profile, userName, onBack }: Common & { id
   </>;
 
   return <div>
-    <section className="module-heading"><div><p>FICHA DE RECUPERAÇÃO DE CRÉDITO</p><h1>{ficha.cliente.nome}</h1><span>CPF/CNPJ {maskDoc(String(ficha.cliente.documento || ""))} · Entrada da ficha {fmtDate(ficha.dataEntradaFicha)} · Vendedor {ficha.vendedor?.nome || "—"} · Gerente {ficha.gerente?.nome || "—"}</span></div><div className="ficha-head-actions"><select value={draft.status} disabled={saving} onChange={(e) => { set("status", e.target.value); void run(async () => { apply(await api<Ficha>(`/fichas/${id}`, "PUT", { status: e.target.value })); }, "Status atualizado."); }}>{Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><button className="secondary-button" onClick={onBack}>Voltar para fichas</button></div></section>
+    <section className="module-heading"><div><p>FICHA DE RECUPERAÇÃO DE CRÉDITO</p><h1>{ficha.cliente.nome}</h1><span>CPF/CNPJ {maskDoc(String(ficha.cliente.documento || ""))} · Entrada da ficha {fmtDate(ficha.dataEntradaFicha)} · Vendedor {ficha.vendedor?.nome || "—"} · Gerente {ficha.gerente?.nome || "—"}</span></div><div className="ficha-head-actions"><select value={draft.status} disabled={saving} onChange={(e) => { set("status", e.target.value); void run(async () => { apply(await api<Ficha>(`/fichas/${id}`, "PUT", { status: e.target.value })); }, "Status atualizado."); }}>{Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>{canRemove && <button className="secondary-button" disabled={saving} onClick={() => { if (window.confirm("Excluir esta ficha de recuperação? Os contatos, análises e acompanhamentos deixarão de aparecer.")) void run(async () => { await api(`/fichas/${id}`, "DELETE"); onBack(); }, "Ficha removida."); }}>Excluir ficha</button>}<button className="secondary-button" disabled={saving} onClick={() => void run(async () => { const response = await fetch(`${API_BASE_URL}/credit-recovery/fichas/${id}/pdf`, { headers: { Authorization: "Bearer " + authToken } }); if (!response.ok) throw new Error("Não foi possível gerar o PDF."); const url = URL.createObjectURL(await response.blob()); const link = document.createElement("a"); link.href = url; link.download = `ficha-recuperacao-${id}.pdf`; link.click(); URL.revokeObjectURL(url); }, "PDF gerado.")}>Baixar PDF</button><button className="secondary-button" onClick={onBack}>Voltar para fichas</button></div></section>
     {error && <div className="auth-notice">{error}</div>}{notice && <div className="auth-notice success">{notice}</div>}
     <div className="ficha-tabs">{STEPS.map((label, index) => <button key={label} className={index === step ? "active" : ""} onClick={() => setStep(index)}>{label}</button>)}</div>
     <section className="panel form-panel ficha-panel">
@@ -276,7 +281,35 @@ function FichaDetail({ id, authToken, profile, userName, onBack }: Common & { id
       {step === 1 && <ContatosStep ficha={ficha} userName={userName} canRemove={canRemove} saving={saving} run={run} api={api} id={id} apply={apply}/>}
       {step === 2 && <AnalisesStep ficha={ficha} draft={draft} canRemove={canRemove} saving={saving} run={run} api={api} id={id} apply={apply}/>}
       {step === 3 && <AcompanhamentoStep ficha={ficha} requisitos={requisitos} canRemove={canRemove} saving={saving} run={run} api={api} id={id} apply={apply}/>}
+      {step === 4 && <DossieStep id={id} authToken={authToken} api={api} saving={saving} run={run}/>}
     </section>
+  </div>;
+}
+
+type HistoricoItem = { id: number; em: string; por: string; acao: string; detalhe: string };
+
+function DossieStep({ id, authToken, api, saving, run }: { id: number; authToken: string; api: ReturnType<typeof makeApi>; saving: boolean; run: (action: () => Promise<void>, success: string) => Promise<void> }) {
+  const [items, setItems] = useState<HistoricoItem[] | null>(null);
+  useEffect(() => { void api<HistoricoItem[]>(`/fichas/${id}/historico`).then(setItems).catch(() => setItems([])); }, [api, id]);
+  const download = () => run(async () => {
+    const response = await fetch(`${API_BASE_URL}/credit-recovery/fichas/${id}/dossie`, { headers: { Authorization: "Bearer " + authToken } });
+    if (!response.ok) throw new Error("Não foi possível gerar o dossiê.");
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement("a");
+    link.href = url; link.download = `dossie-recuperacao-${id}.pdf`; link.click();
+    URL.revokeObjectURL(url);
+  }, "Dossiê gerado.");
+  return <div className="ficha-step">
+    <div className="ficha-card">
+      <div className="ficha-card-head"><strong>Dossiê do cliente</strong><span><button className="primary-button" disabled={saving} onClick={() => void download()}>Gerar dossiê (PDF)</button></span></div>
+      <p>PDF com a ficha cadastral, o controle administrativo, as análises bancárias, o acompanhamento financeiro, as mudanças de score e o histórico de tudo o que foi registrado, com quem fez e quando.</p>
+    </div>
+    <div className="ficha-card">
+      <div className="ficha-card-head"><strong>Histórico de registros</strong></div>
+      {items === null && <p>Carregando…</p>}
+      {items?.length === 0 && <p>Nenhum registro de histórico.</p>}
+      {items?.map((item) => <p key={item.id}><strong>{fmtDateTime(item.em)}</strong> · {item.por} — {item.acao}{item.detalhe && <span style={{ display: "block", whiteSpace: "pre-line", color: "#486581" }}>{item.detalhe}</span>}</p>)}
+    </div>
   </div>;
 }
 
@@ -414,7 +447,7 @@ function AcompanhamentoStep({ ficha, requisitos, canRemove, saving, run, api, id
     <div className="ficha-grid">
       <Field label="SCORE - início do acompanhamento"><input inputMode="numeric" maxLength={4} value={score.inicio} onChange={(e) => setScore({ ...score, inicio: digits(e.target.value) })}/></Field>
       <Field label="SCORE - término do acompanhamento"><input inputMode="numeric" maxLength={4} value={score.termino} onChange={(e) => setScore({ ...score, termino: digits(e.target.value) })}/></Field>
-      <div className="ficha-score-info"><small>Início registrado em {fmtDateTime(ficha.scoreInicioEm)}<br/>Término registrado em {fmtDateTime(ficha.scoreTerminoEm)}</small></div>
+      <div className="ficha-score-info">{(() => { const ev = evolution(numOrNull(score.inicio), numOrNull(score.termino)); return ev ? <p><strong>Evolução do score: </strong><span className={`status ${ev.tone}`}>{ev.label}</span></p> : <p><small>Informe os dois scores para ver a evolução.</small></p>; })()}<small>Início registrado em {fmtDateTime(ficha.scoreInicioEm)}<br/>Término registrado em {fmtDateTime(ficha.scoreTerminoEm)}</small></div>
       <button type="button" className="secondary-button" disabled={saving} onClick={() => void saveScore()}>Salvar score</button>
     </div>
     <div className="form-section-title">Plano de ação - contatos realizados</div>
@@ -464,7 +497,7 @@ export default function CreditRecoveryFichas({ authToken, profile, userName, onO
           <td>{row.gerente?.nome || "—"}<br/><small>{row.vendedor?.nome || "Sem vendedor"}</small></td>
           <td>{fmtDate(row.dataEntradaFicha)}</td>
           <td>{row._count.contatos} / {row._count.acompanhamentos} plano · {row._count.analises} banco</td>
-          <td>{row.scoreInicio ?? "—"} → {row.scoreTermino ?? "—"}</td>
+          <td>{row.scoreInicio ?? "—"} → {row.scoreTermino ?? "—"}{(() => { const ev = evolution(row.scoreInicio, row.scoreTermino); return ev ? <> <span className={`status ${ev.tone}`}>{ev.label}</span></> : null; })()}</td>
           <td><span className={`status ${STATUS_TONE[row.status] || "blue"}`}>{STATUS_LABELS[row.status] || row.status}</span></td>
           <td><button className="submit-bank" onClick={() => setOpenId(row.id)}>Abrir ficha</button></td>
         </tr>) : <tr><td colSpan={7}>Nenhuma ficha encontrada. Clientes com crédito recusado aparecem aqui automaticamente.</td></tr>}
