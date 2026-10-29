@@ -64,6 +64,9 @@ model Usuario {
   equipeId                        Int?
   equipeComercial                 Equipe?                @relation("TeamMembers", fields: [equipeId], references: [id], onDelete: SetNull)
   equipesGerenciadas              Equipe[]               @relation("TeamManager")
+  vinculosEquipe                  EquipeVinculo[]        @relation("TeamMembershipSeller")
+  vinculosEquipeCriados           EquipeVinculo[]        @relation("TeamMembershipCreatedBy")
+  vinculosEquipeEncerrados        EquipeVinculo[]        @relation("TeamMembershipEndedBy")
   vendedores                      Vendedor[]
   aprovacoes                      Aprovacao[]
   auditorias                      AuditLog[]
@@ -85,20 +88,40 @@ model Usuario {
 }
 
 model Equipe {
-  id        Int       @id @default(autoincrement())
-  nome      String    @db.VarChar(120)
-  gerenteId Int
-  lojaId    Int       @default(1)
-  status    String    @default("ativo")
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @default(now()) @updatedAt
-  gerente   Usuario   @relation("TeamManager", fields: [gerenteId], references: [id], onDelete: Restrict)
-  loja      Loja      @relation(fields: [lojaId], references: [id], onDelete: Restrict)
-  membros   Usuario[] @relation("TeamMembers")
+  id               Int             @id @default(autoincrement())
+  nome             String          @db.VarChar(120)
+  gerenteId        Int
+  lojaId           Int             @default(1)
+  status           String          @default("ativo")
+  deletedAt        DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @default(now()) @updatedAt
+  gerente          Usuario         @relation("TeamManager", fields: [gerenteId], references: [id], onDelete: Restrict)
+  loja             Loja            @relation(fields: [lojaId], references: [id], onDelete: Restrict)
+  membros          Usuario[]       @relation("TeamMembers")
+  historicoMembros EquipeVinculo[]
 
   @@unique([nome, lojaId])
   @@index([lojaId, status])
+}
+
+model EquipeVinculo {
+  id             Int       @id @default(autoincrement())
+  equipeId       Int
+  vendedorId     Int
+  iniciadoEm     DateTime  @default(now())
+  encerradoEm    DateTime?
+  atribuidoPorId Int?
+  removidoPorId  Int?
+  createdAt      DateTime  @default(now())
+  equipe         Equipe    @relation(fields: [equipeId], references: [id], onDelete: Restrict)
+  vendedor       Usuario   @relation("TeamMembershipSeller", fields: [vendedorId], references: [id], onDelete: Restrict)
+  atribuidoPor   Usuario?  @relation("TeamMembershipCreatedBy", fields: [atribuidoPorId], references: [id], onDelete: SetNull)
+  removidoPor    Usuario?  @relation("TeamMembershipEndedBy", fields: [removidoPorId], references: [id], onDelete: SetNull)
+
+  @@index([equipeId, iniciadoEm])
+  @@index([vendedorId, iniciadoEm])
+  @@index([vendedorId, encerradoEm])
 }
 
 model SystemModule {

@@ -23,13 +23,74 @@ const teamListInclude = {
 
 const validName = (value) => typeof value === 'string' && value.trim().length > 0 && value.trim().length <= 120;
 
+const historyForTeam = async (teamId) => {
+  const rows = await prisma.$queryRaw`
+    SELECT
+      link.id, link.iniciadoEm, link.encerradoEm,
+      seller.id AS vendedorId, seller.nome AS vendedorNome, seller.email AS vendedorEmail,
+      assigned.id AS atribuidoPorId, assigned.nome AS atribuidoPorNome,
+      removed.id AS removidoPorId, removed.nome AS removidoPorNome
+    FROM EquipeVinculo link
+    INNER JOIN Usuario seller ON seller.id = link.vendedorId
+    LEFT JOIN Usuario assigned ON assigned.id = link.atribuidoPorId
+    LEFT JOIN Usuario removed ON removed.id = link.removidoPorId
+    WHERE link.equipeId = ${teamId}
+    ORDER BY link.iniciadoEm DESC, link.id DESC
+  `;
+  return rows.map((row) => ({
+    id: row.id,
+    iniciadoEm: row.iniciadoEm,
+    encerradoEm: row.encerradoEm,
+    vendedor: { id: row.vendedorId, nome: row.vendedorNome, email: row.vendedorEmail },
+    atribuidoPor: row.atribuidoPorId ? { id: row.atribuidoPorId, nome: row.atribuidoPorNome } : null,
+    removidoPor: row.removidoPorId ? { id: row.removidoPorId, nome: row.removidoPorNome } : null,
+  }));
+};
+
+const withTeamHistory = async (team) => team ? { ...team, historicoMembros: await historyForTeam(team.id) } : team;
+
+const setTeamMembership = async (tx, vendedorId, equipeId, gerenteId, actorId) => {
+  await tx.$queryRaw`SELECT id FROM Usuario WHERE id = ${vendedorId} FOR UPDATE`;
+  const seller = await tx.usuario.findUnique({ where: { id: vendedorId }, select: { equipeId: true, gerenteId: true } });
+  if (!seller || seller.equipeId === equipeId) return null;
+
+  const now = new Date();
+  if (seller.equipeId !== null) {
+    await tx.$executeRaw`
+      UPDATE EquipeVinculo
+      SET encerradoEm = ${now}, removidoPorId = ${actorId}
+      WHERE vendedorId = ${vendedorId} AND encerradoEm IS NULL
+    `;
+  }
+  let newLink = null;
+  if (equipeId !== null) {
+    await tx.$executeRaw`
+      INSERT INTO EquipeVinculo (vendedorId, equipeId, iniciadoEm, atribuidoPorId, createdAt)
+      VALUES (${vendedorId}, ${equipeId}, ${now}, ${actorId}, ${now})
+    `;
+    newLink = { iniciadoEm: now };
+  }
+  await tx.usuario.update({
+    where: { id: vendedorId },
+    data: { equipeId, gerenteId: equipeId === null ? null : gerenteId },
+  });
+  return {
+    vendedorId,
+    deEquipeId: seller.equipeId,
+    paraEquipeId: equipeId,
+    iniciadoEm: newLink?.iniciadoEm ?? null,
+    encerradoEm: seller.equipeId !== null ? now : null,
+    gerenteAnteriorId: seller.gerenteId,
+  };
+};
+
 export const listTeams = async (req, res) => {
   const rows = await prisma.equipe.findMany({
     where: { ...teamScope(req.user), deletedAt: null },
     include: teamListInclude,
     orderBy: { nome: 'asc' },
   });
-  return ok(res, rows, 'Equipes carregadas.');
+  return ok(res, await Promise.all(rows.map(withTeamHistory)), 'Equipes carregadas.');
 };
 
 export const getTeam = async (req, res) => {
@@ -43,7 +104,7 @@ export const getTeam = async (req, res) => {
     },
   });
   if (!team) return notFound(res, 'Equipe não encontrada.');
-  return ok(res, team, 'Equipe carregada.');
+  return ok(res, await withTeamHistory(team), 'Equipe carregada.');
 };
 
 export const createTeam = async (req, res) => {
@@ -81,6 +142,7 @@ export const createTeam = async (req, res) => {
         perfil: { in: ['SELLER', 'VENDEDOR'] },
         status: 'ativo',
         lojaId,
+        ...(roleOf(req.user) === 'MANAGER' ? { equipeId: null } : {}),
       },
       select: { id: true },
     })
@@ -101,22 +163,21 @@ export const createTeam = async (req, res) => {
         data: { nome, gerenteId, lojaId },
         include: teamInclude,
       });
-      let movedFrom = [];
-      if (selectedMemberIds?.length) {
-        movedFrom = (await tx.usuario.findMany({ where: { id: { in: selectedMemberIds }, equipeId: { not: null } }, select: { id: true, equipeId: true } })).map((item) => ({ usuarioId: item.id, equipeId: item.equipeId }));
-        await tx.usuario.updateMany({ where: { id: { in: selectedMemberIds } }, data: { equipeId: createdTeam.id, gerenteId } });
-      } else if (!selectedMemberIds) {
-        await tx.usuario.updateMany({
-          where: { gerenteId, lojaId, equipeId: null, status: { not: 'inativo' } },
-          data: { equipeId: createdTeam.id },
-        });
+      const selectedIds = selectedMemberIds ?? (await tx.usuario.findMany({
+        where: { gerenteId, lojaId, equipeId: null, status: { not: 'inativo' }, perfil: { in: ['SELLER', 'VENDEDOR'] } },
+        select: { id: true },
+      })).map((item) => item.id);
+      const membershipChanges = [];
+      for (const vendedorId of [...selectedIds].sort((a, b) => a - b)) {
+        const change = await setTeamMembership(tx, vendedorId, createdTeam.id, gerenteId, Number(req.user.id));
+        if (change) membershipChanges.push(change);
       }
       await tx.auditLog.create({
-        data: { actorId: Number(req.user.id), action: 'TEAM_CREATED', details: { equipeId: createdTeam.id, gerenteId, lojaId, movedFrom } },
+        data: { actorId: Number(req.user.id), action: 'TEAM_CREATED', details: { equipeId: createdTeam.id, gerenteId, lojaId, membershipChanges } },
       });
       return tx.equipe.findUnique({ where: { id: createdTeam.id }, include: teamListInclude });
     });
-    return created(res, team, 'Equipe criada.');
+    return created(res, await withTeamHistory(team), 'Equipe criada.');
   } catch (error) {
     if (error.code === 'P2002') return res.status(409).json({ success: false, error: 'TEAM_CONFLICT', message: 'Já existe uma equipe com este nome nesta loja.' });
     if (error.code === 'ACTIVE_TEAM_EXISTS') return res.status(409).json({ success: false, error: 'TEAM_CONFLICT', message: error.message });
@@ -166,6 +227,7 @@ export const updateTeam = async (req, res) => {
             OR: [{ status: 'ativo' }, { equipeId: id }],
             lojaId: existing.lojaId,
           },
+          ...(role === 'MANAGER' ? [{ OR: [{ equipeId: null }, { equipeId: id }] }] : []),
         ],
       },
       select: { id: true },
@@ -186,26 +248,23 @@ export const updateTeam = async (req, res) => {
       }
       await tx.$queryRaw`SELECT id FROM Equipe WHERE id = ${id} FOR UPDATE`;
       await tx.equipe.update({ where: { id }, data: { nome, gerenteId, updatedAt: new Date() } });
-      const movedFrom = selectedMemberIds?.length
-        ? (await tx.usuario.findMany({ where: { id: { in: selectedMemberIds }, equipeId: { notIn: [id] }, NOT: { equipeId: null } }, select: { id: true, equipeId: true } })).map((item) => ({ usuarioId: item.id, equipeId: item.equipeId }))
-        : [];
+      const membershipChanges = [];
       if (selectedMemberIds) {
-        const removedFilter = selectedMemberIds.length
-          ? { equipeId: id, id: { notIn: selectedMemberIds } }
-          : { equipeId: id };
-        await tx.usuario.updateMany({ where: removedFilter, data: { equipeId: null } });
-        if (selectedMemberIds.length) {
-          await tx.usuario.updateMany({ where: { id: { in: selectedMemberIds } }, data: { equipeId: id, gerenteId } });
+        const removedIds = existing.membros.map((member) => member.id).filter((memberId) => !selectedMemberIds.includes(memberId));
+        for (const vendedorId of [...new Set([...removedIds, ...selectedMemberIds])].sort((a, b) => a - b)) {
+          const targetTeamId = selectedMemberIds.includes(vendedorId) ? id : null;
+          const change = await setTeamMembership(tx, vendedorId, targetTeamId, gerenteId, Number(req.user.id));
+          if (change) membershipChanges.push(change);
         }
       } else if (gerenteId !== existing.gerenteId) {
         await tx.usuario.updateMany({ where: { equipeId: id }, data: { gerenteId } });
       }
       await tx.auditLog.create({
-        data: { actorId: Number(req.user.id), action: 'TEAM_UPDATED', details: { equipeId: id, before: { nome: existing.nome, gerenteId: existing.gerenteId, memberIds: existing.membros.map((member) => member.id) }, after: { nome, gerenteId, memberIds: selectedMemberIds || existing.membros.map((member) => member.id) }, movedFrom } },
+        data: { actorId: Number(req.user.id), action: 'TEAM_UPDATED', details: { equipeId: id, before: { nome: existing.nome, gerenteId: existing.gerenteId, memberIds: existing.membros.map((member) => member.id) }, after: { nome, gerenteId, memberIds: selectedMemberIds || existing.membros.map((member) => member.id) }, membershipChanges } },
       });
       return tx.equipe.findUnique({ where: { id }, include: teamListInclude });
     });
-    return ok(res, team, 'Equipe atualizada.');
+    return ok(res, await withTeamHistory(team), 'Equipe atualizada.');
   } catch (error) {
     if (error.code === 'P2002') return res.status(409).json({ success: false, error: 'TEAM_CONFLICT', message: 'Já existe uma equipe com este nome nesta loja.' });
     if (error.code === 'ACTIVE_TEAM_EXISTS') return res.status(409).json({ success: false, error: 'TEAM_CONFLICT', message: error.message });

@@ -117,6 +117,13 @@ export const createVendedor = async (req, res) => {
         data: { nome, email, telefone, cargo: 'Vendedor', equipe: null, status: 'ativo', usuarioId: user.id, lojaId },
         include: { usuario: { select: { id: true, status: true, gerenteId: true } } },
       });
+      if (team) {
+        const now = new Date();
+        await tx.$executeRaw`
+          INSERT INTO EquipeVinculo (vendedorId, equipeId, iniciadoEm, atribuidoPorId, createdAt)
+          VALUES (${user.id}, ${team.id}, ${now}, ${Number(req.user.id)}, ${now})
+        `;
+      }
       await tx.auditLog.create({
         data: { actorId: Number(req.user.id), action: 'TEAM_SELLER_CREATED', details: { vendedorId: createdSeller.id, usuarioId: user.id, lojaId } },
       });

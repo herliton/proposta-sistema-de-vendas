@@ -219,6 +219,16 @@ ou desvinculação explícita. - Não permitir que gerente comum consulte ou
 altere equipes fora de seu escopo. - A exclusão física só pode ocorrer
 se não houver vínculos; preferir exclusão lógica.
 
+Vínculos vendedor-equipe são períodos históricos (`EquipeVinculo`):
+`iniciadoEm`, `encerradoEm`, usuário que associou e usuário que encerrou.
+Um vendedor tem somente uma equipe atual (`Usuario.equipeId`), mas pode
+ter vários vínculos encerrados ao longo do tempo. Gerente pode associar
+vendedor sem equipe ou desassociar vendedor da própria equipe; desmarcar
+o vendedor encerra o período e limpa sua equipe/gerente atuais. A aba de
+edição apresenta o histórico de períodos. A migração cria um vínculo
+inicial para membros existentes; como não há datas históricas anteriores,
+esse período começa na data da migração.
+
 ## 5.4 `usuarios` --- usuários e equipe
 
 Campos existentes: identidade, contato, endereço, perfil, equipe, chave
