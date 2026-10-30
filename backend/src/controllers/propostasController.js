@@ -1,7 +1,10 @@
+import { ensureFichaFromRejection } from './fichaRecuperacaoController.js';
 import { prisma } from '../config/database.js';
 import PDFDocument from 'pdfkit';
+import { fileURLToPath } from 'node:url';
 import { created, notFound, ok } from '../utils/response.js';
 import { ensureContractAndCommissions } from '../services/commissionService.js';
+import { getProposalSettings } from '../utils/proposalSettings.js';
 import { storeScope } from '../utils/storeScope.js';
 
 const rolesWithGlobalView = ['ADMIN', 'SUPPORT'];
@@ -11,7 +14,7 @@ const roleOf = (user) => {
   const role = String(user?.perfil || user?.role || '').trim().toUpperCase();
   return roleAliases[role] || role;
 };
-const proposalInclude = { cliente: true, vendedor: { include: { usuario: { select: { id: true, nome: true } } } }, veiculo: true };
+const proposalInclude = { cliente: true, vendedor: { include: { usuario: { select: { id: true, nome: true } } } }, veiculo: true, beneficios: { select: { id: true, beneficioId: true, nome: true, descricao: true }, orderBy: { id: 'asc' } } };
 const presentProposal = (proposal) => ({ ...proposal, valorProposta: Number(proposal.valorProposta), entrada: Number(proposal.entrada || 0), taxaJuros: Number(proposal.taxaJuros || 0), valorParcela: Number(proposal.valorParcela || 0), totalFinanciado: Number(proposal.totalFinanciado || 0), vendedor: proposal.vendedor ? { ...proposal.vendedor, nome: proposal.vendedor.usuario?.nome || proposal.vendedor.nome } : null, veiculo: proposal.veiculo ? { ...proposal.veiculo, precoSugerido: Number(proposal.veiculo.precoSugerido || 0), precoMinimo: Number(proposal.veiculo.precoMinimo || 0), valorFipe: Number(proposal.veiculo.valorFipe || 0), fotos: { right: proposal.veiculo.fotoDireita || '', left: proposal.veiculo.fotoEsquerda || '', front: proposal.veiculo.fotoFrente || '', rear: proposal.veiculo.fotoTraseira || '', interior: proposal.veiculo.fotoInterior || '' } } : null });
 const sellerForUser = (id) => prisma.vendedor.findFirst({ where: { usuarioId: Number(id), status: 'ativo', usuario: { status: 'ativo' } } });
 const visibleWhere = async (user) => {
@@ -140,10 +143,21 @@ export const createProposta = async (req, res) => {
   const downPayment = Number(req.body.entrada ?? req.body.downPayment ?? 0);
   const interestRate = Number(req.body.taxaJuros ?? req.body.interestRate ?? 0);
   if (!Number.isInteger(installments) || installments < 1 || installments > 120 || !Number.isFinite(downPayment) || downPayment < 0 || downPayment > negotiatedPrice || !Number.isFinite(interestRate) || interestRate < 0 || interestRate > 100) return res.status(400).json({ success: false, error: 'INVALID_FINANCING', message: 'Confira entrada, prazo e taxa do financiamento.' });
+  if (interestRate > 0) {
+    const today = new Date(new Date().toISOString().slice(0, 10));
+    const table = await prisma.tabelaFinanciamento.findFirst({ where: { deletedAt: null, status: 'ativo', taxa: interestRate, parcelasMin: { lte: installments }, parcelasMax: { gte: installments }, vigenciaInicio: { lte: today }, OR: [{ vigenciaFim: null }, { vigenciaFim: { gte: today } }] }, select: { id: true } });
+    if (!table) return res.status(400).json({ success: false, error: 'RATE_NOT_AVAILABLE', message: 'A taxa e o número de parcelas informados não constam em uma tabela de financiamento vigente.' });
+  }
   const principal = negotiatedPrice - downPayment;
   const rate = interestRate / 100;
   const installmentValue = rate ? principal * (rate * (1 + rate) ** installments) / ((1 + rate) ** installments - 1) : principal / installments;
   if (String(req.body.observacoes || '').length > 191) return res.status(400).json({ success: false, error: 'INVALID_NOTES', message: 'As observações devem ter no máximo 191 caracteres.' });
+  const rawBenefitIds = req.body.beneficioIds ?? [];
+  if (!Array.isArray(rawBenefitIds) || rawBenefitIds.length > 20) return res.status(400).json({ success: false, error: 'INVALID_BENEFITS', message: 'Benefícios inválidos.' });
+  const benefitIds = [...new Set(rawBenefitIds.map(Number))];
+  if (benefitIds.some((id) => !Number.isInteger(id) || id < 1)) return res.status(400).json({ success: false, error: 'INVALID_BENEFITS', message: 'Benefícios inválidos.' });
+  const selectedBenefits = benefitIds.length ? await prisma.beneficio.findMany({ where: { id: { in: benefitIds }, deletedAt: null, status: 'ativo' } }) : [];
+  if (selectedBenefits.length !== benefitIds.length) return res.status(400).json({ success: false, error: 'INVALID_BENEFITS', message: 'Um ou mais benefícios não estão ativos.' });
   let proposal;
   try {
     proposal = await prisma.$transaction(async (tx) => {
@@ -172,6 +186,7 @@ export const createProposta = async (req, res) => {
         totalFinanciado: Math.round(installmentValue * installments * 100) / 100,
         status: 'pendente', observacoes: String(req.body.observacoes || '').trim() || null,
       } });
+      if (selectedBenefits.length) await tx.propostaBeneficio.createMany({ data: selectedBenefits.map((item) => ({ propostaId: createdProposal.id, beneficioId: item.id, nome: item.nome, descricao: item.descricao })) });
       if (lockedVehicle.status !== 'em_negociacao') await tx.veiculo.update({ where: { id: veiculoId }, data: { status: 'em_negociacao' } });
       await tx.aprovacao.create({ data: { entidade: 'PROPOSTA', entidadeId: createdProposal.id, usuarioId: Number(req.user.id), acao: 'CRIADA' } });
       return tx.proposta.findUnique({ where: { id: createdProposal.id }, include: proposalInclude });
@@ -248,11 +263,12 @@ export const updateStatusProposta = async (req, res) => {
           await tx.veiculo.update({ where: { id: proposal.veiculoId }, data: { status: 'disponivel' } });
         }
         if (nextStatus === 'CREDIT_REJECTED') {
-          await tx.oportunidadeCredito.upsert({
+          const opportunity = await tx.oportunidadeCredito.upsert({
             where: { propostaId: id },
             create: { clienteId: proposal.clienteId, lojaId: proposal.lojaId, propostaId: id, responsavelId: proposal.vendedor.usuarioId, tipo: 'REANALISE_CREDITO', status: 'ABERTA', motivo: reason },
             update: {},
           });
+          await ensureFichaFromRejection(tx, { proposal, oportunidadeId: opportunity.id });
         }
       }
       await tx.aprovacao.create({
@@ -272,55 +288,119 @@ export const updateStatusProposta = async (req, res) => {
 
 
 const pdfMoney = (amount) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(amount || 0));
+const logoPath = fileURLToPath(new URL('../assets/vfc-logo.png', import.meta.url));
+const joinParts = (parts, separator = ', ') => parts.map((part) => String(part ?? '').trim()).filter(Boolean).join(separator);
+const formatCnpj = (value) => {
+  const digits = String(value || '').replace(/\D/g, '');
+  return digits.length === 14 ? digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5') : String(value || '');
+};
 export const downloadPropostaPdf = async (req, res) => {
+  if (!Number.isInteger(Number(req.params.id))) return notFound(res, 'Proposta não encontrada');
   const where = await visibleWhere(req.user);
-  const proposal = await prisma.proposta.findFirst({ where: { id: Number(req.params.id), ...where }, include: proposalInclude });
+  const proposal = await prisma.proposta.findFirst({ where: { id: Number(req.params.id), ...where }, include: { ...proposalInclude, loja: true } });
   if (!proposal) return notFound(res, 'Proposta não encontrada');
   const filename = `proposta-${proposal.id}.pdf`;
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-  const doc = new PDFDocument({ size: 'A4', margin: 52, info: { Title: `Proposta comercial ${proposal.id}`, Author: 'VFC Multimarcas' } });
+  const doc = new PDFDocument({ size: 'A4', margin: 52, bufferPages: true, info: { Title: `Proposta comercial ${proposal.id}`, Author: 'VFC Multimarcas' } });
   doc.pipe(res);
   const client = proposal.cliente;
   const vehicle = proposal.veiculo;
+  const store = proposal.loja;
+  const settings = await getProposalSettings(proposal.lojaId);
+  const left = 52; const right = 543; const width = right - left;
   const createdDate = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' }).format(proposal.createdAt);
-  const validity = new Intl.DateTimeFormat('pt-BR').format(new Date(proposal.createdAt.getTime() + 7 * 24 * 60 * 60 * 1000));
-  doc.rect(0, 0, 595.28, 116).fill('#102a43');
-  doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(11).text('VFC MULTIMARCAS', 52, 36, { characterSpacing: 1.2 });
-  doc.fontSize(25).text('PROPOSTA COMERCIAL', 52, 57);
-  doc.font('Helvetica').fontSize(10).text(`Nº ${String(proposal.id).padStart(5, '0')}     Emitida em ${createdDate}`, 52, 89);
-  doc.fillColor('#102a43').font('Helvetica-Bold').fontSize(15).text('Cliente', 52, 142);
-  doc.moveDown(0.5).fillColor('#243b53').font('Helvetica-Bold').fontSize(12).text(client?.nome || 'Cliente');
-  doc.font('Helvetica').fontSize(10).text(`Tipo: ${String(client?.tipoPessoa || 'PF').toUpperCase()}    Documento: ${client?.documento || 'Não informado'}`);
-  if (client?.telefone) doc.text(`Telefone: ${client.telefone}`);
-  if (client?.email) doc.text(`E-mail: ${client.email}`);
-  doc.moveDown(1).fillColor('#102a43').font('Helvetica-Bold').fontSize(15).text('Veículo');
-  doc.moveDown(0.5).fillColor('#243b53').fontSize(12).text(`${vehicle?.marca || ''} ${vehicle?.modelo || ''}`.trim());
-  doc.font('Helvetica').fontSize(10).text(`Ano fabricação/modelo: ${vehicle?.anoFabricacao || vehicle?.ano || '—'}/${vehicle?.anoModelo || '—'}    Placa: ${vehicle?.placa || '—'}`);
-  doc.moveDown(1).fillColor('#102a43').font('Helvetica-Bold').fontSize(15).text('Condições comerciais');
-  const left = 52; const right = 543; let y = doc.y + 10;
-  const lineItem = (label, value, bold = false) => {
-    doc.moveTo(left, y + 4).lineTo(right, y + 4).strokeColor('#d9e2ec').stroke();
-    doc.fillColor('#486581').font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(11).text(label, left, y + 13, { width: 300 });
-    doc.fillColor('#102a43').font('Helvetica-Bold').fontSize(11).text(value, 360, y + 13, { width: 183, align: 'right' });
-    y += 38;
+  const validity = new Intl.DateTimeFormat('pt-BR').format(new Date(proposal.createdAt.getTime() + settings.validadeDias * 24 * 60 * 60 * 1000));
+  const navy = '#102a43'; const muted = '#486581'; const line = '#d9e2ec';
+
+  const ensureSpace = (height) => { if (doc.y + height > 780) doc.addPage(); };
+  const sectionTitle = (number, title) => {
+    ensureSpace(60);
+    doc.moveDown(1.1);
+    const top = doc.y;
+    doc.rect(left, top, 4, 16).fill('#4b2a8a');
+    doc.fillColor(navy).font('Helvetica-Bold').fontSize(13).text(`${number}. ${title}`, left + 12, top + 1, { width: width - 12 });
+    doc.x = left; doc.moveDown(0.4);
   };
-  lineItem('Preço negociado', pdfMoney(proposal.valorProposta), true);
-  lineItem('Entrada', pdfMoney(proposal.entrada));
-  lineItem('Saldo financiado', pdfMoney(proposal.valorProposta - Number(proposal.entrada || 0)));
-  lineItem(`Parcelamento${proposal.parcelas ? ` em ${proposal.parcelas}x` : ''}`, proposal.valorParcela ? `${proposal.parcelas}x de ${pdfMoney(proposal.valorParcela)}` : 'A definir');
-  lineItem('Taxa de juros mensal', proposal.taxaJuros ? `${Number(proposal.taxaJuros).toLocaleString('pt-BR')}% a.m.` : 'A definir');
-  lineItem('Total estimado das parcelas', pdfMoney(proposal.totalFinanciado));
-  doc.y = y + 8;
-  if (proposal.observacoes) {
-    doc.moveDown(1).fillColor('#102a43').font('Helvetica-Bold').fontSize(12).text('Observações');
-    doc.moveDown(0.3).fillColor('#486581').font('Helvetica').fontSize(10).text(proposal.observacoes, { width: 490 });
+  const row = (label, value, bold = false) => {
+    ensureSpace(24);
+    const top = doc.y + 4;
+    doc.moveTo(left, top).lineTo(right, top).strokeColor(line).lineWidth(0.5).stroke();
+    doc.fillColor(muted).font('Helvetica').fontSize(10).text(label, left, top + 7, { width: 230 });
+    const labelBottom = doc.y;
+    doc.fillColor(navy).font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(10).text(String(value ?? '—'), left + 240, top + 7, { width: width - 240, align: 'right' });
+    doc.x = left; doc.y = Math.max(labelBottom, doc.y) + 3;
+  };
+  const paragraph = (text) => {
+    ensureSpace(40);
+    doc.fillColor(muted).font('Helvetica').fontSize(10).text(text, left, doc.y + 4, { width, align: 'justify' });
+    doc.x = left;
+  };
+
+  // 1. Cabeçalho
+  doc.image(logoPath, left, 40, { fit: [96, 62] });
+  const storeAddress = joinParts([joinParts([store?.logradouro, store?.numero], ', '), store?.complemento, store?.bairro]);
+  const storeCity = joinParts([joinParts([store?.cidade, store?.estado], '/'), store?.cep ? `CEP ${store.cep}` : '']);
+  doc.fillColor(navy).font('Helvetica-Bold').fontSize(11).text(store?.nome || 'VFC Multimarcas', 165, 42, { width: right - 165, align: 'right' });
+  doc.fillColor(muted).font('Helvetica').fontSize(8.5);
+  [store?.cnpj ? `CNPJ ${formatCnpj(store.cnpj)}` : '', storeAddress, storeCity, joinParts([store?.telefone, store?.email], '  •  ')].filter(Boolean)
+    .forEach((item) => doc.text(item, 165, doc.y + 1, { width: right - 165, align: 'right' }));
+  doc.moveTo(left, 112).lineTo(right, 112).strokeColor(navy).lineWidth(1.5).stroke();
+  doc.fillColor(navy).font('Helvetica-Bold').fontSize(20).text('PROPOSTA COMERCIAL', left, 124, { width });
+  doc.fillColor(muted).font('Helvetica').fontSize(10).text(`Nº ${String(proposal.id).padStart(5, '0')}   •   Emitida em ${createdDate}   •   Válida até ${validity}`, left, doc.y + 2, { width });
+  doc.moveDown(0.3);
+  doc.fillColor(navy).font('Helvetica-Bold').fontSize(11).text('Cliente', left, doc.y + 8);
+  doc.fillColor(muted).font('Helvetica').fontSize(10).text(`${client?.nome || 'Cliente'}   |   ${String(client?.tipoPessoa || 'PF').toUpperCase()}: ${client?.documento || 'Não informado'}`, left, doc.y + 2, { width });
+  const contact = joinParts([client?.telefone, client?.email], '  •  ');
+  if (contact) doc.text(contact, left, doc.y + 1, { width });
+
+  // 2. Especificação do veículo
+  sectionTitle(2, 'Especificação do Veículo');
+  row('Veículo', `${vehicle?.marca || ''} ${vehicle?.modelo || ''}`.trim() || '—', true);
+  row('Ano fabricação/modelo', `${vehicle?.anoFabricacao || vehicle?.ano || '—'}/${vehicle?.anoModelo || '—'}`);
+  row('Placa', vehicle?.placa || '—');
+  row('Código FIPE', vehicle?.codigoFipe || '—');
+  row('Valor de referência FIPE', vehicle?.valorFipe ? pdfMoney(vehicle.valorFipe) : '—');
+  if (vehicle?.observacoes) { doc.moveDown(0.3); paragraph(`Observações do veículo: ${vehicle.observacoes}`); }
+
+  // 3. Composição de preços e condições de pagamento
+  sectionTitle(3, 'Composição de Preços e Condições de Pagamento');
+  row('Preço negociado', pdfMoney(proposal.valorProposta), true);
+  row('Entrada', pdfMoney(proposal.entrada));
+  row('Saldo financiado', pdfMoney(Number(proposal.valorProposta) - Number(proposal.entrada || 0)));
+  row(`Parcelamento${proposal.parcelas ? ` em ${proposal.parcelas}x` : ''}`, proposal.valorParcela ? `${proposal.parcelas}x de ${pdfMoney(proposal.valorParcela)}` : 'A definir');
+  row('Taxa de juros mensal', proposal.taxaJuros ? `${Number(proposal.taxaJuros).toLocaleString('pt-BR')}% a.m.` : 'A definir');
+  row('Total estimado das parcelas', pdfMoney(proposal.totalFinanciado));
+  if (proposal.beneficios?.length) row('Benefícios incluídos', proposal.beneficios.map((item) => item.nome).join(', '));
+  if (proposal.observacoes) { doc.moveDown(0.3); paragraph(`Observações: ${proposal.observacoes}`); }
+
+  // 4. Prazos e logística
+  sectionTitle(4, 'Prazos e Logística');
+  row('Validade da proposta', validity);
+  row('Entrega do veículo', settings.prazoEntrega);
+  row('Documentação e transferência', settings.documentacaoTransferencia);
+  paragraph(settings.textoPrazos);
+
+  // 5. Garantia e pós-venda
+  sectionTitle(5, 'Garantia e Pós-Venda');
+  paragraph(settings.textoGarantia);
+
+  // 6. Encerramento e aceite
+  sectionTitle(6, 'Encerramento e Aceite');
+  paragraph(`Esta proposta é válida até ${validity}. Valores e parcelas são estimativas e dependem da aprovação de crédito e das condições vigentes na data da contratação.`);
+  ensureSpace(150);
+  doc.fillColor(navy).font('Helvetica-Bold').fontSize(10).text(`Consultor responsável: ${proposal.vendedor?.nome || 'Equipe VFC Multimarcas'}`, left, doc.y + 14, { width });
+  const signatureY = doc.y + 52;
+  doc.moveTo(left, signatureY).lineTo(245, signatureY).strokeColor('#829ab1').lineWidth(0.8).stroke().moveTo(350, signatureY).lineTo(right, signatureY).stroke();
+  doc.fillColor(muted).font('Helvetica').fontSize(9).text(store?.nome || 'VFC Multimarcas', left, signatureY + 6, { width: 193, align: 'center' });
+  doc.text('Cliente (aceite)', 350, signatureY + 6, { width: 193, align: 'center' });
+  doc.text('Local e data: ______________________________', left, signatureY + 30, { width });
+
+  const range = doc.bufferedPageRange();
+  for (let index = 0; index < range.count; index += 1) {
+    doc.switchToPage(range.start + index);
+    doc.page.margins.bottom = 0;
+    doc.fillColor('#829ab1').font('Helvetica').fontSize(8).text(`VFC Multimarcas  •  Proposta ${String(proposal.id).padStart(5, '0')}  •  Página ${index + 1} de ${range.count}`, left, 800, { width, align: 'center', lineBreak: false });
   }
-  doc.moveDown(1.2).fillColor('#486581').font('Helvetica').fontSize(9).text(`Esta proposta é válida até ${validity}. Valores e parcelas são estimativas e dependem da aprovação de crédito e das condições da instituição financeira. Este documento não substitui o contrato de compra e venda.`, { width: 490, align: 'justify' });
-  doc.moveDown(2).fillColor('#243b53').fontSize(10).text(`Consultor responsável: ${proposal.vendedor?.nome || 'Equipe VFC Multimarcas'}`);
-  doc.moveDown(3).strokeColor('#829ab1').moveTo(52, doc.y).lineTo(245, doc.y).stroke().moveTo(350, doc.y).lineTo(543, doc.y).stroke();
-  const signatureY = doc.y;
-  doc.fontSize(9).text('VFC Multimarcas', 52, signatureY + 6, { width: 193, align: 'center' });
-  doc.text('Cliente', 350, signatureY + 6, { width: 193, align: 'center' });
   doc.end();
 };

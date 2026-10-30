@@ -305,6 +305,10 @@ td strong { color: #2a3549; font-weight: 600; }
 .step-title h3 { margin: 0 0 3px; font: 700 12px "Manrope"; }.step-title p { margin: 0; color: #919cab; font-size: 9px; }
 .form-panel label, .finance-card label { display: flex; flex-direction: column; gap: 7px; color: #526077; font-size: 9px; font-weight: 700; }
 .form-panel select, .finance-card select, .finance-card input { width: 100%; height: 40px; padding: 0 11px; border: 1px solid #dfe4eb; border-radius: 7px; outline: none; color: #334057; background: #fbfcfd; font-size: 10px; font-weight: 500; }
+.simulation-search-label { margin-bottom: 7px; color: #526077; font-size: 9px; font-weight: 700; }
+.simulation-search-input { width: 100%; height: 40px; margin-bottom: 13px; padding: 0 11px; border: 1px solid #dfe4eb; border-radius: 7px; outline: none; color: #334057; background: #fbfcfd; font-size: 10px; }
+.simulation-search-input:focus { border-color: #8eaff0; box-shadow: 0 0 0 3px #2867df12; }
+.form-panel > small[role="status"] { display: block; margin-top: 8px; color: #7d899d; font-size: 8px; font-weight: 500; }
 .conflict-alert { margin-top: 12px; padding: 12px 13px 12px 41px; position: relative; border: 1px solid #f0c9cc; border-radius: 7px; background: #fff7f7; }
 .conflict-alert::before { content: "!"; position: absolute; left: 13px; top: 13px; width: 19px; height: 19px; display: grid; place-items: center; border-radius: 50%; color: #fff; background: #cf5962; font-size: 10px; font-weight: 700; }
 .conflict-alert strong, .conflict-alert span, .conflict-alert small { display: block; }.conflict-alert strong { color: #9d3f48; font-size: 10px; }.conflict-alert span { margin-top: 3px; color: #775b60; font-size: 9px; }.conflict-alert small { margin-top: 4px; color: #a37f83; font-size: 8px; }
@@ -455,6 +459,9 @@ td strong { color: #2a3549; font-weight: 600; }
 .email-settings-form .modal-row { margin: 0 0 12px; }
 .email-settings-form label { display: flex; flex-direction: column; gap: 6px; color: #49556a; font-size: 10px; font-weight: 700; }
 .email-settings-form input:not([type="checkbox"]) { min-width: 0; height: 36px; padding: 0 10px; border: 1px solid #dfe3ea; border-radius: 6px; color: #344057; background: #fff; font-size: 10px; font-weight: 400; }
+.email-settings-form select, .email-settings-form textarea { min-width: 0; padding: 8px 10px; border: 1px solid #dfe3ea; border-radius: 6px; color: #344057; background: #fff; font-size: 10px; font-weight: 400; }
+.email-settings-form select { height: 36px; padding-top: 0; padding-bottom: 0; }
+.email-settings-form textarea { resize: vertical; line-height: 1.5; }
 .email-settings-form .checkbox-row { margin-top: 4px; flex-direction: row; align-items: center; font-weight: 500; }
 .email-settings-form .checkbox-row input { accent-color: #2867df; }
 .email-settings-form .table-subcopy { margin: 8px 0 0; font-size: 9px; }
@@ -476,3 +483,35 @@ td strong { color: #2a3549; font-weight: 600; }
 .vehicle-upload-grid { margin: 0 25px 16px; }
 .vehicle-upload-grid label.uploaded { border-color: #9bd2b6; color: #27805e; background: #f3faf7; }
 .vehicle-upload-grid label input { display: none; }
+.ficha-tabs { margin: 0 0 14px; display: flex; flex-wrap: wrap; gap: 6px; }
+.ficha-tabs button { height: 34px; padding: 0 14px; border: 1px solid #dce2ea; border-radius: 7px; color: #657187; background: #fff; font-size: 10px; font-weight: 700; cursor: pointer; }
+.ficha-tabs button.active { border-color: #2867df; color: #fff; background: #2867df; }
+.ficha-panel { padding: 22px 25px; }
+.ficha-grid { margin-bottom: 4px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; align-items: end; }
+.ficha-grid .ficha-wide, .ficha-dl .ficha-wide { grid-column: span 2; }
+.ficha-ref { grid-template-columns: repeat(3, minmax(0, 1fr)) auto; }
+.ficha-remove { height: 38px; padding: 0 10px; border: 1px solid #efc6ca; border-radius: 6px; color: #b1545b; background: #fff; font-size: 9px; cursor: pointer; }
+.ficha-remove:disabled { opacity: .45; cursor: not-allowed; }
+.ficha-card { margin: 10px 0 14px; padding: 14px 16px; border: 1px solid #e3e8f0; border-radius: 9px; background: #fafbfd; }
+.ficha-card-head { margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 11px; }
+.ficha-card-head > span { display: flex; align-items: center; gap: 10px; }
+.ficha-dl { margin: 0 0 8px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 14px; }
+.ficha-dl dt { color: #8090a5; font-size: 8px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
+.ficha-dl dd { margin: 3px 0 0; font-size: 11px; }
+.ficha-checks { margin: 8px 0 12px; padding: 0; list-style: none; }
+.ficha-checks li { padding: 7px 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid #edf0f4; font-size: 10px; }
+.ficha-toggle { display: flex; gap: 4px; }
+.ficha-toggle button { min-width: 44px; height: 26px; border: 1px solid #dce2ea; border-radius: 6px; color: #657187; background: #fff; font-size: 9px; font-weight: 700; cursor: pointer; }
+.ficha-toggle button.on { border-color: #27845f; color: #fff; background: #27845f; }
+.ficha-toggle button.off { border-color: #b1545b; color: #fff; background: #b1545b; }
+.ficha-toolbar { padding: 14px 16px 0; display: grid; grid-template-columns: 1fr 190px auto; gap: 10px; align-items: center; }
+.ficha-head-actions { display: flex; gap: 8px; align-items: center; }
+.ficha-toolbar input, .ficha-toolbar select, .ficha-head-actions select { height: 38px; padding: 0 12px; border: 1px solid #dfe4ec; border-radius: 7px; outline: none; color: #26324a; background: #fbfcfe; font-size: 11px; }
+.ficha-toolbar input:focus, .ficha-toolbar select:focus, .ficha-head-actions select:focus { border-color: #8fb0f0; }
+.ficha-toolbar .primary-button { height: 38px; white-space: nowrap; }
+.ficha-head-actions .secondary-button { white-space: nowrap; }
+.ficha-score-info { align-self: center; color: #718098; }
+.link-button { border: 0; color: #2867df; background: none; font-size: 10px; font-weight: 700; cursor: pointer; }
+.link-button.danger { color: #b1545b; }
+.status.red { color: #b1545b; background: #fcecee; }
+@media (max-width: 900px) { .ficha-grid, .ficha-dl { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ficha-ref { grid-template-columns: 1fr 1fr; } .ficha-toolbar { grid-template-columns: 1fr; } }

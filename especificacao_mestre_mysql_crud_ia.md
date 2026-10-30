@@ -15,7 +15,7 @@ Atue como engenheiro de software sênior, arquiteto full-stack e
 especialista em segurança de aplicações. Implemente um sistema web
 funcional para gestão de estoque de veículos, clientes PF/PJ, equipes,
 usuários, simulações, propostas, aprovação de crédito, contratos
-efetivados, consultoria de recuperação de crédito, comissões, permissões
+efetivados, consultoria de recuperação de crédito, comu366207451_vfc_userissões, permissões
 e auditoria.
 
 Esta especificação é o contrato funcional da implementação. Não entregue
@@ -219,6 +219,16 @@ ou desvinculação explícita. - Não permitir que gerente comum consulte ou
 altere equipes fora de seu escopo. - A exclusão física só pode ocorrer
 se não houver vínculos; preferir exclusão lógica.
 
+Vínculos vendedor-equipe são períodos históricos (`EquipeVinculo`):
+`iniciadoEm`, `encerradoEm`, usuário que associou e usuário que encerrou.
+Um vendedor tem somente uma equipe atual (`Usuario.equipeId`), mas pode
+ter vários vínculos encerrados ao longo do tempo. Gerente pode associar
+vendedor sem equipe ou desassociar vendedor da própria equipe; desmarcar
+o vendedor encerra o período e limpa sua equipe/gerente atuais. A aba de
+edição apresenta o histórico de períodos. A migração cria um vínculo
+inicial para membros existentes; como não há datas históricas anteriores,
+esse período começa na data da migração.
+
 ## 5.4 `usuarios` --- usuários e equipe
 
 Campos existentes: identidade, contato, endereço, perfil, equipe, chave
@@ -398,6 +408,81 @@ Se a implementação precisar avançar sem resposta, propor um modelo
 inicial em migração separada e marcá-lo como decisão pendente de
 validação.
 
+**Implementação inicial (pendente de validação comercial):** tabelas
+`TabelaFinanciamento` e `Beneficio` (migração
+`20261023040000_financing_rates_benefits`), com exclusão lógica e auditoria.
+API: `/api/financing-rates` (leitura pelo módulo RATES; escrita ADMIN/SUPPORT) e
+`/api/benefits` (leitura pelo módulo BENEFITS; escrita ADMIN/SUPPORT). A
+simulação usa apenas tabelas ativas, vigentes e mensais, e o backend recusa
+taxa/parcelas que não constem em tabela vigente. Os valores antes fixos na
+simulação foram semeados como registros editáveis.
+
+Os benefícios escolhidos na simulação são gravados em `PropostaBeneficio`
+(migração `20261023050000_proposal_benefits`), com cópia do nome e da
+descrição no momento da proposta, e listados no PDF (seção 3). O backend
+rejeita benefícios inexistentes ou inativos (`beneficioIds`).
+
+### Equipes e vendedores
+
+Um vendedor pertence a no máximo uma equipe (`Usuario.equipeId`). O
+gerente cria/edita a sua equipe associando vendedores ativos da mesma
+loja (`memberIds`); quem estava em outra equipe é movido e a auditoria
+registra `movedFrom`. O gerente também pode cadastrar um vendedor novo
+(`POST /teams/sellers`), já vinculado a ele e à sua equipe. As opções vêm
+de `GET /teams/seller-options`.
+
+### Ficha de recuperação de crédito
+
+Consultoria vendida para elevar o score. Todo financiamento recusado
+(`CREDIT_REJECTED`) cria a `OportunidadeCredito` e a `FichaRecuperacao`
+(1:1, opcional) com os dados da proposta; também é possível criar a ficha
+direto, com cliente existente ou novo (`POST /credit-recovery/fichas`).
+Nome, e-mail, telefone e endereço ficam em `Cliente` (fonte única).
+Vendedor e gerente complementam; só ADMIN/SUPPORT/MANAGER excluem registros.
+
+Escopo: ADMIN/SUPPORT por loja; MANAGER as fichas suas ou de seus
+vendedores; SELLER só as suas. Uma ficha aberta por cliente.
+
+Passos (abas):
+1. **Ficha cadastral**: identificação, documentos, CNH, endereço (ViaCEP),
+   residência, contatos, referências (Amigo/Pai/Mãe/Filho/Outros), empresa,
+   simulação e segunda opção de veículo, cada uma com parcelas
+   (quantidade, mínima, máxima).
+2. **Controle administrativo** (`FichaContato`): contatos numerados, com
+   protocolo automático DDMMHHmm, SPC, dívida, consultor(a), setor, tratativa.
+3. **Análise bancária** (`FichaAnaliseBancaria`): instituição, data/hora,
+   resposta, quem submeteu e a proposta completa.
+4. **Acompanhamento financeiro** (`FichaAcompanhamento`): contatos com
+   checklist OK/Não de 9 requisitos fixos, responsável e data/hora; score de
+   início e de término do acompanhamento com data/hora (`PATCH .../score`).
+
+O primeiro contato, análise ou acompanhamento muda o status de ABERTA
+para EM_ANDAMENTO.
+
+Complementos:
+- Exclusão: `DELETE /credit-recovery/fichas/:id` (lógica, `deletedAt`,
+  auditoria `FICHA_DELETED`), só ADMIN/SUPPORT/MANAGER.
+- Evolução do score: diferença término − início exibida como `+N pts`
+  (verde), `-N pts` (vermelho) ou `0 pts` na lista e no passo 4.
+- Gerente: vê e complementa todas as fichas da loja (como Admin/Suporte).
+- Ficha cadastral editável por Vendedor, Gerente, Admin e Suporte (só
+  CPF/CNPJ é fixo). Cada alteração grava em `AuditLog`
+  (`FICHA_RECUPERACAO_UPDATED.alteracoes`: campo, valor antes, valor depois,
+  usuário e data/hora); salvar sem mudança não gera registro.
+- Passo 5 - Dossiê: `GET /credit-recovery/fichas/:id/dossie` gera o PDF com
+  a ficha completa + linha do tempo (quem, quando, o quê) montada a partir
+  de `AuditLog` (ações `FICHA_*`, incluindo mudanças de score com valor
+  anterior). `GET /credit-recovery/fichas/:id/historico` alimenta a aba.
+- PDF: `GET /credit-recovery/fichas/:id/pdf` (PDFKit, `fichaPdfService.js`),
+  com logo/dados da loja, os 4 passos, valores em R$ e datas pt-BR; mesmo
+  escopo por perfil. Botão "Baixar PDF" no cabeçalho da ficha.
+
+## 5.11 PDF - Requisito Especial
+- Use biblioteca pdfkit no backend.
+- Proposta deve conter: Logo da loja (de /imagem/), dados do cliente, foto principal do veículo, valores, entrada, financiado, parcelas, taxa, validade.
+- Salvar em storage privado: /imagem/documentos/ e guardar hash_arquivo no banco.
+- Retornar URL temporária assinada.
+
 # 6. PADRÃO DE ENDPOINTS REST E CRUD
 
 Use nomes de recursos consistentes em inglês na URL, mantendo o conteúdo
@@ -452,6 +537,11 @@ por meio do backend, com timeout e tratamento de falhas.
 ## 6.3 Resposta e erros padronizados
 
 Resposta de lista:
+## 9.4 PDF - Requisito Especial
+- Use biblioteca pdfkit no backend.
+- Proposta deve conter: Logo da loja (de /imagem/), dados do cliente, foto principal do veículo, valores, entrada, financiado, parcelas, taxa, validade.
+- Salvar em storage privado: /imagem/documentos/ e guardar hash_arquivo no banco.
+- Retornar URL temporária assinada.
 
 ``` json
 {
@@ -629,6 +719,12 @@ Cada entidade CRUD deve ter, conforme aplicável:
 Não exibir ações proibidas ao perfil atual; ainda assim, o servidor deve
 bloquear requisições não autorizadas.
 
+Na tela de nova simulação do vendedor, permitir filtrar clientes por parte
+do nome e por CPF/CNPJ, e veículos por placa ou outras informações
+cadastrais, como marca, modelo, ano e código FIPE. O filtro deve apenas
+facilitar a seleção dos registros autorizados e disponíveis, sem alterar
+as validações de acesso e negócio da API.
+
 # 12. INTEGRAÇÕES
 
 ## 12.1 ViaCEP
@@ -790,3 +886,11 @@ ou implemente-os como configuração provisória claramente identificada:
 especificado, mantenha rastreabilidade entre requisito, endpoint, tela,
 migração e teste, e apresente as decisões pendentes de forma objetiva.
 Não altere regras comerciais silenciosamente.
+
+## Textos da proposta comercial em PDF
+
+O PDF da proposta usa somente dados reais do banco. Validade, prazo de
+entrega, documentação/transferência e textos de prazos e garantia ficam na
+tabela `ConfiguracaoProposta` (uma linha por loja, com textos padrão quando
+ainda não editada). O ADMIN altera esses campos em Configurações, pelas rotas
+`GET/PUT /api/stores/:id/proposal-settings`.

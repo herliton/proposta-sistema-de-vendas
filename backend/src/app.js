@@ -16,6 +16,7 @@ import reportsRoutes from './routes/reports.js';
 import creditRecoveryRoutes from './routes/creditRecovery.js';
 import dealsRoutes from './routes/deals.js';
 import lojasRoutes from './routes/lojas.js';
+import { ratesRoutes, benefitsRoutes } from './routes/financiamento.js';
 import equipesRoutes from './routes/equipes.js';
 import auditLogsRoutes from './routes/auditLogs.js';
 import { prisma } from './config/database.js';
@@ -24,8 +25,18 @@ dotenv.config();
 
 const app = express();
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const allowedOrigins = (process.env.CORS_ORIGINS || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:5173'))
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
-app.use(cors());
+if (process.env.NODE_ENV === 'production' && allowedOrigins.length === 0) {
+  throw new Error('CORS_ORIGINS must contain the frontend origin in production.');
+}
+
+app.use(cors({
+  origin: (origin, callback) => callback(null, !origin || allowedOrigins.includes(origin)),
+}));
 app.use(express.json());
 app.use('/uploads', express.static(path.join(currentDir, '..', 'uploads'), { fallthrough: false, index: false }));
 
@@ -50,11 +61,17 @@ app.use('/api/reports', reportsRoutes);
 app.use('/api/credit-recovery', creditRecoveryRoutes);
 app.use('/api/deals', dealsRoutes);
 app.use('/api/stores', lojasRoutes);
+app.use('/api/financing-rates', ratesRoutes);
+app.use('/api/benefits', benefitsRoutes);
 app.use('/api/teams', equipesRoutes);
 app.use('/api/audit-logs', auditLogsRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err);
+
+  if (['P2021', 'P2022'].includes(err.code)) {
+    return res.status(503).json({ success: false, error: 'DATABASE_NOT_MIGRATED', message: 'O banco de dados está desatualizado. Execute as migrações (npm run db:migrate:deploy) ou o script backend/prisma/manual/financing_benefits_tables.sql.' });
+  }
 
   res.status(500).json({
     success: false,

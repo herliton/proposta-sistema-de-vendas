@@ -1,0 +1,2224 @@
+{
+  "client": "Thunder Client",
+  "collectionName": "VFC Multimarcas API",
+  "dateExported": "2026-10-20T14:04:25.642Z",
+  "version": "1.2",
+  "folders": [
+    {
+      "containerId": "auth",
+      "name": "Autenticacao e usuarios",
+      "sortNum": 10000
+    },
+    {
+      "containerId": "permissions",
+      "name": "Permissoes",
+      "sortNum": 20000
+    },
+    {
+      "containerId": "customers",
+      "name": "Clientes",
+      "sortNum": 30000
+    },
+    {
+      "containerId": "sellers",
+      "name": "Vendedores",
+      "sortNum": 40000
+    },
+    {
+      "containerId": "vehicles",
+      "name": "Veiculos",
+      "sortNum": 50000
+    },
+    {
+      "containerId": "proposals",
+      "name": "Propostas",
+      "sortNum": 60000
+    },
+    {
+      "containerId": "contracts",
+      "name": "Contratos",
+      "sortNum": 70000
+    },
+    {
+      "containerId": "finance",
+      "name": "Financeiro",
+      "sortNum": 80000
+    },
+    {
+      "containerId": "reports",
+      "name": "Relatorios",
+      "sortNum": 90000
+    },
+    {
+      "containerId": "credit",
+      "name": "Recuperacao de credito",
+      "sortNum": 100000
+    },
+    {
+      "containerId": "deals",
+      "name": "Negocios",
+      "sortNum": 110000
+    },
+    {
+      "containerId": "stores",
+      "name": "Lojas",
+      "sortNum": 120000
+    },
+    {
+      "containerId": "teams",
+      "name": "Equipes",
+      "sortNum": 130000
+    },
+    {
+      "containerId": "audit",
+      "name": "Auditoria",
+      "sortNum": 140000
+    },
+    {
+      "containerId": "system",
+      "name": "Sistema",
+      "sortNum": 150000
+    }
+  ],
+  "requests": [
+    {
+      "_id": "c87f39ff-0717-4168-9a69-db8e8e6bc3ea",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "system",
+      "name": "Health check da API e MySQL",
+      "url": "{{baseUrl}}/api/health",
+      "method": "GET",
+      "sortNum": 10000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "none"
+      }
+    },
+    {
+      "_id": "91503b15-21ff-46f2-8981-bf95aa573d93",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "auth",
+      "name": "Login - copiar data.token para variavel token",
+      "url": "{{baseUrl}}/api/auth/login",
+      "method": "POST",
+      "sortNum": 20000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"email\": \"{{email}}\",\n  \"senha\": \"{{password}}\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "none"
+      }
+    },
+    {
+      "_id": "f5e98b67-73af-4d05-b69a-faf39939df38",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "auth",
+      "name": "Solicitar redefinicao de senha",
+      "url": "{{baseUrl}}/api/auth/forgot-password",
+      "method": "POST",
+      "sortNum": 30000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"email\": \"{{email}}\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "none"
+      }
+    },
+    {
+      "_id": "cc3da340-c781-471d-a3a0-7b253ee31117",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "auth",
+      "name": "Redefinir senha com token de uso unico",
+      "url": "{{baseUrl}}/api/auth/reset-password",
+      "method": "POST",
+      "sortNum": 40000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"token\": \"{{resetToken}}\",\n  \"senha\": \"{{newPassword}}\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "none"
+      }
+    },
+    {
+      "_id": "37eb49da-9ceb-45bd-9407-717819a6f6db",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "auth",
+      "name": "Cadastro publico desativado - deve responder 410",
+      "url": "{{baseUrl}}/api/auth/register",
+      "method": "POST",
+      "sortNum": 50000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"nome\": \"Usuario de teste\",\n  \"email\": \"{{email}}\",\n  \"senha\": \"{{password}}\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "none"
+      }
+    },
+    {
+      "_id": "4d29dca5-342e-4c6e-9d8b-0e9075b7e0c1",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "auth",
+      "name": "Estado da configuracao do administrador inicial",
+      "url": "{{baseUrl}}/api/auth/initial-admin/status",
+      "method": "GET",
+      "sortNum": 51000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "none"
+      }
+    },
+    {
+      "_id": "fbd69a3a-c9eb-4cf9-a8a2-1c41382cf1d8",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "auth",
+      "name": "Criar administrador inicial - somente banco local",
+      "url": "{{baseUrl}}/api/auth/initial-admin",
+      "method": "POST",
+      "sortNum": 52000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"nome\": \"Administrador VFC\",\n  \"email\": \"{{initialAdminEmail}}\",\n  \"senha\": \"{{initialAdminPassword}}\",\n  \"setupToken\": \"{{initialAdminSetupToken}}\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "none"
+      }
+    },
+    {
+      "_id": "69bcf970-6b08-46db-976b-b2e4ab861a2f",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "auth",
+      "name": "Listar usuarios",
+      "url": "{{baseUrl}}/api/auth/users?page=1&pageSize=20",
+      "method": "GET",
+      "sortNum": 60000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "aa7ebb7b-8d6b-4e0d-b49a-fa355eddd330",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "auth",
+      "name": "Consultar usuario por ID",
+      "url": "{{baseUrl}}/api/auth/users/{{usuarioId}}",
+      "method": "GET",
+      "sortNum": 70000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "ece584d2-a5c2-4e0c-ab57-a32db372389c",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "auth",
+      "name": "Criar usuario (requer SMTP configurado)",
+      "url": "{{baseUrl}}/api/auth/users",
+      "method": "POST",
+      "sortNum": 80000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"nome\": \"Usuario de teste\",\n  \"email\": \"{{emailNovo}}\",\n  \"perfil\": \"SELLER\",\n  \"lojaId\": \"{{lojaId}}\",\n  \"telefone\": \"11999990000\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "92f09b6e-1845-4116-8bd5-1746d474d5af",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "auth",
+      "name": "Atualizar usuario",
+      "url": "{{baseUrl}}/api/auth/users/{{usuarioId}}",
+      "method": "PUT",
+      "sortNum": 90000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"nome\": \"Usuario atualizado\",\n  \"perfil\": \"SELLER\",\n  \"status\": \"ativo\",\n  \"lojaId\": \"{{lojaId}}\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "828860ce-fe36-49f6-a551-4835dfd52eb8",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "auth",
+      "name": "Desativar usuario",
+      "url": "{{baseUrl}}/api/auth/users/{{usuarioId}}",
+      "method": "DELETE",
+      "sortNum": 100000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "46059874-d014-4dc1-8627-2130e23ab959",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "auth",
+      "name": "Alterar senha no primeiro acesso",
+      "url": "{{baseUrl}}/api/auth/first-access-change",
+      "method": "POST",
+      "sortNum": 110000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"senhaAtual\": \"{{temporaryPassword}}\",\n  \"novaSenha\": \"{{newPassword}}\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "537ddd4e-67a1-46cc-a1b9-cb53f154663d",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "auth",
+      "name": "Consultar configuracao SMTP",
+      "url": "{{baseUrl}}/api/auth/email-settings",
+      "method": "GET",
+      "sortNum": 120000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "5cbc0f95-2113-414f-848a-95013f8a3e3f",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "auth",
+      "name": "Salvar configuracao SMTP",
+      "url": "{{baseUrl}}/api/auth/email-settings",
+      "method": "PUT",
+      "sortNum": 130000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"host\": \"{{smtpHost}}\",\n  \"port\": 587,\n  \"secure\": false,\n  \"user\": \"{{smtpUser}}\",\n  \"password\": \"{{smtpPassword}}\",\n  \"from\": \"{{smtpFrom}}\",\n  \"appUrl\": \"{{appUrl}}\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "418d4b56-2d91-4fc9-abae-3d8c90b105dd",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "auth",
+      "name": "Testar envio SMTP",
+      "url": "{{baseUrl}}/api/auth/email-settings/test",
+      "method": "POST",
+      "sortNum": 140000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"email\": \"{{email}}\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "5e8cf473-10ff-44cc-a4ce-30dfc59ce441",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "permissions",
+      "name": "Listar modulos do sistema",
+      "url": "{{baseUrl}}/api/permissions/modules",
+      "method": "GET",
+      "sortNum": 150000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "60c292b3-cc67-40c0-9de4-289153bedf3f",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "permissions",
+      "name": "Consultar permissoes do perfil",
+      "url": "{{baseUrl}}/api/permissions/role/{{role}}",
+      "method": "GET",
+      "sortNum": 160000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "3bf89d91-1dd2-420d-98d2-7c235898a930",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "permissions",
+      "name": "Atualizar permissoes do perfil (ADMIN)",
+      "url": "{{baseUrl}}/api/permissions/role/{{role}}",
+      "method": "PUT",
+      "sortNum": 170000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"permissions\": [\n    {\n      \"moduleId\": \"DASHBOARD\",\n      \"canAccess\": true\n    }\n  ]\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "c71ea5af-7f81-4c4d-918b-922d989554c5",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "customers",
+      "name": "Listar clientes",
+      "url": "{{baseUrl}}/api/clientes?page=1&pageSize=20",
+      "method": "GET",
+      "sortNum": 180000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "15f72b2a-a90c-43bf-a7e7-cf1fdae9be90",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "customers",
+      "name": "Consultar cliente por ID",
+      "url": "{{baseUrl}}/api/clientes/{{clienteId}}",
+      "method": "GET",
+      "sortNum": 190000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "1f87ddee-d168-4d22-83a6-0d955f6a6e45",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "customers",
+      "name": "Criar cliente PF (substitua dados de teste)",
+      "url": "{{baseUrl}}/api/clientes",
+      "method": "POST",
+      "sortNum": 200000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"tipoPessoa\": \"pf\",\n  \"nome\": \"Cliente de teste\",\n  \"documento\": \"{{cpfValido}}\",\n  \"email\": \"{{email}}\",\n  \"telefone\": \"11999990000\",\n  \"cep\": \"01001000\",\n  \"logradouro\": \"Praca da Se\",\n  \"numero\": \"100\",\n  \"bairro\": \"Se\",\n  \"cidade\": \"Sao Paulo\",\n  \"estado\": \"SP\",\n  \"rendaMensal\": 5000\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "c801010c-2946-4e56-8e46-bf8553bbff7a",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "customers",
+      "name": "Atualizar cliente",
+      "url": "{{baseUrl}}/api/clientes/{{clienteId}}",
+      "method": "PUT",
+      "sortNum": 210000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"tipoPessoa\": \"pf\",\n  \"nome\": \"Cliente atualizado\",\n  \"documento\": \"{{cpfValido}}\",\n  \"telefone\": \"11999990000\",\n  \"cep\": \"01001000\",\n  \"logradouro\": \"Praca da Se\",\n  \"numero\": \"100\",\n  \"bairro\": \"Se\",\n  \"cidade\": \"Sao Paulo\",\n  \"estado\": \"SP\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "fe5e1af1-e5dc-49f6-9bf9-8806b00d08cc",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "customers",
+      "name": "Excluir logicamente cliente",
+      "url": "{{baseUrl}}/api/clientes/{{clienteId}}",
+      "method": "DELETE",
+      "sortNum": 220000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "9505f1af-ff4f-4007-85e1-1c9c27ad4667",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "sellers",
+      "name": "Listar vendedores",
+      "url": "{{baseUrl}}/api/vendedores",
+      "method": "GET",
+      "sortNum": 230000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "4b8b22c5-bf03-4c81-95f7-a43f31d2cf66",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "sellers",
+      "name": "Consultar vendedor por ID",
+      "url": "{{baseUrl}}/api/vendedores/{{vendedorId}}",
+      "method": "GET",
+      "sortNum": 240000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "b6aa579b-9185-4edb-b547-97a60a082fd5",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "sellers",
+      "name": "Criar vendedor (requer SMTP configurado)",
+      "url": "{{baseUrl}}/api/vendedores",
+      "method": "POST",
+      "sortNum": 250000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"nome\": \"Vendedor de teste\",\n  \"email\": \"{{emailNovo}}\",\n  \"telefone\": \"11999990000\",\n  \"lojaId\": \"{{lojaId}}\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "b6714df2-2468-4015-a385-ffb2c2c0d2ac",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "sellers",
+      "name": "Atualizar vendedor",
+      "url": "{{baseUrl}}/api/vendedores/{{vendedorId}}",
+      "method": "PUT",
+      "sortNum": 260000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"nome\": \"Vendedor atualizado\",\n  \"telefone\": \"11999990000\",\n  \"status\": \"ativo\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "45490f28-ba5f-48e6-ad88-cc1a11598b3a",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "sellers",
+      "name": "Desativar vendedor",
+      "url": "{{baseUrl}}/api/vendedores/{{vendedorId}}",
+      "method": "DELETE",
+      "sortNum": 270000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "60c10a9c-7429-471b-8269-e61c968c68f6",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "vehicles",
+      "name": "Listar veiculos",
+      "url": "{{baseUrl}}/api/veiculos?page=1&pageSize=20",
+      "method": "GET",
+      "sortNum": 280000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "22db26e9-f6d5-49f7-a92c-019384434db0",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "vehicles",
+      "name": "Consultar avaliacao FIPE por codigo",
+      "url": "{{baseUrl}}/api/veiculos/fipe/{{fipeCode}}",
+      "method": "GET",
+      "sortNum": 290000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "951d51d7-d3eb-411b-8d06-93cb345c2b5b",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "vehicles",
+      "name": "Upload de foto (selecione arquivo multipart no Thunder Client)",
+      "url": "{{baseUrl}}/api/veiculos/media/photo",
+      "method": "POST",
+      "sortNum": 300000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "c4502472-4032-4b78-834a-411f5483c8ad",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "vehicles",
+      "name": "Upload de video (selecione arquivo multipart no Thunder Client)",
+      "url": "{{baseUrl}}/api/veiculos/media/video",
+      "method": "POST",
+      "sortNum": 310000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "96468304-82b0-4615-95f6-710d812068bb",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "vehicles",
+      "name": "Consultar veiculo por ID",
+      "url": "{{baseUrl}}/api/veiculos/{{veiculoId}}",
+      "method": "GET",
+      "sortNum": 320000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "b2d9265d-5332-476e-bed5-2dde0226eca9",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "vehicles",
+      "name": "Cadastrar veiculo (substitua URLs e dados de teste)",
+      "url": "{{baseUrl}}/api/veiculos",
+      "method": "POST",
+      "sortNum": 330000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"marca\": \"Toyota\",\n  \"modelo\": \"Corolla\",\n  \"anoFabricacao\": 2022,\n  \"anoModelo\": 2023,\n  \"codigoFipe\": \"{{fipeCode}}\",\n  \"valorFipe\": 120000,\n  \"precoSugerido\": 125000,\n  \"precoMinimo\": 115000,\n  \"fotos\": {\n    \"right\": \"https://example.com/right.jpg\",\n    \"left\": \"https://example.com/left.jpg\",\n    \"front\": \"https://example.com/front.jpg\",\n    \"rear\": \"https://example.com/rear.jpg\",\n    \"interior\": \"https://example.com/interior.jpg\"\n  },\n  \"videoUrl\": \"\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "e8abbd8f-eaac-4634-8c5f-be150576c04f",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "vehicles",
+      "name": "Atualizar veiculo",
+      "url": "{{baseUrl}}/api/veiculos/{{veiculoId}}",
+      "method": "PUT",
+      "sortNum": 340000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"marca\": \"Toyota\",\n  \"modelo\": \"Corolla\",\n  \"anoFabricacao\": 2022,\n  \"anoModelo\": 2023,\n  \"precoSugerido\": 125000,\n  \"precoMinimo\": 115000,\n  \"fotos\": {\n    \"right\": \"https://example.com/right.jpg\",\n    \"left\": \"https://example.com/left.jpg\",\n    \"front\": \"https://example.com/front.jpg\",\n    \"rear\": \"https://example.com/rear.jpg\",\n    \"interior\": \"https://example.com/interior.jpg\"\n  }\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "b5082422-ccbd-4117-a0f8-f6b979bc0482",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "vehicles",
+      "name": "Desativar veiculo",
+      "url": "{{baseUrl}}/api/veiculos/{{veiculoId}}",
+      "method": "DELETE",
+      "sortNum": 350000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "a7dfd71f-0fcb-456f-95d0-906cc7e6bcd8",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "proposals",
+      "name": "Listar propostas",
+      "url": "{{baseUrl}}/api/propostas?page=1&pageSize=20",
+      "method": "GET",
+      "sortNum": 360000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "9e0d83a4-dd2a-409c-9f7b-ac709d18f2e7",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "proposals",
+      "name": "Gerar/baixar PDF de proposta",
+      "url": "{{baseUrl}}/api/propostas/{{propostaId}}/pdf",
+      "method": "GET",
+      "sortNum": 370000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "96e48168-52c7-4e41-a7dd-a10e2c2661d8",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "proposals",
+      "name": "Consultar historico de proposta",
+      "url": "{{baseUrl}}/api/propostas/{{propostaId}}/history",
+      "method": "GET",
+      "sortNum": 380000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "7056f4ac-7a53-4593-a3b7-1081d6df9b77",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "proposals",
+      "name": "Consultar proposta por ID",
+      "url": "{{baseUrl}}/api/propostas/{{propostaId}}",
+      "method": "GET",
+      "sortNum": 390000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "4a7ff8a8-0525-449c-8afd-eb7053068a85",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "proposals",
+      "name": "Criar simulacao/proposta",
+      "url": "{{baseUrl}}/api/propostas",
+      "method": "POST",
+      "sortNum": 400000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"clienteId\": \"{{clienteId}}\",\n  \"veiculoId\": \"{{veiculoId}}\",\n  \"valorProposta\": 120000,\n  \"entrada\": 20000,\n  \"parcelas\": 48,\n  \"taxaJuros\": 1.5,\n  \"observacoes\": \"Teste manual Thunder Client\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "69ce10df-f0fb-4ca0-8c72-d81b055b7a46",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "proposals",
+      "name": "Atualizar status (use transicao permitida)",
+      "url": "{{baseUrl}}/api/propostas/{{propostaId}}/status",
+      "method": "PATCH",
+      "sortNum": 410000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"status\": \"CREDIT_REJECTED\",\n  \"motivoRecusa\": \"Teste manual\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "2b92cd4e-e337-492b-b1da-09c036e7fba8",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "contracts",
+      "name": "Listar contratos",
+      "url": "{{baseUrl}}/api/contratos",
+      "method": "GET",
+      "sortNum": 420000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "999e1e65-a101-4dc9-a0c2-23be91209f05",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "contracts",
+      "name": "Consultar contrato por ID",
+      "url": "{{baseUrl}}/api/contratos/{{contratoId}}",
+      "method": "GET",
+      "sortNum": 430000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "6459d5a0-4709-4cf8-83a1-83bdb28d3695",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "contracts",
+      "name": "Criar contrato a partir de proposta aprovada",
+      "url": "{{baseUrl}}/api/contratos",
+      "method": "POST",
+      "sortNum": 440000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"propostaId\": \"{{propostaId}}\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "967002f5-5d07-4293-9d17-0ab122344e4f",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "contracts",
+      "name": "Atualizar status do contrato",
+      "url": "{{baseUrl}}/api/contratos/{{contratoId}}/status",
+      "method": "PATCH",
+      "sortNum": 450000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"status\": \"ativo\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "6c70108f-0331-46a3-baca-4bea337c84b7",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "finance",
+      "name": "Listar lancamentos financeiros",
+      "url": "{{baseUrl}}/api/financeiro",
+      "method": "GET",
+      "sortNum": 460000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "3ea80628-3f95-4701-ab8f-ec122cb3d204",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "finance",
+      "name": "Consultar lancamento financeiro por ID",
+      "url": "{{baseUrl}}/api/financeiro/{{resourceId}}",
+      "method": "GET",
+      "sortNum": 470000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "41be0d0d-9826-4b8e-86e5-516ddbafde37",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "finance",
+      "name": "Criar lancamento financeiro",
+      "url": "{{baseUrl}}/api/financeiro",
+      "method": "POST",
+      "sortNum": 480000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"contratoId\": \"{{contratoId}}\",\n  \"tipo\": \"Entrada\",\n  \"valor\": 1000,\n  \"dataVencimento\": \"2026-12-01\",\n  \"observacoes\": \"Teste manual\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "327e58a0-4cc5-4a49-bcf6-cccbb1f9ab65",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "finance",
+      "name": "Atualizar lancamento financeiro",
+      "url": "{{baseUrl}}/api/financeiro/{{resourceId}}",
+      "method": "PUT",
+      "sortNum": 490000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"tipo\": \"Entrada atualizada\",\n  \"valor\": 1200,\n  \"observacoes\": \"Atualizacao de teste\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "a4a1c8c2-10b0-49f0-89dd-36c830ab4baa",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "finance",
+      "name": "Atualizar status financeiro",
+      "url": "{{baseUrl}}/api/financeiro/{{resourceId}}/status",
+      "method": "PATCH",
+      "sortNum": 500000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"status\": \"pago\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "6945f51b-9781-4b5b-b133-6e3ba08e4da7",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "reports",
+      "name": "Baixar relatorio PDF de comissoes",
+      "url": "{{baseUrl}}/api/reports/commissions.pdf",
+      "method": "GET",
+      "sortNum": 510000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "b4df2af8-aadb-492a-a6d9-0550ec5e11c0",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "reports",
+      "name": "Consultar resumo de comissoes",
+      "url": "{{baseUrl}}/api/reports/commissions",
+      "method": "GET",
+      "sortNum": 520000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "90327379-45f9-48da-bf9f-888e6852a209",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "reports",
+      "name": "Consultar resumo do dashboard",
+      "url": "{{baseUrl}}/api/reports/dashboard-summary",
+      "method": "GET",
+      "sortNum": 530000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "0e00f4f1-87ce-431d-99a2-6773e01592e8",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "reports",
+      "name": "Consultar regras de comissao",
+      "url": "{{baseUrl}}/api/reports/commission-rules",
+      "method": "GET",
+      "sortNum": 540000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "f141d5a9-a6d0-4db5-91aa-a7bb73e7adc5",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "reports",
+      "name": "Atualizar regras de comissao (ADMIN)",
+      "url": "{{baseUrl}}/api/reports/commission-rules",
+      "method": "PUT",
+      "sortNum": 550000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"sellerPercent\": 1.5,\n  \"managerPercent\": 0.5\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "b3007043-4012-421b-ac11-48ec7be52be5",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "credit",
+      "name": "Listar oportunidades de recuperacao de credito",
+      "url": "{{baseUrl}}/api/credit-recovery",
+      "method": "GET",
+      "sortNum": 560000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "d70e98a2-c692-418e-b7b2-4e6310964057",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "credit",
+      "name": "Criar oportunidade de recuperacao",
+      "url": "{{baseUrl}}/api/credit-recovery",
+      "method": "POST",
+      "sortNum": 570000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"clienteId\": \"{{clienteId}}\",\n  \"tipo\": \"REANALISE_CREDITO\",\n  \"motivo\": \"Teste manual\",\n  \"observacoes\": \"Oportunidade de homologacao\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "19c4caf8-2069-4cfe-80b6-5fcc79e7c600",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "credit",
+      "name": "Atualizar oportunidade",
+      "url": "{{baseUrl}}/api/credit-recovery/{{resourceId}}",
+      "method": "PATCH",
+      "sortNum": 580000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"status\": \"EM_CONTATO\",\n  \"observacoes\": \"Contato realizado em teste\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "f435aaa6-dda5-40f9-8a2d-866a918a651f",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "deals",
+      "name": "Registrar contrato de consultoria de credito",
+      "url": "{{baseUrl}}/api/deals/{{propostaId}}/credit-consultancy",
+      "method": "POST",
+      "sortNum": 590000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"valorConsultoria\": 500\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "30cdf182-d4f9-427d-9e62-ff7d6d84562f",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "deals",
+      "name": "Consultar historico do negocio/proposta",
+      "url": "{{baseUrl}}/api/deals/{{propostaId}}/history",
+      "method": "GET",
+      "sortNum": 600000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "615a6a7a-ecb5-46c8-a352-ab040cb66853",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "stores",
+      "name": "Listar lojas",
+      "url": "{{baseUrl}}/api/stores",
+      "method": "GET",
+      "sortNum": 610000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "272dc32c-1a74-4fd4-be70-795a8bd426cb",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "stores",
+      "name": "Criar loja (ADMIN)",
+      "url": "{{baseUrl}}/api/stores",
+      "method": "POST",
+      "sortNum": 620000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"nome\": \"Loja de teste\",\n  \"cnpj\": \"{{cnpjValido}}\",\n  \"email\": \"{{emailNovo}}\",\n  \"telefone\": \"1130000000\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "d8c9e9b8-05b7-41e1-a1f7-2e1b5c943b5f",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "stores",
+      "name": "Atualizar loja (ADMIN)",
+      "url": "{{baseUrl}}/api/stores/{{lojaId}}",
+      "method": "PUT",
+      "sortNum": 630000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"nome\": \"Loja atualizada\",\n  \"status\": \"ativo\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "27b05457-e2f5-4ab0-96ee-cbe5b8f7d5f2",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "stores",
+      "name": "Selecionar contexto de loja",
+      "url": "{{baseUrl}}/api/stores/select",
+      "method": "POST",
+      "sortNum": 640000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"lojaId\": \"{{lojaId}}\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "1a4908e3-1578-474c-b13a-774738dc0d47",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "teams",
+      "name": "Listar equipes",
+      "url": "{{baseUrl}}/api/teams",
+      "method": "GET",
+      "sortNum": 650000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "6d980c88-42b8-48b0-b8c0-aecb08594dc9",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "teams",
+      "name": "Consultar equipe por ID",
+      "url": "{{baseUrl}}/api/teams/{{equipeId}}",
+      "method": "GET",
+      "sortNum": 660000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "b86c95a3-f335-4c00-93d9-9f1377dcc990",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "teams",
+      "name": "Criar equipe (ADMIN/MANAGER)",
+      "url": "{{baseUrl}}/api/teams",
+      "method": "POST",
+      "sortNum": 670000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"nome\": \"Equipe de teste\",\n  \"gerenteId\": \"{{usuarioId}}\",\n  \"lojaId\": \"{{lojaId}}\",\n  \"memberIds\": []\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "a16a03b2-76b3-46ab-b966-afaa431521d8",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "teams",
+      "name": "Atualizar equipe (ADMIN/MANAGER)",
+      "url": "{{baseUrl}}/api/teams/{{equipeId}}",
+      "method": "PUT",
+      "sortNum": 680000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"nome\": \"Equipe atualizada\"\n}",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "99bbcdfd-4324-427a-8e4a-a621d79582a3",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "teams",
+      "name": "Desativar equipe (ADMIN)",
+      "url": "{{baseUrl}}/api/teams/{{equipeId}}",
+      "method": "DELETE",
+      "sortNum": 690000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "55bb8497-ca7f-4533-aad4-54523bd24fb2",
+      "colId": "b4e102bc-277b-4585-8df5-e5cf2616479b",
+      "containerId": "audit",
+      "name": "Listar logs de auditoria (ADMIN)",
+      "url": "{{baseUrl}}/api/audit-logs",
+      "method": "GET",
+      "sortNum": 700000,
+      "created": "2026-10-20T00:00:00.000Z",
+      "modified": "2026-10-20T00:00:00.000Z",
+      "headers": [],
+      "params": [],
+      "body": {
+        "type": "none",
+        "raw": "",
+        "form": []
+      },
+      "tests": [],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{token}}"
+          }
+        ]
+      }
+    }
+  ]
+}

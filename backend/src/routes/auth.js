@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { login, register, listUsers, getUserById, createUser, updateUser, deactivateUser, firstAccessChange, forgotPassword, resetPassword } from '../controllers/authController.js';
+import { login, register, initialAdminSetupStatus, createInitialAdmin, listUsers, getUserById, createUser, updateUser, deactivateUser, firstAccessChange, forgotPassword, resetPassword } from '../controllers/authController.js';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
 import { getEmailSettings, saveEmailSettings, testEmailSettings } from '../utils/email.js';
 import { ok } from '../utils/response.js';
@@ -10,6 +10,8 @@ router.post('/login', login);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 router.post('/register', register);
+router.get('/initial-admin/status', (req, res, next) => initialAdminSetupStatus(req, res).catch(next));
+router.post('/initial-admin', (req, res, next) => createInitialAdmin(req, res).catch(next));
 router.get('/users', authMiddleware, requireRole('ADMIN'), listUsers);
 router.get('/users/:id', authMiddleware, requireRole('ADMIN'), getUserById);
 router.post('/users', authMiddleware, requireRole('ADMIN'), createUser);

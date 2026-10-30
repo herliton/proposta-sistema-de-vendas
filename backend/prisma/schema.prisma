@@ -8,67 +8,79 @@ datasource db {
 }
 
 model Loja {
-  id            Int                   @id @default(autoincrement())
-  nome          String                @unique
-  cnpj          String?               @unique
-  telefone      String?
-  email         String?
-  cep           String?
-  logradouro    String?
-  numero        String?
-  complemento   String?
-  bairro        String?
-  cidade        String?
-  estado        String?
-  status        String                @default("ativo")
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @updatedAt
-  usuarios      Usuario[]
-  vendedores    Vendedor[]
-  clientes      Cliente[]
-  veiculos      Veiculo[]
-  propostas     Proposta[]
-  contratos     Contrato[]
-  oportunidades OportunidadeCredito[]
-  equipes       Equipe[]
+  id                   Int                   @id @default(autoincrement())
+  nome                 String                @unique
+  cnpj                 String?               @unique
+  telefone             String?
+  email                String?
+  cep                  String?
+  logradouro           String?
+  numero               String?
+  complemento          String?
+  bairro               String?
+  cidade               String?
+  estado               String?
+  status               String                @default("ativo")
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  usuarios             Usuario[]
+  vendedores           Vendedor[]
+  clientes             Cliente[]
+  veiculos             Veiculo[]
+  propostas            Proposta[]
+  contratos            Contrato[]
+  oportunidades        OportunidadeCredito[]
+  fichasRecuperacao    FichaRecuperacao[]
+  equipes              Equipe[]
+  configuracaoProposta ConfiguracaoProposta?
 }
 
 model Usuario {
-  id                     Int                   @id @default(autoincrement())
-  nome                   String
-  email                  String                @unique
-  senhaHash              String
-  perfil                 String
-  status                 String                @default("ativo")
-  telefone               String?
-  avatarUrl              String?
-  cep                    String?
-  logradouro             String?
-  numero                 String?
-  complemento            String?
-  bairro                 String?
-  cidade                 String?
-  estado                 String?
-  chavePix               String?
-  metaMensal             Decimal?              @db.Decimal(12, 2)
-  firstAccess            Boolean               @default(true)
-  resetPasswordTokenHash String?               @unique
-  resetPasswordExpires   DateTime?
-  gerenteId              Int?
-  createdAt              DateTime              @default(now())
-  updatedAt              DateTime              @default(now()) @updatedAt
-  gerente                Usuario?              @relation("UserManager", fields: [gerenteId], references: [id], onDelete: SetNull)
-  equipe                 Usuario[]             @relation("UserManager")
-  equipeId               Int?
-  equipeComercial        Equipe?                @relation("TeamMembers", fields: [equipeId], references: [id], onDelete: SetNull)
-  equipesGerenciadas     Equipe[]               @relation("TeamManager")
-  vendedores             Vendedor[]
-  aprovacoes             Aprovacao[]
-  auditorias             AuditLog[]
-  comissoes              Comissao[]
-  oportunidades          OportunidadeCredito[]
-  lojaId                 Int                   @default(1)
-  loja                   Loja                  @relation(fields: [lojaId], references: [id], onDelete: Restrict)
+  id                              Int                    @id @default(autoincrement())
+  nome                            String
+  email                           String                 @unique
+  senhaHash                       String
+  perfil                          String
+  status                          String                 @default("ativo")
+  telefone                        String?
+  avatarUrl                       String?
+  cep                             String?
+  logradouro                      String?
+  numero                          String?
+  complemento                     String?
+  bairro                          String?
+  cidade                          String?
+  estado                          String?
+  chavePix                        String?
+  metaMensal                      Decimal?               @db.Decimal(12, 2)
+  firstAccess                     Boolean                @default(true)
+  resetPasswordTokenHash          String?                @unique
+  resetPasswordExpires            DateTime?
+  gerenteId                       Int?
+  createdAt                       DateTime               @default(now())
+  updatedAt                       DateTime               @default(now()) @updatedAt
+  gerente                         Usuario?               @relation("UserManager", fields: [gerenteId], references: [id], onDelete: SetNull)
+  equipe                          Usuario[]              @relation("UserManager")
+  equipeId                        Int?
+  equipeComercial                 Equipe?                @relation("TeamMembers", fields: [equipeId], references: [id], onDelete: SetNull)
+  equipesGerenciadas              Equipe[]               @relation("TeamManager")
+  vinculosEquipe                  EquipeVinculo[]        @relation("TeamMembershipSeller")
+  vinculosEquipeCriados           EquipeVinculo[]        @relation("TeamMembershipCreatedBy")
+  vinculosEquipeEncerrados        EquipeVinculo[]        @relation("TeamMembershipEndedBy")
+  vendedores                      Vendedor[]
+  aprovacoes                      Aprovacao[]
+  auditorias                      AuditLog[]
+  comissoes                       Comissao[]
+  oportunidades                   OportunidadeCredito[]
+  fichasGerenciadas               FichaRecuperacao[]     @relation("FichaGerente")
+  fichasVendedor                  FichaRecuperacao[]     @relation("FichaVendedor")
+  contatosFicha                   FichaContato[]         @relation("FichaContatoRegistro")
+  analisesFicha                   FichaAnaliseBancaria[] @relation("FichaAnaliseSubmissao")
+  acompanhamentosFicha            FichaAcompanhamento[]  @relation("FichaAcompanhamentoRegistro")
+  lojaId                          Int                    @default(1)
+  loja                            Loja                   @relation(fields: [lojaId], references: [id], onDelete: Restrict)
+  tabelasFinanciamentoAtualizadas TabelaFinanciamento[]  @relation("TabelaFinanciamentoAtualizadoPor")
+  beneficiosAtualizados           Beneficio[]            @relation("BeneficioAtualizadoPor")
 
   @@index([perfil, status])
   @@index([gerenteId])
@@ -76,20 +88,40 @@ model Usuario {
 }
 
 model Equipe {
-  id        Int       @id @default(autoincrement())
-  nome      String    @db.VarChar(120)
-  gerenteId Int
-  lojaId    Int       @default(1)
-  status    String    @default("ativo")
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @default(now()) @updatedAt
-  gerente   Usuario   @relation("TeamManager", fields: [gerenteId], references: [id], onDelete: Restrict)
-  loja      Loja      @relation(fields: [lojaId], references: [id], onDelete: Restrict)
-  membros   Usuario[] @relation("TeamMembers")
+  id               Int             @id @default(autoincrement())
+  nome             String          @db.VarChar(120)
+  gerenteId        Int
+  lojaId           Int             @default(1)
+  status           String          @default("ativo")
+  deletedAt        DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @default(now()) @updatedAt
+  gerente          Usuario         @relation("TeamManager", fields: [gerenteId], references: [id], onDelete: Restrict)
+  loja             Loja            @relation(fields: [lojaId], references: [id], onDelete: Restrict)
+  membros          Usuario[]       @relation("TeamMembers")
+  historicoMembros EquipeVinculo[]
 
   @@unique([nome, lojaId])
   @@index([lojaId, status])
+}
+
+model EquipeVinculo {
+  id             Int       @id @default(autoincrement())
+  equipeId       Int
+  vendedorId     Int
+  iniciadoEm     DateTime  @default(now())
+  encerradoEm    DateTime?
+  atribuidoPorId Int?
+  removidoPorId  Int?
+  createdAt      DateTime  @default(now())
+  equipe         Equipe    @relation(fields: [equipeId], references: [id], onDelete: Restrict)
+  vendedor       Usuario   @relation("TeamMembershipSeller", fields: [vendedorId], references: [id], onDelete: Restrict)
+  atribuidoPor   Usuario?  @relation("TeamMembershipCreatedBy", fields: [atribuidoPorId], references: [id], onDelete: SetNull)
+  removidoPor    Usuario?  @relation("TeamMembershipEndedBy", fields: [removidoPorId], references: [id], onDelete: SetNull)
+
+  @@index([equipeId, iniciadoEm])
+  @@index([vendedorId, iniciadoEm])
+  @@index([vendedorId, encerradoEm])
 }
 
 model SystemModule {
@@ -113,35 +145,36 @@ model RolePermission {
 }
 
 model Cliente {
-  id            Int                   @id @default(autoincrement())
-  nome          String
-  razaoSocial   String?
-  nomeFantasia  String?
-  documento     String?               @unique(map: "Cliente_documento_key")
-  tipoPessoa    String?
-  email         String?
-  telefone      String?
-  cep           String?
-  logradouro    String?
-  numero        String?
-  complemento   String?
-  bairro        String?
-  cidade        String?
-  estado        String?
-  rendaMensal   Decimal?              @db.Decimal(12, 2)
-  ocupacao      String?
-  status        String                @default("ativo")
-  vendedorId    Int?
-  gerenteId     Int?
-  deletedAt     DateTime?
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @default(now()) @updatedAt
-  vendedor      Vendedor?             @relation(fields: [vendedorId], references: [id], onDelete: SetNull)
-  propostas     Proposta[]
-  oportunidades OportunidadeCredito[]
-  contratos     Contrato[]
-  lojaId        Int                   @default(1)
-  loja          Loja                  @relation(fields: [lojaId], references: [id], onDelete: Restrict)
+  id                Int                   @id @default(autoincrement())
+  nome              String
+  razaoSocial       String?
+  nomeFantasia      String?
+  documento         String?               @unique(map: "Cliente_documento_key")
+  tipoPessoa        String?
+  email             String?
+  telefone          String?
+  cep               String?
+  logradouro        String?
+  numero            String?
+  complemento       String?
+  bairro            String?
+  cidade            String?
+  estado            String?
+  rendaMensal       Decimal?              @db.Decimal(12, 2)
+  ocupacao          String?
+  status            String                @default("ativo")
+  vendedorId        Int?
+  gerenteId         Int?
+  deletedAt         DateTime?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @default(now()) @updatedAt
+  vendedor          Vendedor?             @relation(fields: [vendedorId], references: [id], onDelete: SetNull)
+  propostas         Proposta[]
+  oportunidades     OportunidadeCredito[]
+  fichasRecuperacao FichaRecuperacao[]
+  contratos         Contrato[]
+  lojaId            Int                   @default(1)
+  loja              Loja                  @relation(fields: [lojaId], references: [id], onDelete: Restrict)
 
   @@index([nome])
   @@index([vendedorId, status])
@@ -201,30 +234,32 @@ model Veiculo {
 }
 
 model Proposta {
-  id              Int                  @id @default(autoincrement())
-  clienteId       Int
-  vendedorId      Int
-  veiculoId       Int
-  lojaId          Int                  @default(1)
-  valorProposta   Decimal              @db.Decimal(12, 2)
-  entrada         Decimal?             @db.Decimal(12, 2)
-  parcelas        Int?
-  taxaJuros       Decimal?             @db.Decimal(5, 2)
-  valorParcela    Decimal?             @db.Decimal(12, 2)
-  totalFinanciado Decimal?             @db.Decimal(12, 2)
-  status          String               @default("pendente")
-  motivoRecusa    String?
-  observacoes     String?
-  deletedAt       DateTime?
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @default(now()) @updatedAt
-  cliente         Cliente              @relation(fields: [clienteId], references: [id], onDelete: Restrict)
-  vendedor        Vendedor             @relation(fields: [vendedorId], references: [id], onDelete: Restrict)
-  veiculo         Veiculo              @relation(fields: [veiculoId], references: [id], onDelete: Restrict)
-  contrato        Contrato?
-  comissoes       Comissao[]
-  oportunidade    OportunidadeCredito?
-  loja            Loja                 @relation(fields: [lojaId], references: [id], onDelete: Restrict)
+  id                Int                  @id @default(autoincrement())
+  clienteId         Int
+  vendedorId        Int
+  veiculoId         Int
+  lojaId            Int                  @default(1)
+  valorProposta     Decimal              @db.Decimal(12, 2)
+  entrada           Decimal?             @db.Decimal(12, 2)
+  parcelas          Int?
+  taxaJuros         Decimal?             @db.Decimal(5, 2)
+  valorParcela      Decimal?             @db.Decimal(12, 2)
+  totalFinanciado   Decimal?             @db.Decimal(12, 2)
+  status            String               @default("pendente")
+  motivoRecusa      String?
+  observacoes       String?
+  deletedAt         DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @default(now()) @updatedAt
+  cliente           Cliente              @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  vendedor          Vendedor             @relation(fields: [vendedorId], references: [id], onDelete: Restrict)
+  veiculo           Veiculo              @relation(fields: [veiculoId], references: [id], onDelete: Restrict)
+  contrato          Contrato?
+  comissoes         Comissao[]
+  oportunidade      OportunidadeCredito?
+  fichasRecuperacao FichaRecuperacao[]
+  beneficios        PropostaBeneficio[]
+  loja              Loja                 @relation(fields: [lojaId], references: [id], onDelete: Restrict)
 
   @@index([veiculoId, status])
   @@index([vendedorId, status, createdAt])
@@ -311,6 +346,68 @@ model AuditLog {
   @@index([action, createdAt])
 }
 
+model ConfiguracaoProposta {
+  id                        Int      @id @default(autoincrement())
+  lojaId                    Int      @unique
+  validadeDias              Int      @default(7)
+  prazoEntrega              String   @db.VarChar(255)
+  documentacaoTransferencia String   @db.VarChar(255)
+  textoPrazos               String   @db.Text
+  textoGarantia             String   @db.Text
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+  loja                      Loja     @relation(fields: [lojaId], references: [id], onDelete: Cascade)
+}
+
+model TabelaFinanciamento {
+  id              Int       @id @default(autoincrement())
+  instituicao     String    @db.VarChar(120)
+  produto         String    @db.VarChar(120)
+  taxa            Decimal   @db.Decimal(7, 4)
+  periodicidade   String    @default("mensal") @db.VarChar(20)
+  parcelasMin     Int
+  parcelasMax     Int
+  vigenciaInicio  DateTime  @db.Date
+  vigenciaFim     DateTime? @db.Date
+  status          String    @default("ativo") @db.VarChar(20)
+  atualizadoPorId Int?
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  atualizadoPor   Usuario?  @relation("TabelaFinanciamentoAtualizadoPor", fields: [atualizadoPorId], references: [id], onDelete: SetNull)
+
+  @@index([status, vigenciaInicio])
+}
+
+model PropostaBeneficio {
+  id          Int       @id @default(autoincrement())
+  propostaId  Int
+  beneficioId Int
+  nome        String    @db.VarChar(120)
+  descricao   String?   @db.VarChar(255)
+  createdAt   DateTime  @default(now())
+  proposta    Proposta  @relation(fields: [propostaId], references: [id], onDelete: Cascade)
+  beneficio   Beneficio @relation(fields: [beneficioId], references: [id], onDelete: Restrict)
+
+  @@unique([propostaId, beneficioId])
+  @@index([beneficioId])
+}
+
+model Beneficio {
+  id              Int                 @id @default(autoincrement())
+  nome            String              @db.VarChar(120)
+  descricao       String?             @db.VarChar(255)
+  status          String              @default("ativo") @db.VarChar(20)
+  atualizadoPorId Int?
+  deletedAt       DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  atualizadoPor   Usuario?            @relation("BeneficioAtualizadoPor", fields: [atualizadoPorId], references: [id], onDelete: SetNull)
+  propostas       PropostaBeneficio[]
+
+  @@index([status])
+}
+
 model Configuracao {
   chave     String   @id @db.VarChar(100)
   valor     Json
@@ -318,25 +415,199 @@ model Configuracao {
 }
 
 model OportunidadeCredito {
-  id               Int       @id @default(autoincrement())
+  id               Int               @id @default(autoincrement())
   clienteId        Int
-  lojaId           Int       @default(1)
-  propostaId       Int?      @unique
+  lojaId           Int               @default(1)
+  propostaId       Int?              @unique
   responsavelId    Int?
-  tipo             String    @default("REANALISE_CREDITO")
-  status           String    @default("ABERTA")
+  tipo             String            @default("REANALISE_CREDITO")
+  status           String            @default("ABERTA")
   motivo           String?
   proximoContatoEm DateTime?
   observacoes      String?
   encerradaEm      DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  cliente          Cliente   @relation(fields: [clienteId], references: [id], onDelete: Restrict)
-  loja             Loja      @relation(fields: [lojaId], references: [id], onDelete: Restrict)
-  proposta         Proposta? @relation(fields: [propostaId], references: [id], onDelete: SetNull)
-  responsavel      Usuario?  @relation(fields: [responsavelId], references: [id], onDelete: SetNull)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  cliente          Cliente           @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  loja             Loja              @relation(fields: [lojaId], references: [id], onDelete: Restrict)
+  proposta         Proposta?         @relation(fields: [propostaId], references: [id], onDelete: SetNull)
+  responsavel      Usuario?          @relation(fields: [responsavelId], references: [id], onDelete: SetNull)
+  ficha            FichaRecuperacao?
 
   @@index([responsavelId, status, proximoContatoEm])
   @@index([clienteId, status])
   @@index([lojaId, status])
+}
+
+model FichaRecuperacao {
+  id                    Int                    @id @default(autoincrement())
+  lojaId                Int                    @default(1)
+  clienteId             Int
+  oportunidadeId        Int?                   @unique
+  propostaId            Int?
+  gerenteId             Int?
+  vendedorId            Int?
+  status                String                 @default("ABERTA")
+  dataEntradaFicha      DateTime               @default(now())
+  rg                    String?                @db.VarChar(30)
+  orgaoEmissor          String?                @db.VarChar(30)
+  ufEmissor             String?                @db.VarChar(2)
+  dataEmissaoRg         DateTime?              @db.Date
+  naturalidade          String?                @db.VarChar(100)
+  naturalidadeUf        String?                @db.VarChar(2)
+  dataNascimento        DateTime?              @db.Date
+  cnhNumero             String?                @db.VarChar(20)
+  cnhValidade           DateTime?              @db.Date
+  cnhCategoria          String?                @db.VarChar(5)
+  sexo                  String?                @db.VarChar(20)
+  estadoCivil           String?                @db.VarChar(30)
+  residenciaTipo        String?                @db.VarChar(20)
+  tempoResidencia       String?                @db.VarChar(60)
+  telefoneFixo          String?                @db.VarChar(20)
+  telefoneCelular       String?                @db.VarChar(20)
+  whatsapp              String?                @db.VarChar(20)
+  empresaCnpj           String?                @db.VarChar(20)
+  empresaNome           String?                @db.VarChar(150)
+  dataAdmissao          DateTime?              @db.Date
+  renda                 Decimal?               @db.Decimal(12, 2)
+  cargoFuncao           String?                @db.VarChar(100)
+  classificacaoTrabalho String?                @db.VarChar(30)
+  valorVeiculo          Decimal?               @db.Decimal(12, 2)
+  valorEntrada          Decimal?               @db.Decimal(12, 2)
+  valorFinanciado       Decimal?               @db.Decimal(12, 2)
+  valorTarifaTramite    Decimal?               @db.Decimal(12, 2)
+  scoreInicio           Int?
+  scoreInicioEm         DateTime?
+  scoreTermino          Int?
+  scoreTerminoEm        DateTime?
+  deletedAt             DateTime?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @default(now()) @updatedAt
+  loja                  Loja                   @relation(fields: [lojaId], references: [id], onDelete: Restrict)
+  cliente               Cliente                @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  oportunidade          OportunidadeCredito?   @relation(fields: [oportunidadeId], references: [id], onDelete: SetNull)
+  proposta              Proposta?              @relation(fields: [propostaId], references: [id], onDelete: SetNull)
+  gerente               Usuario?               @relation("FichaGerente", fields: [gerenteId], references: [id], onDelete: SetNull)
+  vendedor              Usuario?               @relation("FichaVendedor", fields: [vendedorId], references: [id], onDelete: SetNull)
+  referencias           FichaReferencia[]
+  opcoes                FichaOpcaoVeiculo[]
+  contatos              FichaContato[]
+  analises              FichaAnaliseBancaria[]
+  acompanhamentos       FichaAcompanhamento[]
+
+  @@index([lojaId, status])
+  @@index([clienteId, status])
+  @@index([vendedorId, status])
+  @@index([gerenteId, status])
+  @@index([propostaId])
+}
+
+model FichaReferencia {
+  id       Int              @id @default(autoincrement())
+  fichaId  Int
+  nome     String           @db.VarChar(120)
+  telefone String           @db.VarChar(20)
+  tipo     String           @db.VarChar(20)
+  ficha    FichaRecuperacao @relation(fields: [fichaId], references: [id], onDelete: Cascade)
+
+  @@index([fichaId])
+}
+
+model FichaOpcaoVeiculo {
+  id            Int                 @id @default(autoincrement())
+  fichaId       Int
+  ordem         Int
+  marca         String              @db.VarChar(100)
+  modelo        String              @db.VarChar(100)
+  anoModelo     Int?
+  anoFabricacao Int?
+  ficha         FichaRecuperacao    @relation(fields: [fichaId], references: [id], onDelete: Cascade)
+  parcelas      FichaOpcaoParcela[]
+
+  @@unique([fichaId, ordem])
+}
+
+model FichaOpcaoParcela {
+  id            Int               @id @default(autoincrement())
+  opcaoId       Int
+  quantidade    Int
+  parcelaMinima Decimal           @db.Decimal(12, 2)
+  parcelaMaxima Decimal           @db.Decimal(12, 2)
+  opcao         FichaOpcaoVeiculo @relation(fields: [opcaoId], references: [id], onDelete: Cascade)
+
+  @@index([opcaoId])
+}
+
+model FichaContato {
+  id                  Int              @id @default(autoincrement())
+  fichaId             Int
+  ordem               Int
+  data                DateTime         @db.Date
+  dataLigacaoPosVenda DateTime?        @db.Date
+  inicio              String?          @db.VarChar(5)
+  termino             String?          @db.VarChar(5)
+  protocolo           String?          @db.VarChar(30)
+  spc                 String?          @db.VarChar(60)
+  dividaValor         Decimal?         @db.Decimal(12, 2)
+  dividaObservacao    String?          @db.VarChar(120)
+  consultorNome       String           @db.VarChar(120)
+  setor               String?          @db.VarChar(80)
+  tratativa           String?          @db.VarChar(500)
+  registradoPorId     Int?
+  createdAt           DateTime         @default(now())
+  ficha               FichaRecuperacao @relation(fields: [fichaId], references: [id], onDelete: Cascade)
+  registradoPor       Usuario?         @relation("FichaContatoRegistro", fields: [registradoPorId], references: [id], onDelete: SetNull)
+
+  @@unique([fichaId, ordem])
+}
+
+model FichaAnaliseBancaria {
+  id                 Int              @id @default(autoincrement())
+  fichaId            Int
+  instituicao        String           @db.VarChar(120)
+  submetidaEm        DateTime
+  submetidoPorId     Int?
+  resposta           String           @default("EM_ANALISE") @db.VarChar(20)
+  respostaDetalhe    String?          @db.VarChar(500)
+  respondidaEm       DateTime?
+  veiculoMarca       String?          @db.VarChar(100)
+  veiculoModelo      String?          @db.VarChar(100)
+  anoModelo          Int?
+  anoFabricacao      Int?
+  valorVeiculo       Decimal?         @db.Decimal(12, 2)
+  valorEntrada       Decimal?         @db.Decimal(12, 2)
+  valorFinanciado    Decimal?         @db.Decimal(12, 2)
+  quantidadeParcelas Int?
+  valorParcela       Decimal?         @db.Decimal(12, 2)
+  observacoes        String?          @db.VarChar(500)
+  createdAt          DateTime         @default(now())
+  ficha              FichaRecuperacao @relation(fields: [fichaId], references: [id], onDelete: Cascade)
+  submetidoPor       Usuario?         @relation("FichaAnaliseSubmissao", fields: [submetidoPorId], references: [id], onDelete: SetNull)
+
+  @@index([fichaId, submetidaEm])
+}
+
+model FichaAcompanhamento {
+  id             Int                       @id @default(autoincrement())
+  fichaId        Int
+  ordem          Int
+  realizadoEm    DateTime
+  realizadoPorId Int?
+  observacoes    String?                   @db.VarChar(500)
+  createdAt      DateTime                  @default(now())
+  ficha          FichaRecuperacao          @relation(fields: [fichaId], references: [id], onDelete: Cascade)
+  realizadoPor   Usuario?                  @relation("FichaAcompanhamentoRegistro", fields: [realizadoPorId], references: [id], onDelete: SetNull)
+  itens          FichaAcompanhamentoItem[]
+
+  @@unique([fichaId, ordem])
+}
+
+model FichaAcompanhamentoItem {
+  id               Int                 @id @default(autoincrement())
+  acompanhamentoId Int
+  requisito        String              @db.VarChar(191)
+  cumprido         Boolean             @default(false)
+  acompanhamento   FichaAcompanhamento @relation(fields: [acompanhamentoId], references: [id], onDelete: Cascade)
+
+  @@index([acompanhamentoId])
 }

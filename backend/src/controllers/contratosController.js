@@ -1,15 +1,16 @@
 import { prisma } from '../config/database.js';
 import { created, notFound, ok } from '../utils/response.js';
 import { ensureContractAndCommissions } from '../services/commissionService.js';
+import { storeScope } from '../utils/storeScope.js';
 
 const roleOf = (user) => String(user?.perfil || user?.role || '').toUpperCase();
-const contractInclude = { cliente: true, vendedor: true, proposta: true };
+const contractInclude = { cliente: true, vendedor: true, proposta: { include: { veiculo: true } } };
 const contractScope = async (user) => {
   const role = roleOf(user);
-  if (['ADMIN', 'SUPPORT'].includes(role)) return {};
+  if (['ADMIN', 'SUPPORT'].includes(role)) return storeScope(user);
   const seller = await prisma.vendedor.findFirst({ where: { usuarioId: Number(user.id) } });
-  if (role === 'MANAGER') return { OR: [{ vendedorId: seller?.id ?? -1 }, { vendedor: { usuario: { gerenteId: Number(user.id) } } }] };
-  return { vendedorId: seller?.id ?? -1 };
+  if (role === 'MANAGER') return { AND: [{ OR: [{ vendedorId: seller?.id ?? -1 }, { vendedor: { usuario: { gerenteId: Number(user.id) } } }] }, storeScope(user)] };
+  return { vendedorId: seller?.id ?? -1, ...storeScope(user) };
 };
 const present = (item) => ({ ...item, valorTotal: Number(item.valorTotal || 0) });
 
@@ -38,6 +39,7 @@ export const createContrato = async (req, res) => {
 };
 
 export const updateStatusContrato = async (req, res) => {
+  if (!['ADMIN', 'SUPPORT'].includes(roleOf(req.user))) return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Somente administrador ou suporte pode alterar o status do contrato.' });
   const id = Number(req.params.id);
   const where = await contractScope(req.user);
   const existing = await prisma.contrato.findFirst({ where: { id, deletedAt: null, ...where } });

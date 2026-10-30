@@ -10,7 +10,7 @@ export const systemModules = [
   { id: 'SHOWCASE', label: 'Classificados', defaultRoles: ['ADMIN', 'MANAGER', 'SELLER'] },
   { id: 'VEHICLES', label: 'Veículos', defaultRoles: ['ADMIN', 'MANAGER', 'SELLER', 'SUPPORT'] },
   { id: 'RATES', label: 'Taxas e tabelas', defaultRoles: ['ADMIN', 'MANAGER', 'SELLER', 'SUPPORT'] },
-  { id: 'BENEFITS', label: 'Benefícios', defaultRoles: ['ADMIN', 'MANAGER', 'SELLER'] },
+  { id: 'BENEFITS', label: 'Benefícios', defaultRoles: ['ADMIN', 'MANAGER', 'SELLER', 'SUPPORT'] },
   { id: 'USERS', label: 'Usuários e perfis', defaultRoles: ['ADMIN'] },
   { id: 'STORES', label: 'Lojas', defaultRoles: ['ADMIN'] },
   { id: 'MANAGER_DASHBOARD', label: 'Painel do gerente', defaultRoles: ['ADMIN', 'MANAGER'] },

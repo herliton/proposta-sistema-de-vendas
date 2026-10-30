@@ -29,40 +29,29 @@ const moduleIconFor = (moduleId) => ({
 })[moduleId] || null;
 
 export const ensureSystemSeed = async () => {
+  const modules = systemModules.map((module) => ({
+    id: module.id,
+    name: module.label,
+    route: moduleRouteFor(module.id),
+    icon: moduleIconFor(module.id),
+  }));
+  const permissions = roles.flatMap((role) => {
+    const allowed = new Set(defaultRoleModules[role] || []);
+    if (role === 'MANAGER') {
+      for (const moduleId of defaultRoleModules.SELLER || []) {
+        allowed.add(moduleId);
+      }
+    }
+
+    return systemModules.map((module) => ({
+      role,
+      moduleId: module.id,
+      canAccess: allowed.has(module.id),
+    }));
+  });
+
   await prisma.$transaction(async (tx) => {
-    for (const module of systemModules) {
-      await tx.systemModule.upsert({
-        where: { id: module.id },
-        create: {
-          id: module.id,
-          name: module.label,
-          route: moduleRouteFor(module.id),
-          icon: moduleIconFor(module.id),
-        },
-        update: {
-          name: module.label,
-          route: moduleRouteFor(module.id),
-          icon: moduleIconFor(module.id),
-        },
-      });
-    }
-
-    for (const role of roles) {
-      const allowed = new Set(defaultRoleModules[role] || []);
-      if (role === 'MANAGER') {
-        for (const moduleId of defaultRoleModules.SELLER || []) {
-          allowed.add(moduleId);
-        }
-      }
-
-      for (const module of systemModules) {
-        const canAccess = allowed.has(module.id);
-        await tx.rolePermission.upsert({
-          where: { role_moduleId: { role, moduleId: module.id } },
-          create: { role, moduleId: module.id, canAccess },
-          update: { canAccess },
-        });
-      }
-    }
+    await tx.systemModule.createMany({ data: modules, skipDuplicates: true });
+    await tx.rolePermission.createMany({ data: permissions, skipDuplicates: true });
   });
 };

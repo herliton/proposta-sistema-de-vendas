@@ -21,3 +21,10 @@ logs/
 /.opencode-skills/
 
 /backend/uploads/
+
+# Local/sensitive files
+/~/
+Dump*.sql
+vfc-multimarcas
+vfc-multimarcas.pub
+backend/data/store.json
