@@ -50,6 +50,10 @@ veículo selecionado.
    npm run dev
    ```
 
+   Em produção, `npm start` executa `prisma migrate deploy` antes de iniciar a API,
+   criando automaticamente as colunas novas (ex.: `tipoVeiculo`, `combustivel` e
+   `mesReferencia` em `Veiculo`). Use `npm run start:only` para iniciar sem migrar.
+
 3. Em outro terminal, na raiz do repositório, inicie o frontend:
 
    ```bash

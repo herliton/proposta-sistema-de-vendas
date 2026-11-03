@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon src/server.js",
-    "start": "node src/server.js",
+    "start": "prisma migrate deploy && node src/server.js",
+    "start:only": "node src/server.js",
     "build": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -25,11 +26,11 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.4.0",
     "nodemailer": "^10.0.12",
-    "pdfkit": "^0.20.2"
+    "pdfkit": "^0.20.2",
+    "prisma": "^5.16.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10",
-    "prisma": "^5.16.0"
+    "nodemon": "^3.1.10"
   },
   "allowScripts": {
     "@prisma/client@5.22.0": true,
