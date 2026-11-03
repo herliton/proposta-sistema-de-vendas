@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -5,8 +6,26 @@ import { randomUUID } from 'node:crypto';
 import multer from 'multer';
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
-export const vehicleUploadDirectory = path.join(currentDir, '..', '..', 'uploads', 'vehicles');
-fs.mkdirSync(vehicleUploadDirectory, { recursive: true });
+// Diretório legado: continua sendo servido para as mídias já cadastradas.
+export const legacyVehicleUploadDirectory = path.join(currentDir, '..', '..', 'uploads', 'vehicles');
+const defaultVehicleUploadDirectory = '/home/u366207451/my-imagens';
+
+const resolveVehicleUploadDirectory = () => {
+  const configured = path.resolve(process.env.VEHICLE_UPLOAD_DIR || defaultVehicleUploadDirectory);
+  try {
+    fs.mkdirSync(configured, { recursive: true });
+    fs.accessSync(configured, fs.constants.W_OK);
+    return configured;
+  } catch (error) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(`Não foi possível usar o diretório de imagens ${configured}: ${error.message}`);
+    }
+    console.warn(`[uploads] ${configured} indisponível (${error.code || error.message}); usando ${legacyVehicleUploadDirectory} em desenvolvimento.`);
+    fs.mkdirSync(legacyVehicleUploadDirectory, { recursive: true });
+    return legacyVehicleUploadDirectory;
+  }
+};
+export const vehicleUploadDirectory = resolveVehicleUploadDirectory();
 
 const allowedImages = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const allowedVideos = new Set(['video/mp4', 'video/webm', 'video/quicktime']);

@@ -311,14 +311,14 @@ export const downloadPropostaPdf = async (req, res) => {
   const left = 52; const right = 543; const width = right - left;
   const createdDate = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' }).format(proposal.createdAt);
   const validity = new Intl.DateTimeFormat('pt-BR').format(new Date(proposal.createdAt.getTime() + settings.validadeDias * 24 * 60 * 60 * 1000));
-  const navy = '#102a43'; const muted = '#486581'; const line = '#d9e2ec';
+  const navy = '#123d2c'; const muted = '#4a5d52'; const line = '#dfe6e0'; const gold = '#c59a43';
 
   const ensureSpace = (height) => { if (doc.y + height > 780) doc.addPage(); };
   const sectionTitle = (number, title) => {
     ensureSpace(60);
     doc.moveDown(1.1);
     const top = doc.y;
-    doc.rect(left, top, 4, 16).fill('#4b2a8a');
+    doc.rect(left, top, 4, 16).fill(gold);
     doc.fillColor(navy).font('Helvetica-Bold').fontSize(13).text(`${number}. ${title}`, left + 12, top + 1, { width: width - 12 });
     doc.x = left; doc.moveDown(0.4);
   };
@@ -338,14 +338,14 @@ export const downloadPropostaPdf = async (req, res) => {
   };
 
   // 1. Cabeçalho
-  doc.image(logoPath, left, 40, { fit: [96, 62] });
+  doc.image(logoPath, left, 40, { fit: [160, 62] });
   const storeAddress = joinParts([joinParts([store?.logradouro, store?.numero], ', '), store?.complemento, store?.bairro]);
   const storeCity = joinParts([joinParts([store?.cidade, store?.estado], '/'), store?.cep ? `CEP ${store.cep}` : '']);
-  doc.fillColor(navy).font('Helvetica-Bold').fontSize(11).text(store?.nome || 'VFC Multimarcas', 165, 42, { width: right - 165, align: 'right' });
+  doc.fillColor(navy).font('Helvetica-Bold').fontSize(11).text(store?.nome || 'VFC Multimarcas', 220, 42, { width: right - 220, align: 'right' });
   doc.fillColor(muted).font('Helvetica').fontSize(8.5);
   [store?.cnpj ? `CNPJ ${formatCnpj(store.cnpj)}` : '', storeAddress, storeCity, joinParts([store?.telefone, store?.email], '  •  ')].filter(Boolean)
-    .forEach((item) => doc.text(item, 165, doc.y + 1, { width: right - 165, align: 'right' }));
-  doc.moveTo(left, 112).lineTo(right, 112).strokeColor(navy).lineWidth(1.5).stroke();
+    .forEach((item) => doc.text(item, 220, doc.y + 1, { width: right - 220, align: 'right' }));
+  doc.moveTo(left, 112).lineTo(right, 112).strokeColor(gold).lineWidth(1.5).stroke();
   doc.fillColor(navy).font('Helvetica-Bold').fontSize(20).text('PROPOSTA COMERCIAL', left, 124, { width });
   doc.fillColor(muted).font('Helvetica').fontSize(10).text(`Nº ${String(proposal.id).padStart(5, '0')}   •   Emitida em ${createdDate}   •   Válida até ${validity}`, left, doc.y + 2, { width });
   doc.moveDown(0.3);
@@ -391,7 +391,7 @@ export const downloadPropostaPdf = async (req, res) => {
   ensureSpace(150);
   doc.fillColor(navy).font('Helvetica-Bold').fontSize(10).text(`Consultor responsável: ${proposal.vendedor?.nome || 'Equipe VFC Multimarcas'}`, left, doc.y + 14, { width });
   const signatureY = doc.y + 52;
-  doc.moveTo(left, signatureY).lineTo(245, signatureY).strokeColor('#829ab1').lineWidth(0.8).stroke().moveTo(350, signatureY).lineTo(right, signatureY).stroke();
+  doc.moveTo(left, signatureY).lineTo(245, signatureY).strokeColor('#8a9a90').lineWidth(0.8).stroke().moveTo(350, signatureY).lineTo(right, signatureY).stroke();
   doc.fillColor(muted).font('Helvetica').fontSize(9).text(store?.nome || 'VFC Multimarcas', left, signatureY + 6, { width: 193, align: 'center' });
   doc.text('Cliente (aceite)', 350, signatureY + 6, { width: 193, align: 'center' });
   doc.text('Local e data: ______________________________', left, signatureY + 30, { width });
@@ -400,7 +400,7 @@ export const downloadPropostaPdf = async (req, res) => {
   for (let index = 0; index < range.count; index += 1) {
     doc.switchToPage(range.start + index);
     doc.page.margins.bottom = 0;
-    doc.fillColor('#829ab1').font('Helvetica').fontSize(8).text(`VFC Multimarcas  •  Proposta ${String(proposal.id).padStart(5, '0')}  •  Página ${index + 1} de ${range.count}`, left, 800, { width, align: 'center', lineBreak: false });
+    doc.fillColor('#8a9a90').font('Helvetica').fontSize(8).text(`VFC Multimarcas  •  Proposta ${String(proposal.id).padStart(5, '0')}  •  Página ${index + 1} de ${range.count}`, left, 800, { width, align: 'center', lineBreak: false });
   }
   doc.end();
 };

@@ -433,8 +433,11 @@ WantedBy=multi-user.target
 
 Serviços systemd não carregam automaticamente o ambiente interativo de
 `mise`/NVM. Configure `ExecStart` com o caminho real do Node.js 22.
-Configure permissões de `backend/uploads` para que somente o serviço
-grave arquivos.
+Configure permissões de `/home/u366207451/my-imagens` (ou do diretório
+definido em `VEHICLE_UPLOAD_DIR`) para que somente o serviço grave
+arquivos. Em produção a API não inicia se esse diretório não puder ser
+criado ou gravado. Mídias antigas em `backend/uploads/vehicles` seguem
+sendo servidas; copie-as para o novo diretório quando quiser migrá-las.
 
 ```bash
 sudo systemctl daemon-reload

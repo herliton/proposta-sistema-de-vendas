@@ -9,8 +9,15 @@ contratos, equipes e relatórios.
 - **API:** Node.js, Express e ES Modules em `backend/`.
 - **Banco:** MySQL 8+ com Prisma; migrações em
   `backend/prisma/migrations/`.
-- **Uploads:** arquivos locais em `backend/uploads/`, servidos pela API
-  em `/uploads`.
+- **Uploads:** imagens e vídeos de veículos ficam em `VEHICLE_UPLOAD_DIR`
+  (padrão `/home/u366207451/my-imagens`; em desenvolvimento, se esse
+  diretório não for gravável, usa `backend/uploads/vehicles`) e são
+  servidos pela API em `/uploads/vehicles`. Mídias antigas em
+  `backend/uploads/` continuam sendo servidas.
+- **FIPE:** marca, modelo, ano e valor vêm da API v2
+  (`https://fipe.parallelum.com.br/api/v2`) via proxy autenticado em
+  `/api/veiculos/fipe/...`, com cache em memória. Opcional:
+  `FIPE_API_TOKEN` (a cota anônima é pequena).
 
 A implementação ainda não atende a todos os critérios da especificação
 mestre e não deve ser considerada pronta para produção. Consulte o

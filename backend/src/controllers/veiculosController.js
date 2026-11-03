@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { vehicleUploadDirectory } from '../middleware/vehicleUpload.js';
 import { prisma } from '../config/database.js';
+import { FipeError, listBrands, listModels, listYears, getPrice } from '../services/fipeService.js';
 import { ok, created, notFound } from '../utils/response.js';
 import { storeScope, writeStoreId } from '../utils/storeScope.js';
 
@@ -129,6 +130,19 @@ export const listVeiculos = async (req, res) => {
     summary: { available: counts.disponivel || 0, inNegotiation: counts.em_negociacao || 0, sold: counts.vendido || 0 },
   }, 'Veículos carregados com sucesso');
 };
+
+const fipeHandler = (message, load) => async (req, res) => {
+  try {
+    return ok(res, await load(req.params), message);
+  } catch (error) {
+    if (!(error instanceof FipeError)) throw error;
+    return res.status(error.status).json({ success: false, error: error.code, message: error.message });
+  }
+};
+export const fipeBrands = fipeHandler('Marcas FIPE carregadas', () => listBrands());
+export const fipeModels = fipeHandler('Modelos FIPE carregados', ({ brandId }) => listModels(brandId));
+export const fipeYears = fipeHandler('Anos FIPE carregados', ({ brandId, modelId }) => listYears(brandId, modelId));
+export const fipePrice = fipeHandler('Consulta FIPE realizada com sucesso', ({ brandId, modelId, yearId }) => getPrice(brandId, modelId, yearId));
 
 export const lookupFipe = async (req, res) => {
   const code = String(req.params.fipeCode || '').trim();

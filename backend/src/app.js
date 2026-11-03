@@ -20,6 +20,7 @@ import { ratesRoutes, benefitsRoutes } from './routes/financiamento.js';
 import equipesRoutes from './routes/equipes.js';
 import auditLogsRoutes from './routes/auditLogs.js';
 import { prisma } from './config/database.js';
+import { vehicleUploadDirectory } from './middleware/vehicleUpload.js';
 
 dotenv.config();
 
@@ -38,6 +39,7 @@ app.use(cors({
   origin: (origin, callback) => callback(null, !origin || allowedOrigins.includes(origin)),
 }));
 app.use(express.json());
+app.use('/uploads/vehicles', express.static(vehicleUploadDirectory, { index: false }));
 app.use('/uploads', express.static(path.join(currentDir, '..', 'uploads'), { fallthrough: false, index: false }));
 
 app.get('/api/health', async (req, res) => {

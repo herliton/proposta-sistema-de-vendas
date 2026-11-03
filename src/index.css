@@ -515,3 +515,267 @@ td strong { color: #2a3549; font-weight: 600; }
 .link-button.danger { color: #b1545b; }
 .status.red { color: #b1545b; background: #fcecee; }
 @media (max-width: 900px) { .ficha-grid, .ficha-dl { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ficha-ref { grid-template-columns: 1fr 1fr; } .ficha-toolbar { grid-template-columns: 1fr; } }
+
+:root {
+  --brand-green: #246746;
+  --brand-green-deep: #123d2c;
+  --brand-green-soft: #eaf3ed;
+  --brand-gold: #c59a43;
+  --brand-gold-deep: #8d681f;
+  --brand-gold-soft: #fbf4e3;
+  color: #1d2b22;
+  background: #f4f7f3;
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, rgba(42, 112, 70, 0.09), transparent 28%),
+    linear-gradient(180deg, #fbfcfa 0%, #f1f5f0 100%);
+}
+
+.app-shell::before {
+  background: radial-gradient(circle, rgba(42, 112, 70, 0.1), transparent 60%);
+}
+
+.sidebar {
+  background: var(--brand-green-deep);
+}
+
+.brand {
+  border-bottom: 3px solid var(--brand-gold);
+  background: #fff;
+}
+
+.auth-brand {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(11, 34, 23, 0.16);
+}
+
+.brand-logo {
+  filter: none;
+}
+
+.auth-brand .brand-logo {
+  width: min(210px, calc(100vw - 80px));
+  max-width: none;
+  height: auto;
+}
+
+.sidebar-logo {
+  width: 158px;
+  max-width: 158px;
+  height: auto;
+}
+
+.brand-mark {
+  background: linear-gradient(135deg, #e1c174, var(--brand-gold) 55%, #9a7227);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 8px 20px rgba(197, 154, 67, 0.25);
+}
+
+.nav-group button.active {
+  color: var(--brand-green-deep);
+  background: linear-gradient(135deg, #e4ca83, var(--brand-gold));
+  box-shadow: 0 5px 17px rgba(8, 24, 16, 0.32);
+}
+
+.nav-group button.active em {
+  color: var(--brand-green-deep);
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.help-icon {
+  color: #e4c779;
+  background: #1b513a;
+}
+
+.avatar {
+  color: var(--brand-green-deep);
+  background: #e4efe7;
+}
+
+.primary-button,
+.auth-submit {
+  color: #fff;
+  background: linear-gradient(135deg, #327b52, #246746 55%, #174c34);
+  box-shadow: 0 8px 18px rgba(36, 103, 70, 0.22);
+}
+
+.primary-button:hover,
+.auth-submit:hover:not(:disabled) {
+  background: linear-gradient(135deg, #2d714b, #1e5c3d 55%, #123d2c);
+  box-shadow: 0 10px 22px rgba(36, 103, 70, 0.28);
+}
+
+.auth-visual {
+  background: linear-gradient(145deg, #102f23 0%, #174a34 42%, #246746 100%);
+}
+
+.auth-visual::after {
+  background: linear-gradient(135deg, rgba(220, 187, 111, 0.28), rgba(197, 154, 67, 0.04));
+}
+
+.eyebrow,
+.auth-kicker {
+  color: #e2c477;
+}
+
+.auth-visual h1 em {
+  color: #e2c477;
+}
+
+.finance-card {
+  background: linear-gradient(150deg, #123d2c, #1c563b);
+}
+
+.finance-result strong {
+  color: #e2c477;
+}
+
+.stat-icon.blue,
+.mini-avatar.blue {
+  color: var(--brand-green);
+  background: var(--brand-green-soft);
+}
+
+.stat-icon.purple,
+.mini-avatar.purple {
+  color: var(--brand-gold-deep);
+  background: var(--brand-gold-soft);
+}
+
+.blue-spark {
+  color: var(--brand-green);
+}
+
+.purple-spark {
+  color: var(--brand-gold);
+}
+
+.dot-blue,
+.timeline-bar.blue {
+  background-color: var(--brand-green);
+}
+
+.dot-purple,
+.timeline-bar.purple {
+  background-color: var(--brand-gold);
+}
+
+.line-blue {
+  stroke: var(--brand-green);
+}
+
+.line-purple {
+  stroke: var(--brand-gold);
+}
+
+.plain-link,
+.activity a,
+.forgot-link,
+.edit-link,
+.edit-customer-button,
+.credit-icon,
+.link-button,
+.team-icon {
+  color: var(--brand-green);
+}
+
+.input-action button {
+  color: var(--brand-green);
+  background: var(--brand-green-soft);
+}
+
+.credit-check button {
+  color: var(--brand-green);
+}
+
+.edit-customer-button,
+.credit-check button {
+  border-color: #b7d0bf;
+  background: #f4f8f5;
+}
+
+.edit-customer-button:hover {
+  border-color: #86ad91;
+  background: var(--brand-green-soft);
+}
+
+.auth-card input:focus,
+.modal-card input:focus,
+.modal-card select:focus,
+.modal-card textarea:focus {
+  border-color: #6b9a79;
+  box-shadow: 0 0 0 3px rgba(36, 103, 70, 0.1);
+}
+
+.profile-upload label > span,
+.role-inheritance-note,
+.credit-check,
+.audit-notice {
+  color: var(--brand-green);
+  background: #f2f7f3;
+}
+
+.credit-icon {
+  background: var(--brand-green-soft);
+}
+
+.profile-upload label > span {
+  border-color: #b7d0bf;
+}
+
+.ficha-tabs button.active {
+  border-color: var(--brand-green);
+  color: #fff;
+  background: var(--brand-green);
+}
+
+.email-settings-form .checkbox-row input,
+.permission-row input,
+.team-member-options input {
+  accent-color: var(--brand-green);
+}
+
+.ficha-toolbar input:focus,
+.ficha-toolbar select:focus,
+.ficha-head-actions select:focus {
+  border-color: #6b9a79;
+}
+
+.review-tabs button.active {
+  border-color: var(--brand-green);
+  color: var(--brand-green);
+}
+
+.review-tabs button.active span {
+  background: var(--brand-green-soft);
+}
+
+.team-icon {
+  background: var(--brand-green-soft);
+}
+
+.team-icon.team-2 {
+  color: var(--brand-gold-deep);
+  background: var(--brand-gold-soft);
+}
+
+.goal-cell i {
+  background: var(--brand-green);
+}
+
+.goal-ring .goal-progress {
+  stroke: var(--brand-green);
+}
+
+.text-blue-700,
+.text-blue-600 {
+  color: var(--brand-green);
+}
+
+.status.blue {
+  color: var(--brand-green);
+  background: var(--brand-green-soft);
+}

@@ -711,6 +711,7 @@ type InventoryVehicle = {
   codigoFipe?: string; valorFipe: number; precoSugerido: number; precoMinimo: number;
   status: VehicleStatus; simulacoesAtivas: number; fotos?: Record<string, string>; videoUrl?: string; videoDuracao?: number; observacoes?: string;
 };
+type FipeOption = { code: string; name: string };
 type VehicleForm = {
   marca: string; modelo: string; placa: string; anoFabricacao: string; anoModelo: string; codigoFipe: string;
   valorFipe: string; precoSugerido: string; precoMinimo: string;
@@ -750,6 +751,11 @@ function VehiclesPage({ authToken, profile }: { authToken: string; profile: stri
   const [saving, setSaving] = useState(false);
   const [lookingUpFipe, setLookingUpFipe] = useState(false);
   const [uploading, setUploading] = useState("");
+  const [fipeBrands, setFipeBrands] = useState<FipeOption[]>([]);
+  const [fipeModels, setFipeModels] = useState<FipeOption[]>([]);
+  const [fipeYears, setFipeYears] = useState<FipeOption[]>([]);
+  const [fipeYear, setFipeYear] = useState("");
+  const [fipeLoading, setFipeLoading] = useState("");
   const canManage = ["ADMIN", "MANAGER", "SUPPORT"].includes(profile);
   const apiRequest = async (path: string, options: RequestInit = {}) => {
     const headers = new Headers(options.headers);
@@ -784,6 +790,56 @@ function VehiclesPage({ authToken, profile }: { authToken: string; profile: stri
     finally { setLoading(false); }
   };
   useEffect(() => { void loadVehicles(); }, [authToken, search, brandFilter, mfgYearFilter, modelYearFilter, statusFilter, minimumPrice, maximumPrice, sortBy, sortOrder, page, pageSize]);
+  const selectedBrandId = fipeBrands.find((option) => option.name === form.marca)?.code || "";
+  const selectedModelId = fipeModels.find((option) => option.name === form.modelo)?.code || "";
+  const fipeErrorMessage = (requestError: unknown) => requestError instanceof Error ? requestError.message : "Falha ao consultar a FIPE.";
+  useEffect(() => {
+    if (!showForm || fipeBrands.length) return;
+    let cancelled = false;
+    setFipeLoading("brands");
+    apiRequest("/veiculos/fipe/brands")
+      .then((data) => { if (!cancelled) setFipeBrands(Array.isArray(data) ? data : []); })
+      .catch((requestError) => { if (!cancelled) setError(fipeErrorMessage(requestError)); })
+      .finally(() => { if (!cancelled) setFipeLoading(""); });
+    return () => { cancelled = true; };
+  }, [showForm]);
+  useEffect(() => {
+    setFipeModels([]);
+    if (!selectedBrandId) return;
+    let cancelled = false;
+    setFipeLoading("models");
+    apiRequest(`/veiculos/fipe/brands/${selectedBrandId}/models`)
+      .then((data) => { if (!cancelled) setFipeModels(Array.isArray(data) ? data : []); })
+      .catch((requestError) => { if (!cancelled) setError(fipeErrorMessage(requestError)); })
+      .finally(() => { if (!cancelled) setFipeLoading(""); });
+    return () => { cancelled = true; };
+  }, [selectedBrandId]);
+  useEffect(() => {
+    setFipeYears([]);
+    if (!selectedBrandId || !selectedModelId) return;
+    let cancelled = false;
+    setFipeLoading("years");
+    apiRequest(`/veiculos/fipe/brands/${selectedBrandId}/models/${selectedModelId}/years`)
+      .then((data) => { if (!cancelled) setFipeYears(Array.isArray(data) ? data : []); })
+      .catch((requestError) => { if (!cancelled) setError(fipeErrorMessage(requestError)); })
+      .finally(() => { if (!cancelled) setFipeLoading(""); });
+    return () => { cancelled = true; };
+  }, [selectedBrandId, selectedModelId]);
+  useEffect(() => { setFipeYear(""); }, [showForm, editingVehicle]);
+  const chooseFipeYear = async (yearId: string) => {
+    setFipeYear(yearId);
+    if (!yearId || !selectedBrandId || !selectedModelId) return;
+    setLookingUpFipe(true); setError("");
+    try {
+      const result = await apiRequest(`/veiculos/fipe/brands/${selectedBrandId}/models/${selectedModelId}/years/${encodeURIComponent(yearId)}`);
+      setForm((current) => ({
+        ...current, anoModelo: String(result.modelYear), anoFabricacao: current.anoFabricacao || String(result.modelYear),
+        codigoFipe: result.codeFipe || current.codigoFipe, valorFipe: String(result.price),
+      }));
+      setNotice(`Valor FIPE atualizado${result.referenceMonth ? ` (${String(result.referenceMonth).trim()})` : ""}.`);
+    } catch (requestError) { setError(fipeErrorMessage(requestError)); }
+    finally { setLookingUpFipe(false); }
+  };
   const uploadMedia = async (file: File, kind: "photo" | "video") => {
     setError(""); setUploading(kind);
     try {
@@ -860,7 +916,7 @@ function VehiclesPage({ authToken, profile }: { authToken: string; profile: stri
     setLookingUpFipe(true); setError("");
     try {
       const result = await apiRequest(`/veiculos/fipe/${encodeURIComponent(form.codigoFipe)}`);
-      setForm((current) => ({ ...current, marca: result.marca || current.marca, modelo: result.modelo || current.modelo,
+      setForm((current) => ({ ...current, marca: current.marca || result.marca || "", modelo: current.modelo || result.modelo || "",
         anoModelo: String(result.anoModelo || current.anoModelo), valorFipe: String(result.valorNumerico || current.valorFipe), codigoFipe: result.codigoFipe || current.codigoFipe }));
       setNotice(`Valor FIPE atualizado${result.mesReferencia ? ` (${String(result.mesReferencia).trim()})` : ""}.`);
     } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Falha ao consultar a FIPE."); }
@@ -884,9 +940,10 @@ function VehiclesPage({ authToken, profile }: { authToken: string; profile: stri
       <button type="button" className="page-back" onClick={closeForm}><Icon name="arrow" size={16}/>Voltar para veículos</button>
       <div className="modal-title"><div><span>{editingVehicle ? "EDITAR ESTOQUE" : "NOVO ITEM DO ESTOQUE"}</span><h2>{editingVehicle ? `Editar ${editingVehicle.marca} ${editingVehicle.modelo}` : "Cadastrar veículo"}</h2><p>Informe os dados e URLs das cinco fotos obrigatórias.</p></div></div>
       <div className="form-section-title">Identificação</div>
-      <div className="modal-row"><label>Marca<input required value={form.marca} onChange={(event) => setForm({ ...form, marca: event.target.value })} placeholder="Ex.: Jeep"/></label><label>Modelo<input required value={form.modelo} onChange={(event) => setForm({ ...form, modelo: event.target.value })} placeholder="Ex.: Compass Limited"/></label></div>
-      <div className="modal-row"><label>Ano de fabricação<input required type="number" min="1900" max={new Date().getFullYear() + 2} value={form.anoFabricacao} onChange={(event) => setForm({ ...form, anoFabricacao: event.target.value })}/></label><label>Ano do modelo<input required type="number" min="1900" max={new Date().getFullYear() + 2} value={form.anoModelo} onChange={(event) => setForm({ ...form, anoModelo: event.target.value })}/></label></div>
-      <div className="modal-row"><label>Código FIPE<input value={form.codigoFipe} onChange={(event) => setForm({ ...form, codigoFipe: event.target.value })} placeholder="000000-0"/></label><label>Placa<input value={form.placa} onChange={(event) => setForm({ ...form, placa: event.target.value.toUpperCase() })} placeholder="ABC1D23"/></label></div>
+      <div className="modal-row"><label>Marca (FIPE)<select required value={form.marca} disabled={fipeLoading === "brands"} onChange={(event) => { setFipeYear(""); setForm({ ...form, marca: event.target.value, modelo: "", codigoFipe: "", valorFipe: "" }); }}><option value="">{fipeLoading === "brands" ? "Carregando marcas..." : "Selecione a marca"}</option>{form.marca && !fipeBrands.some((option) => option.name === form.marca) && <option value={form.marca}>{form.marca}</option>}{fipeBrands.map((option) => <option key={option.code} value={option.name}>{option.name}</option>)}</select></label><label>Modelo (FIPE)<select required value={form.modelo} disabled={!form.marca || fipeLoading === "models"} onChange={(event) => { setFipeYear(""); setForm({ ...form, modelo: event.target.value, codigoFipe: "", valorFipe: "" }); }}><option value="">{fipeLoading === "models" ? "Carregando modelos..." : form.marca ? "Selecione o modelo" : "Escolha a marca primeiro"}</option>{form.modelo && !fipeModels.some((option) => option.name === form.modelo) && <option value={form.modelo}>{form.modelo}</option>}{fipeModels.map((option) => <option key={option.code} value={option.name}>{option.name}</option>)}</select></label></div>
+      <div className="modal-row"><label>Ano / combustível FIPE<select value={fipeYear} disabled={!selectedModelId || fipeLoading === "years" || lookingUpFipe} onChange={(event) => void chooseFipeYear(event.target.value)}><option value="">{fipeLoading === "years" ? "Carregando anos..." : selectedModelId ? "Selecione para preencher valor e código FIPE" : "Escolha o modelo primeiro"}</option>{fipeYears.map((option) => <option key={option.code} value={option.code}>{option.name}</option>)}</select></label><label>Ano de fabricação<input required type="number" min="1900" max={new Date().getFullYear() + 2} value={form.anoFabricacao} onChange={(event) => setForm({ ...form, anoFabricacao: event.target.value })}/></label></div>
+      <div className="modal-row"><label>Ano do modelo<input required type="number" min="1900" max={new Date().getFullYear() + 2} value={form.anoModelo} onChange={(event) => setForm({ ...form, anoModelo: event.target.value })}/></label><label>Código FIPE<input value={form.codigoFipe} onChange={(event) => setForm({ ...form, codigoFipe: event.target.value })} placeholder="000000-0"/></label></div>
+      <div className="modal-row"><label>Placa<input value={form.placa} onChange={(event) => setForm({ ...form, placa: event.target.value.toUpperCase() })} placeholder="ABC1D23"/></label></div>
       <div className="form-section-title">Precificação</div>
       <div className="pricing-grid"><label>Valor FIPE<div className="input-action"><MoneyInput required value={form.valorFipe} onValueChange={(value) => setForm({ ...form, valorFipe: value })} placeholder="R$ 0,00"/><button type="button" disabled={lookingUpFipe || !form.codigoFipe} onClick={() => void lookupFipe()}>{lookingUpFipe ? "Consultando..." : "Consultar FIPE"}</button></div></label><label>Preço sugerido<MoneyInput required value={form.precoSugerido} onValueChange={(value) => setForm({ ...form, precoSugerido: value })} placeholder="R$ 0,00"/></label><label>Preço mínimo<MoneyInput required value={form.precoMinimo} onValueChange={(value) => setForm({ ...form, precoMinimo: value })} placeholder="R$ 0,00"/></label></div>
       <label>Observações<textarea value={form.observacoes} onChange={(event) => setForm({ ...form, observacoes: event.target.value })} rows={3}/></label>
