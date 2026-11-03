@@ -32,7 +32,7 @@ const parsePrice = (value) => {
 };
 const normalizeVehicle = (vehicle) => ({
   ...vehicle, marca: vehicle.marca || '', modelo: vehicle.modelo || '', anoFabricacao: Number(vehicle.anoFabricacao || vehicle.ano || 0),
-  anoModelo: Number(vehicle.anoModelo || vehicle.anoFabricacao || vehicle.ano || 0), codigoFipe: vehicle.codigoFipe || '',
+  anoModelo: Number(vehicle.anoModelo || vehicle.anoFabricacao || vehicle.ano || 0), codigoFipe: vehicle.codigoFipe || '', tipoVeiculo: vehicle.tipoVeiculo || 'cars', combustivel: vehicle.combustivel || '', mesReferencia: vehicle.mesReferencia || '',
   valorFipe: Number(vehicle.valorFipe || 0), precoSugerido: Number(vehicle.precoSugerido || 0), precoMinimo: Number(vehicle.precoMinimo || 0),
   fotos: { right: vehicle.fotoDireita || '', left: vehicle.fotoEsquerda || '', front: vehicle.fotoFrente || '', rear: vehicle.fotoTraseira || '', interior: vehicle.fotoInterior || '' },
   videoUrl: vehicle.videoUrl || '', status: normalizeStatus(vehicle.status), simulacoesAtivas: vehicle._count?.propostas || 0,
@@ -42,12 +42,14 @@ const validateVehicle = (body, existing = {}) => {
   const vehicle = {
     marca: String(merged.marca || '').trim(), modelo: String(merged.modelo || '').trim(),
     anoFabricacao: Number(merged.anoFabricacao ?? merged.ano), anoModelo: Number(merged.anoModelo ?? merged.anoFabricacao ?? merged.ano),
+    tipoVeiculo: String(merged.tipoVeiculo || 'cars'), combustivel: String(merged.combustivel || '').trim().slice(0, 50), mesReferencia: String(merged.mesReferencia || '').trim().slice(0, 40),
     codigoFipe: String(merged.codigoFipe || '').trim(), valorFipe: parsePrice(merged.valorFipe ?? 0),
     precoSugerido: parsePrice(merged.precoSugerido ?? merged.valor), precoMinimo: parsePrice(merged.precoMinimo),
     placa: String(merged.placa || '').trim().toUpperCase(), status: normalizeStatus(merged.status),
     observacoes: String(merged.observacoes || ''), fotos: merged.fotos || {}, videoUrl: String(merged.videoUrl || '').trim(),
     videoDuracaoSegundos: Number(merged.videoDuracaoSegundos || 0),
   };
+  if (!['cars', 'motorcycles', 'trucks'].includes(vehicle.tipoVeiculo)) return { error: 'Tipo de veículo inválido.' };
   if (!vehicle.marca || !vehicle.modelo) return { error: 'Marca e modelo são obrigatórios.' };
   if (!Number.isInteger(vehicle.anoFabricacao) || !Number.isInteger(vehicle.anoModelo) || vehicle.anoFabricacao < 1900 || vehicle.anoModelo < vehicle.anoFabricacao || vehicle.anoModelo > new Date().getFullYear() + 2) return { error: 'Informe anos de fabricação e modelo válidos.' };
   if (!Number.isFinite(vehicle.precoSugerido) || !Number.isFinite(vehicle.precoMinimo) || vehicle.precoSugerido < 0 || vehicle.precoMinimo < 0) return { error: 'Preço sugerido e preço mínimo não podem ser negativos.' };
@@ -64,7 +66,7 @@ const validateVehicle = (body, existing = {}) => {
 };
 const vehicleData = (vehicle) => ({
   marca: vehicle.marca, modelo: vehicle.modelo, ano: vehicle.anoFabricacao, anoFabricacao: vehicle.anoFabricacao,
-  anoModelo: vehicle.anoModelo, codigoFipe: vehicle.codigoFipe || null, valorFipe: vehicle.valorFipe ?? null,
+  anoModelo: vehicle.anoModelo, codigoFipe: vehicle.codigoFipe || null, tipoVeiculo: vehicle.tipoVeiculo, combustivel: vehicle.combustivel || null, mesReferencia: vehicle.mesReferencia || null, valorFipe: vehicle.valorFipe ?? null,
   precoSugerido: vehicle.precoSugerido, precoMinimo: vehicle.precoMinimo, placa: vehicle.placa || null,
   status: dbStatus(vehicle.status), observacoes: vehicle.observacoes || null,
   fotoDireita: vehicle.fotos.right, fotoEsquerda: vehicle.fotos.left, fotoFrente: vehicle.fotos.front,
@@ -133,16 +135,16 @@ export const listVeiculos = async (req, res) => {
 
 const fipeHandler = (message, load) => async (req, res) => {
   try {
-    return ok(res, await load(req.params), message);
+    return ok(res, await load({ ...req.params, type: req.query.type }), message);
   } catch (error) {
     if (!(error instanceof FipeError)) throw error;
     return res.status(error.status).json({ success: false, error: error.code, message: error.message });
   }
 };
-export const fipeBrands = fipeHandler('Marcas FIPE carregadas', () => listBrands());
-export const fipeModels = fipeHandler('Modelos FIPE carregados', ({ brandId }) => listModels(brandId));
-export const fipeYears = fipeHandler('Anos FIPE carregados', ({ brandId, modelId }) => listYears(brandId, modelId));
-export const fipePrice = fipeHandler('Consulta FIPE realizada com sucesso', ({ brandId, modelId, yearId }) => getPrice(brandId, modelId, yearId));
+export const fipeBrands = fipeHandler('Marcas FIPE carregadas', ({ type }) => listBrands(type));
+export const fipeModels = fipeHandler('Modelos FIPE carregados', ({ type, brandId }) => listModels(type, brandId));
+export const fipeYears = fipeHandler('Anos FIPE carregados', ({ type, brandId, modelId }) => listYears(type, brandId, modelId));
+export const fipePrice = fipeHandler('Consulta FIPE realizada com sucesso', ({ type, brandId, modelId, yearId }) => getPrice(type, brandId, modelId, yearId));
 
 export const lookupFipe = async (req, res) => {
   const code = String(req.params.fipeCode || '').trim();

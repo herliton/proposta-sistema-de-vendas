@@ -14,9 +14,10 @@ contratos, equipes e relatórios.
   diretório não for gravável, usa `backend/uploads/vehicles`) e são
   servidos pela API em `/uploads/vehicles`. Mídias antigas em
   `backend/uploads/` continuam sendo servidas.
-- **FIPE:** marca, modelo, ano e valor vêm da API v2
-  (`https://fipe.parallelum.com.br/api/v2`) via proxy autenticado em
-  `/api/veiculos/fipe/...`, com cache em memória. Opcional:
+- **FIPE:** o cadastro segue o fluxo Tipo (carro, moto, caminhão) → Marca → Modelo → Ano
+  e retorna mês de referência, valor FIPE, código FIPE, combustível e ano modelo,
+  vindos da API v2 (`https://fipe.parallelum.com.br/api/v2`) via proxy autenticado em
+  `/api/veiculos/fipe/...?type=cars|motorcycles|trucks`, com cache em memória. Opcional:
   `FIPE_API_TOKEN` (a cota anônima é pequena).
 
 A implementação ainda não atende a todos os critérios da especificação

@@ -209,6 +209,9 @@ model Veiculo {
   anoFabricacao Int?
   anoModelo     Int?
   codigoFipe    String?    @db.VarChar(20)
+  tipoVeiculo   String     @default("cars") @db.VarChar(20)
+  combustivel   String?    @db.VarChar(50)
+  mesReferencia String?    @db.VarChar(40)
   valorFipe     Decimal?   @db.Decimal(12, 2)
   precoSugerido Decimal?   @db.Decimal(12, 2)
   precoMinimo   Decimal?   @db.Decimal(12, 2)

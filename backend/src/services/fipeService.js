@@ -13,11 +13,16 @@ export class FipeError extends Error {
 const fetchFipe = async (path) => {
   const cached = cache.get(path);
   if (cached && cached.expiresAt > Date.now()) return cached.data;
-  const headers = { Accept: 'application/json' };
-  if (process.env.FIPE_API_TOKEN) headers['X-Subscription-Token'] = process.env.FIPE_API_TOKEN;
+  const request = (withToken) => {
+    const headers = { Accept: 'application/json' };
+    if (withToken && process.env.FIPE_API_TOKEN) headers['X-Subscription-Token'] = process.env.FIPE_API_TOKEN;
+    return fetch(`${fipeBaseUrl()}${path}`, { headers, signal: AbortSignal.timeout(10000) });
+  };
   let response;
   try {
-    response = await fetch(`${fipeBaseUrl()}${path}`, { headers, signal: AbortSignal.timeout(10000) });
+    response = await request(true);
+    // Token inválido ou expirado: tenta como consulta anônima.
+    if ((response.status === 401 || response.status === 403) && process.env.FIPE_API_TOKEN) response = await request(false);
   } catch {
     if (cached) return cached.data;
     throw new FipeError('Serviço FIPE indisponível no momento. Tente novamente.');
@@ -45,22 +50,29 @@ const requireId = (value, label) => {
 
 const toOptions = (items) => (Array.isArray(items) ? items.map(({ code, name }) => ({ code: String(code), name: String(name) })) : []);
 
-export const listBrands = async () => toOptions(await fetchFipe('/cars/brands'));
-export const listModels = async (brandId) => toOptions(await fetchFipe(`/cars/brands/${requireId(brandId, 'Marca')}/models`));
-export const listYears = async (brandId, modelId) => toOptions(
-  await fetchFipe(`/cars/brands/${requireId(brandId, 'Marca')}/models/${requireId(modelId, 'Modelo')}/years`),
+export const vehicleTypes = ['cars', 'motorcycles', 'trucks'];
+const requireType = (value) => {
+  const type = String(value || 'cars').trim();
+  if (!vehicleTypes.includes(type)) throw new FipeError('Tipo de veículo inválido.', 400, 'BAD_FIPE_PARAMETER');
+  return type;
+};
+
+export const listBrands = async (type) => toOptions(await fetchFipe(`/${requireType(type)}/brands`));
+export const listModels = async (type, brandId) => toOptions(await fetchFipe(`/${requireType(type)}/brands/${requireId(brandId, 'Marca')}/models`));
+export const listYears = async (type, brandId, modelId) => toOptions(
+  await fetchFipe(`/${requireType(type)}/brands/${requireId(brandId, 'Marca')}/models/${requireId(modelId, 'Modelo')}/years`),
 );
 
 const parseBrlPrice = (value) => Number(String(value ?? '').replace(/[^\d,]/g, '').replace(',', '.'));
 
-export const getPrice = async (brandId, modelId, yearId) => {
-  const data = await fetchFipe(`/cars/brands/${requireId(brandId, 'Marca')}/models/${requireId(modelId, 'Modelo')}/years/${requireId(yearId, 'Ano')}`);
+export const getPrice = async (type, brandId, modelId, yearId) => {
+  const data = await fetchFipe(`/${requireType(type)}/brands/${requireId(brandId, 'Marca')}/models/${requireId(modelId, 'Modelo')}/years/${requireId(yearId, 'Ano')}`);
   const price = parseBrlPrice(data.price);
   if (!Number.isFinite(price)) throw new FipeError('A FIPE retornou um valor inválido para este veículo.');
   // O código 32000 identifica veículo zero km; o ano-modelo equivale ao ano corrente.
   const modelYear = Number(data.modelYear) === 32000 ? new Date().getFullYear() : Number(data.modelYear);
   return {
-    brand: data.brand, model: data.model, modelYear, fuel: data.fuel,
+    brand: data.brand, model: data.model, modelYear, fuel: data.fuel, vehicleType: requireType(type),
     codeFipe: data.codeFipe, price, referenceMonth: data.referenceMonth,
   };
 };
