@@ -39,7 +39,14 @@ app.use(cors({
   origin: (origin, callback) => callback(null, !origin || allowedOrigins.includes(origin)),
 }));
 app.use(express.json());
-app.use('/uploads/vehicles', express.static(vehicleUploadDirectory, { index: false }));
+// A pasta configurada pode conter outros arquivos; só expõe mídias geradas pelo upload (<uuid>.<ext>).
+const vehicleMediaName = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpe?g|png|webp|mp4|webm|mov)$/i;
+app.use('/uploads/vehicles', (req, res, next) => {
+  let name = '';
+  try { name = decodeURIComponent(req.path.slice(1)); } catch { return res.status(400).end(); }
+  if (!vehicleMediaName.test(name)) return res.status(404).end();
+  return next();
+}, express.static(vehicleUploadDirectory, { index: false, dotfiles: 'deny' }));
 app.use('/uploads', express.static(path.join(currentDir, '..', 'uploads'), { fallthrough: false, index: false }));
 
 app.get('/api/health', async (req, res) => {
@@ -69,6 +76,9 @@ app.use('/api/teams', equipesRoutes);
 app.use('/api/audit-logs', auditLogsRoutes);
 
 app.use((err, req, res, next) => {
+  if (err.status >= 400 && err.status < 500 && err.expose !== undefined) {
+    return res.status(err.status).json({ success: false, message: err.status === 404 ? 'Arquivo não encontrado' : err.message });
+  }
   console.error(err);
 
   if (['P2021', 'P2022'].includes(err.code)) {

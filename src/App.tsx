@@ -1,6 +1,7 @@
-import { createContext, useContext, useEffect, useState, type FormEvent } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type FormEvent } from "react";
 import logoSemFundo from "../logo-sem-fundo.png";
 import { API_BASE_URL, apiAssetUrl } from "./api/baseUrl";
+import { SESSION_EXPIRED_MESSAGE, TOKEN_KEY, USER_KEY, clearStoredSession, installSessionGuard, msUntilTokenExpires } from "./api/session";
 import { downloadCommissionReport } from "./api/reports";
 import { dateFromInput, formatDateRange, getCurrentWeekRange, isDateRangeValid, toApiDate, type DateRange } from "./utils/dateRange";
 import { transitionSalesStage, type SalesStage } from "./utils/salesLifecycle";
@@ -207,7 +208,7 @@ type AuthMode = "checking" | "setup" | "login" | "forgot" | "change" | "reset";
 
 type AuthUser = { id: number; nome: string; email: string; perfil: string; firstAccess?: boolean; lojaId?: number | null; lojaNome?: string };
 
-function AuthScreen({ onAuthenticated }: { onAuthenticated: (token: string, user: AuthUser) => void }) {
+function AuthScreen({ onAuthenticated, initialNotice = "" }: { onAuthenticated: (token: string, user: AuthUser) => void; initialNotice?: string }) {
   const [resetToken, setResetToken] = useState(() => new URLSearchParams(window.location.search).get("resetToken") || "");
   const [mode, setMode] = useState<AuthMode>(() => resetToken ? "reset" : "checking");
   const [email, setEmail] = useState("");
@@ -216,7 +217,7 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (token: string, user
   const [setupEmail, setSetupEmail] = useState("");
   const [setupToken, setSetupToken] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState(initialNotice);
   const [pendingToken, setPendingToken] = useState("");
   const [pendingUser, setPendingUser] = useState<AuthUser | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -2167,6 +2168,29 @@ export default function App() {
   });
   const [authenticated, setAuthenticated] = useState(() => Boolean(localStorage.getItem("vfcAuthToken") && localStorage.getItem("vfcAuthUser")));
   const [active, setActive] = useState("Dashboard");
+  const [sessionNotice, setSessionNotice] = useState("");
+  const endSession = (message = "") => {
+    clearStoredSession();
+    setAuthToken(""); setSessionUser(null); setAuthenticated(false); setActive("Dashboard"); setSessionNotice(message);
+  };
+  const endSessionRef = useRef(endSession);
+  endSessionRef.current = endSession;
+  useEffect(() => { installSessionGuard(() => endSessionRef.current(SESSION_EXPIRED_MESSAGE)); }, []);
+  useEffect(() => {
+    if (!authToken) return;
+    const expireIfNeeded = () => {
+      const remaining = msUntilTokenExpires(authToken);
+      if (remaining !== null && remaining <= 0) endSessionRef.current(SESSION_EXPIRED_MESSAGE);
+    };
+    expireIfNeeded();
+    const remaining = msUntilTokenExpires(authToken);
+    // setTimeout aceita no máximo ~24,8 dias; a checagem periódica cobre abas suspensas.
+    const timer = remaining !== null && remaining > 0 ? window.setTimeout(expireIfNeeded, Math.min(remaining + 500, 2147483647)) : 0;
+    const interval = window.setInterval(expireIfNeeded, 30000);
+    window.addEventListener("focus", expireIfNeeded);
+    document.addEventListener("visibilitychange", expireIfNeeded);
+    return () => { window.clearTimeout(timer); window.clearInterval(interval); window.removeEventListener("focus", expireIfNeeded); document.removeEventListener("visibilitychange", expireIfNeeded); };
+  }, [authToken]);
   const [simulationVehicleId, setSimulationVehicleId] = useState<number | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange>(() => getCurrentWeekRange());
@@ -2230,9 +2254,10 @@ export default function App() {
   const dashboardTimeline = dashboardState.dashboard?.timeline || [];
   const timelineMax = Math.max(1, ...dashboardTimeline.flatMap((bucket) => [bucket.simulations, bucket.proposals, bucket.contracts]));
   const passwordResetRequested = new URLSearchParams(window.location.search).has("resetToken");
-  if (passwordResetRequested || !authenticated || !sessionUser) return <AuthScreen onAuthenticated={(token, user) => {
-    localStorage.setItem("vfcAuthToken", token);
-    localStorage.setItem("vfcAuthUser", JSON.stringify(user));
+  if (passwordResetRequested || !authenticated || !sessionUser) return <AuthScreen initialNotice={sessionNotice} onAuthenticated={(token, user) => {
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+    setSessionNotice("");
     setAuthToken(token); setSessionUser(user); setAuthenticated(true);
   }} />;
 
@@ -2270,7 +2295,7 @@ export default function App() {
         <div className="sidebar-user">
           <div className="avatar">{sessionUser.nome.split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase()}</div>
           <div><strong>{sessionUser.nome}</strong><span>{roleNames[profile]}</span></div>
-          <button aria-label="Sair da conta" title="Sair da conta" onClick={() => { localStorage.removeItem("vfcAuthToken"); localStorage.removeItem("vfcAuthUser"); setAuthToken(""); setSessionUser(null); setAuthenticated(false); setActive("Dashboard"); }}><Icon name="more" size={18} /></button>
+          <button aria-label="Sair da conta" title="Sair da conta" onClick={() => endSession()}><Icon name="more" size={18} /></button>
         </div>
       </aside>
 
