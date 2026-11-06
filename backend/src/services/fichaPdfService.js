@@ -133,7 +133,8 @@ export function renderFichaPdf(ficha, loja, output, { historico = null } = {}) {
     if (contact.tratativa) row('Tratativa', contact.tratativa);
   });
 
-  sectionTitle(3, 'Análise bancária');
+  sectionTitle(3, 'Busca de enquadramento, sujeita à análise de crédito:');
+  subTitle('1. Especificação do modelo veicular de interesse');
   if (!ficha.analises.length) note('Nenhuma submissão registrada.');
   ficha.analises.forEach((analysis) => {
     subTitle(analysis.instituicao);

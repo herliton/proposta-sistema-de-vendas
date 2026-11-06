@@ -297,8 +297,12 @@ const formatCnpj = (value) => {
 export const downloadPropostaPdf = async (req, res) => {
   if (!Number.isInteger(Number(req.params.id))) return notFound(res, 'Proposta não encontrada');
   const where = await visibleWhere(req.user);
-  const proposal = await prisma.proposta.findFirst({ where: { id: Number(req.params.id), ...where }, include: { ...proposalInclude, loja: true } });
+  const proposal = await prisma.proposta.findFirst({
+    where: { id: Number(req.params.id), ...where },
+    include: { ...proposalInclude, loja: true, fichasRecuperacao: { where: { deletedAt: null }, select: { id: true }, take: 1 } },
+  });
   if (!proposal) return notFound(res, 'Proposta não encontrada');
+  const isCreditRecovery = proposal.fichasRecuperacao.length > 0 || String(proposal.status).toUpperCase() === 'CREDIT_REJECTED';
   const filename = `proposta-${proposal.id}.pdf`;
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -321,6 +325,11 @@ export const downloadPropostaPdf = async (req, res) => {
     doc.rect(left, top, 4, 16).fill(gold);
     doc.fillColor(navy).font('Helvetica-Bold').fontSize(13).text(`${number}. ${title}`, left + 12, top + 1, { width: width - 12 });
     doc.x = left; doc.moveDown(0.4);
+  };
+  const subTitle = (title) => {
+    ensureSpace(40);
+    doc.fillColor(navy).font('Helvetica-Bold').fontSize(10.5).text(title, left, doc.y + 8, { width });
+    doc.x = left;
   };
   const row = (label, value, bold = false) => {
     ensureSpace(24);
@@ -358,18 +367,19 @@ export const downloadPropostaPdf = async (req, res) => {
   sectionTitle(2, 'Especificação do Veículo');
   row('Veículo', `${vehicle?.marca || ''} ${vehicle?.modelo || ''}`.trim() || '—', true);
   row('Ano fabricação/modelo', `${vehicle?.anoFabricacao || vehicle?.ano || '—'}/${vehicle?.anoModelo || '—'}`);
-  row('Placa', vehicle?.placa || '—');
+  if (!isCreditRecovery) row('Placa', vehicle?.placa || '—');
   row('Código FIPE', vehicle?.codigoFipe || '—');
   row('Valor de referência FIPE', vehicle?.valorFipe ? pdfMoney(vehicle.valorFipe) : '—');
   if (vehicle?.observacoes) { doc.moveDown(0.3); paragraph(`Observações do veículo: ${vehicle.observacoes}`); }
 
   // 3. Composição de preços e condições de pagamento
-  sectionTitle(3, 'Composição de Preços e Condições de Pagamento');
+  sectionTitle(3, 'Busca de enquadramento, sujeita à análise de crédito:');
   row('Preço negociado', pdfMoney(proposal.valorProposta), true);
   row('Entrada', pdfMoney(proposal.entrada));
   row('Saldo financiado', pdfMoney(Number(proposal.valorProposta) - Number(proposal.entrada || 0)));
   row(`Parcelamento${proposal.parcelas ? ` em ${proposal.parcelas}x` : ''}`, proposal.valorParcela ? `${proposal.parcelas}x de ${pdfMoney(proposal.valorParcela)}` : 'A definir');
-  row('Taxa de juros mensal', proposal.taxaJuros ? `${Number(proposal.taxaJuros).toLocaleString('pt-BR')}% a.m.` : 'A definir');
+  row('Taxa de juros mensal', `${proposal.taxaJuros ? `${Number(proposal.taxaJuros).toLocaleString('pt-BR')}% a.m.` : 'A definir'} (+/-)`);
+  subTitle('1. Especificação do modelo veicular de interesse');
   row('Total estimado das parcelas', pdfMoney(proposal.totalFinanciado));
   if (proposal.beneficios?.length) row('Benefícios incluídos', proposal.beneficios.map((item) => item.nome).join(', '));
   if (proposal.observacoes) { doc.moveDown(0.3); paragraph(`Observações: ${proposal.observacoes}`); }
@@ -377,7 +387,7 @@ export const downloadPropostaPdf = async (req, res) => {
   // 4. Prazos e logística
   sectionTitle(4, 'Prazos e Logística');
   row('Validade da proposta', validity);
-  row('Entrega do veículo', settings.prazoEntrega);
+  row('Entrega do veículo', settings.prazoEntrega.replace(/\bapós\s+a?\s*aprovação\b/i, 'em caso de aprovação'));
   row('Documentação e transferência', settings.documentacaoTransferencia);
   paragraph(settings.textoPrazos);
 

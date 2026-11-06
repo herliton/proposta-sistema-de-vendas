@@ -2,7 +2,7 @@ import { prisma } from '../config/database.js';
 
 export const defaultProposalSettings = {
   validadeDias: 7,
-  prazoEntrega: 'A combinar após a aprovação de crédito',
+  prazoEntrega: 'A combinar em caso de aprovação de crédito',
   documentacaoTransferencia: 'Conforme contrato e legislação vigente',
   textoPrazos: 'Os prazos de entrega e transferência serão confirmados pelo consultor após a aprovação de crédito e a assinatura do contrato.',
   textoGarantia: 'O veículo é ofertado com a garantia legal prevista no Código de Defesa do Consumidor. Condições adicionais de garantia, quando houver, serão descritas no contrato de venda. Para suporte pós-venda, procure o consultor responsável ou a loja nos contatos informados no cabeçalho.',
