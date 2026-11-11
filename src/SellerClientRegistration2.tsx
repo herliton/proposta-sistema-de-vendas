@@ -1,102 +1,142 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { API_BASE_URL } from "./api/baseUrl";
+import MoneyInput from "./MoneyInput";
+import { generateFichaPdf, calcularSimulacoes } from "./components/FichaPdfGenerator";
 
-const getAuthToken = () => localStorage.getItem("vfcAuthToken") || "";
+const maskPhone = (v: string) => {
+  const d = v.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 2) return d;
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+};
 
-export default function SellerClientRegistration2() {
-  const [passo, setPasso] = useState(1);
-  const [clientes, setClientes] = useState<any[]>([]);
-  const [clienteSelecionado, setClienteSelecionado] = useState<any>(null);
-  const [erro, setErro] = useState("");
-  const [mostrarFormNovoCliente, setMostrarFormNovoCliente] = useState(false);
-  const [carregandoClientes, setCarregandoClientes] = useState(false);
+const maskCPF = (v: string) => {
+  const d = v.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
+  if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+};
 
-  const [novoCliente, setNovoCliente] = useState({
-    tipoPessoa: "PF",
-    nome: "",
-    documento: "",
-    email: "",
-    telefone: "",
-    cep: "",
-    logradouro: "",
-    numero: "",
-    complemento: "",
-    bairro: "",
-    cidade: "",
-    estado: "",
+type ClientData = {
+  id: number;
+  nome: string;
+  documento?: string;
+};
+
+type FormData = {
+  telefoneFixo: string;
+  telefoneCelular: string;
+  whatsapp: string;
+  dataNascimento: string;
+  sexo: string;
+  estadoCivil: string;
+  residenciaTipo: string;
+  tempoResidencia: string;
+  empresaNome: string;
+  cargoFuncao: string;
+  classificacaoTrabalho: string;
+  renda: string;
+  valorVeiculo: string;
+  valorEntrada: string;
+  valorFinanciado: string;
+  taxaMensal: string;
+};
+
+type FichaSalva = {
+  id: number;
+  clienteId: number;
+  cliente?: ClientData;
+  createdAt: string;
+} & FormData;
+
+export default function SellerClientRegistration() {
+  const token = localStorage.getItem("vfcAuthToken") || "";
+  const [currentStep, setCurrentStep] = useState<"formulario" | "preview" | "pdf">("formulario");
+  const [clienteId, setClienteId] = useState("");
+  const [clientes, setClientes] = useState<ClientData[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [fichaData, setFichaData] = useState<FichaSalva | null>(null);
+  const fichaPreviewRef = useRef<HTMLDivElement>(null);
+
+  const [form, setForm] = useState<FormData>({
+    telefoneFixo: "",
+    telefoneCelular: "",
+    whatsapp: "",
+    dataNascimento: "",
+    sexo: "",
+    estadoCivil: "",
+    residenciaTipo: "",
+    tempoResidencia: "",
+    empresaNome: "",
+    cargoFuncao: "",
+    classificacaoTrabalho: "",
+    renda: "",
+    valorVeiculo: "",
+    valorEntrada: "",
+    valorFinanciado: "",
+    taxaMensal: "1.2",
   });
 
   useEffect(() => {
-    carregarClientes();
-  }, []);
+    const fetch = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/clientes`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setClientes(data.data || []);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    fetch();
+  }, [token]);
 
-  const carregarClientes = async () => {
-    setCarregandoClientes(true);
-    try {
-      const token = getAuthToken();
-      if (!token) {
-        setErro("Token de autenticação não encontrado");
-        return;
-      }
-      const res = await fetch(`${API_BASE_URL}/clientes`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setClientes(Array.isArray(data) ? data : data.data || []);
-      } else {
-        setErro(`Erro ao carregar clientes: ${res.status}`);
-      }
-    } catch (e) {
-      setErro("Erro ao carregar clientes: " + String(e));
-    } finally {
-      setCarregandoClientes(false);
-    }
+  const resetForm = () => {
+    setForm({
+      telefoneFixo: "",
+      telefoneCelular: "",
+      whatsapp: "",
+      dataNascimento: "",
+      sexo: "",
+      estadoCivil: "",
+      residenciaTipo: "",
+      tempoResidencia: "",
+      empresaNome: "",
+      cargoFuncao: "",
+      classificacaoTrabalho: "",
+      renda: "",
+      valorVeiculo: "",
+      valorEntrada: "",
+      valorFinanciado: "",
+      taxaMensal: "1.2",
+    });
+    setClienteId("");
   };
 
-  const validarFormulario = () => {
-    if (!novoCliente.nome.trim()) return "Nome é obrigatório";
-    if (!novoCliente.documento.trim()) return "Documento é obrigatório";
-    if (!novoCliente.telefone.trim()) return "Telefone é obrigatório";
-    if (!novoCliente.cep.trim()) return "CEP é obrigatório";
-    if (!novoCliente.logradouro.trim()) return "Logradouro é obrigatório";
-    if (!novoCliente.numero.trim()) return "Número é obrigatório";
-    if (!novoCliente.bairro.trim()) return "Bairro é obrigatório";
-    if (!novoCliente.cidade.trim()) return "Cidade é obrigatória";
-    if (!novoCliente.estado.trim() || novoCliente.estado.length !== 2) return "Estado (2 letras) é obrigatório";
-    return "";
-  };
+  const selectedClient = clientes.find((c) => c.id === Number(clienteId));
 
-  const handleCriarCliente = async () => {
-    const validacao = validarFormulario();
-    if (validacao) {
-      setErro(validacao);
-      return;
-    }
-
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setMessage(null);
     try {
-      const token = getAuthToken();
-      if (!token) {
-        setErro("Token de autenticação não encontrado");
-        return;
-      }
-
       const payload = {
-        tipoPessoa: novoCliente.tipoPessoa,
-        nome: novoCliente.nome,
-        documento: novoCliente.documento,
-        email: novoCliente.email || null,
-        telefone: novoCliente.telefone,
-        cep: novoCliente.cep,
-        logradouro: novoCliente.logradouro,
-        numero: novoCliente.numero,
-        complemento: novoCliente.complemento || null,
-        bairro: novoCliente.bairro,
-        cidade: novoCliente.cidade,
-        estado: novoCliente.estado.toUpperCase(),
+        clienteId: parseInt(clienteId, 10),
+        ...form,
+        renda: form.renda ? parseFloat(form.renda.replace(/[^\d.-]/g, "")) : null,
+        valorVeiculo: form.valorVeiculo ? parseFloat(form.valorVeiculo.replace(/[^\d.-]/g, "")) : null,
+        valorEntrada: form.valorEntrada ? parseFloat(form.valorEntrada.replace(/[^\d.-]/g, "")) : null,
+        valorFinanciado: form.valorFinanciado ? parseFloat(form.valorFinanciado.replace(/[^\d.-]/g, "")) : null,
+        taxaMensal: form.taxaMensal ? parseFloat(form.taxaMensal) : 1.2,
       };
 
-      const res = await fetch(`${API_BASE_URL}/clientes`, {
+      const res = await fetch(`${API_BASE_URL}/seller-client-registration`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -105,308 +145,496 @@ export default function SellerClientRegistration2() {
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) {
-        const data = await res.json();
-        setErro(data.error || data.message || "Erro ao criar cliente");
-        return;
-      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Erro ao salvar");
 
-      const novoClienteData = await res.json();
-      setClienteSelecionado(novoClienteData);
-      setMostrarFormNovoCliente(false);
-      setNovoCliente({
-        tipoPessoa: "PF",
-        nome: "",
-        documento: "",
-        email: "",
-        telefone: "",
-        cep: "",
-        logradouro: "",
-        numero: "",
-        complemento: "",
-        bairro: "",
-        cidade: "",
-        estado: "",
+      setFichaData({
+        ...form,
+        id: data.data?.id || 0,
+        clienteId: parseInt(clienteId, 10),
+        cliente: selectedClient,
+        createdAt: new Date().toISOString(),
       });
-      setErro("");
-      setPasso(2);
+
+      setMessage({ type: "success", text: "Ficha criada com sucesso! Visualizando..." });
+      setTimeout(() => setCurrentStep("preview"), 1000);
     } catch (e) {
-      setErro("Erro ao criar cliente: " + String(e));
+      setMessage({ type: "error", text: String(e) });
+    } finally {
+      setLoading(false);
     }
   };
 
+  const handleGeneratePdf = async () => {
+    if (!fichaData) return;
+    try {
+      setLoading(true);
+      const pdf = await generateFichaPdf(fichaData, "ficha-preview-content");
+      pdf.save(`Ficha_${selectedClient?.nome || "Cliente"}_${new Date().toISOString().split("T")[0]}.pdf`);
+      setMessage({ type: "success", text: "PDF gerado e baixado com sucesso!" });
+    } catch (e) {
+      setMessage({ type: "error", text: `Erro ao gerar PDF: ${String(e)}` });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBackToForm = () => {
+    setCurrentStep("formulario");
+    resetForm();
+    setFichaData(null);
+  };
+
+  const simulacoes =
+    fichaData && fichaData.valorFinanciado && fichaData.taxaMensal
+      ? calcularSimulacoes(
+          parseFloat(fichaData.valorFinanciado.toString().replace(/[^\d.-]/g, "")),
+          parseFloat(fichaData.taxaMensal.toString())
+        )
+      : [];
+
   return (
     <div className="content module-content">
-      <section className="module-heading">
-        <div>
-          <p>CAPTAÇÃO DE CLIENTES</p>
-          <h1>Ficha do Cliente</h1>
-          <span>Preencha os dados para disponibilização em Recuperação de Crédito.</span>
-        </div>
-      </section>
-
-      {erro && (
-        <div className="panel form-panel notice-error">
-          {erro}
-        </div>
-      )}
-
-      {passo === 1 && (
-        <div className="panel form-panel">
-          <div className="step-title">
-            <span>01</span>
+      {/* Etapa 1: Formulário */}
+      {currentStep === "formulario" && (
+        <>
+          <section className="module-heading">
             <div>
-              <h3>SELECIONE OU CRIE UM CLIENTE</h3>
-              <p>Escolha um cliente existente ou cadastre um novo</p>
+              <p>CAPTAÇÃO DE CLIENTES</p>
+              <h1>Ficha do Cliente</h1>
+              <span>Preencha os dados do cliente para disponibilização em Recuperação de Crédito.</span>
             </div>
-          </div>
+          </section>
 
-          {carregandoClientes ? (
-            <p>Carregando clientes...</p>
-          ) : (
-            <>
-              {clientes.length > 0 && !mostrarFormNovoCliente && (
-                <div className="customer-form-grid">
-                  <label>
-                    Clientes Existentes
-                    <select
-                      onChange={(e) => {
-                        const c = clientes.find((x) => x.id === parseInt(e.target.value, 10));
-                        if (c) {
-                          setClienteSelecionado(c);
-                          setPasso(2);
-                        }
-                      }}
-                      defaultValue=""
-                    >
-                      <option value="">Selecione um cliente...</option>
-                      {clientes.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.nome} - {c.documento}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-              )}
-
-              {!mostrarFormNovoCliente && (
-                <button
-                  type="button"
-                  onClick={() => setMostrarFormNovoCliente(true)}
-                  className="btn btn-primary"
-                  style={{ marginTop: "1rem" }}
-                >
-                  + Novo Cliente
-                </button>
-              )}
-
-              {mostrarFormNovoCliente && (
-                <div style={{ marginTop: "2rem", paddingTop: "2rem", borderTop: "1px solid #ddd" }}>
-                  <h4>Criar Novo Cliente</h4>
-                  <div className="customer-form-grid">
-                    <label>
-                      Tipo de Pessoa *
-                      <select
-                        value={novoCliente.tipoPessoa}
-                        onChange={(e) =>
-                          setNovoCliente({ ...novoCliente, tipoPessoa: e.target.value })
-                        }
-                      >
-                        <option value="PF">Pessoa Física</option>
-                        <option value="PJ">Pessoa Jurídica</option>
-                      </select>
-                    </label>
-
-                    <label>
-                      Nome Completo *
-                      <input
-                        type="text"
-                        value={novoCliente.nome}
-                        onChange={(e) =>
-                          setNovoCliente({ ...novoCliente, nome: e.target.value })
-                        }
-                        placeholder="Nome ou Razão Social"
-                      />
-                    </label>
-
-                    <label>
-                      Documento (CPF/CNPJ) *
-                      <input
-                        type="text"
-                        value={novoCliente.documento}
-                        onChange={(e) =>
-                          setNovoCliente({ ...novoCliente, documento: e.target.value })
-                        }
-                        placeholder="Apenas números"
-                      />
-                    </label>
-
-                    <label>
-                      Email
-                      <input
-                        type="email"
-                        value={novoCliente.email}
-                        onChange={(e) =>
-                          setNovoCliente({ ...novoCliente, email: e.target.value })
-                        }
-                        placeholder="email@example.com"
-                      />
-                    </label>
-
-                    <label>
-                      Telefone *
-                      <input
-                        type="text"
-                        value={novoCliente.telefone}
-                        onChange={(e) =>
-                          setNovoCliente({ ...novoCliente, telefone: e.target.value })
-                        }
-                        placeholder="(11) 99999-9999"
-                      />
-                    </label>
-
-                    <label>
-                      CEP *
-                      <input
-                        type="text"
-                        value={novoCliente.cep}
-                        onChange={(e) =>
-                          setNovoCliente({ ...novoCliente, cep: e.target.value })
-                        }
-                        placeholder="12345-678 ou 12345678"
-                      />
-                    </label>
-
-                    <label>
-                      Logradouro (Rua/Avenida) *
-                      <input
-                        type="text"
-                        value={novoCliente.logradouro}
-                        onChange={(e) =>
-                          setNovoCliente({ ...novoCliente, logradouro: e.target.value })
-                        }
-                        placeholder="Rua, Avenida, etc"
-                      />
-                    </label>
-
-                    <label>
-                      Número *
-                      <input
-                        type="text"
-                        value={novoCliente.numero}
-                        onChange={(e) =>
-                          setNovoCliente({ ...novoCliente, numero: e.target.value })
-                        }
-                        placeholder="Número"
-                      />
-                    </label>
-
-                    <label>
-                      Complemento
-                      <input
-                        type="text"
-                        value={novoCliente.complemento}
-                        onChange={(e) =>
-                          setNovoCliente({ ...novoCliente, complemento: e.target.value })
-                        }
-                        placeholder="Apto, sala, etc (opcional)"
-                      />
-                    </label>
-
-                    <label>
-                      Bairro *
-                      <input
-                        type="text"
-                        value={novoCliente.bairro}
-                        onChange={(e) =>
-                          setNovoCliente({ ...novoCliente, bairro: e.target.value })
-                        }
-                        placeholder="Bairro"
-                      />
-                    </label>
-
-                    <label>
-                      Cidade *
-                      <input
-                        type="text"
-                        value={novoCliente.cidade}
-                        onChange={(e) =>
-                          setNovoCliente({ ...novoCliente, cidade: e.target.value })
-                        }
-                        placeholder="Cidade"
-                      />
-                    </label>
-
-                    <label>
-                      Estado (UF) *
-                      <input
-                        type="text"
-                        value={novoCliente.estado}
-                        onChange={(e) =>
-                          setNovoCliente({
-                            ...novoCliente,
-                            estado: e.target.value.slice(0, 2).toUpperCase(),
-                          })
-                        }
-                        placeholder="SP, RJ, MG, etc"
-                        maxLength={2}
-                      />
-                    </label>
-                  </div>
-
-                  <div style={{ marginTop: "1.5rem", display: "flex", gap: "1rem" }}>
-                    <button
-                      type="button"
-                      onClick={handleCriarCliente}
-                      className="btn btn-primary"
-                    >
-                      Salvar Cliente
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMostrarFormNovoCliente(false);
-                        setErro("");
-                      }}
-                      className="btn"
-                      style={{ background: "#999" }}
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-              )}
-            </>
+          {message && (
+            <div className={`panel form-panel ${message.type === "success" ? "notice-success" : "notice-error"}`}>
+              {message.text}
+            </div>
           )}
-        </div>
+
+          <form onSubmit={handleSubmit} className="panel form-panel">
+            <div className="step-title">
+              <span>01</span>
+              <div>
+                <h3>INFORMAÇÕES DO CLIENTE</h3>
+                <p>Dados pessoais e de contato</p>
+              </div>
+            </div>
+
+            <div className="customer-form-grid">
+              <label>
+                Cliente *
+                <select required value={clienteId} onChange={(e) => setClienteId(e.target.value)}>
+                  <option value="">Selecione um cliente</option>
+                  {clientes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nome} ({c.documento || "Sem CPF"})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Data de Nascimento
+                <input
+                  type="date"
+                  value={form.dataNascimento}
+                  onChange={(e) => setForm({ ...form, dataNascimento: e.target.value })}
+                />
+              </label>
+              <label>
+                Sexo
+                <select value={form.sexo} onChange={(e) => setForm({ ...form, sexo: e.target.value })}>
+                  <option value="">Selecione</option>
+                  <option value="M">Masculino</option>
+                  <option value="F">Feminino</option>
+                </select>
+              </label>
+              <label>
+                Estado Civil
+                <select
+                  value={form.estadoCivil}
+                  onChange={(e) => setForm({ ...form, estadoCivil: e.target.value })}
+                >
+                  <option value="">Selecione</option>
+                  <option value="Solteiro(a)">Solteiro(a)</option>
+                  <option value="Casado(a)">Casado(a)</option>
+                  <option value="União estável">União estável</option>
+                  <option value="Divorciado(a)">Divorciado(a)</option>
+                  <option value="Viúvo(a)">Viúvo(a)</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="step-title">
+              <span>02</span>
+              <div>
+                <h3>CONTATO</h3>
+                <p>Informações para comunicação</p>
+              </div>
+            </div>
+
+            <div className="customer-form-grid">
+              <label>
+                Telefone Fixo
+                <input
+                  type="tel"
+                  value={form.telefoneFixo}
+                  onChange={(e) => setForm({ ...form, telefoneFixo: maskPhone(e.target.value) })}
+                />
+              </label>
+              <label>
+                Celular
+                <input
+                  type="tel"
+                  value={form.telefoneCelular}
+                  onChange={(e) => setForm({ ...form, telefoneCelular: maskPhone(e.target.value) })}
+                />
+              </label>
+              <label>
+                WhatsApp
+                <input
+                  type="tel"
+                  value={form.whatsapp}
+                  onChange={(e) => setForm({ ...form, whatsapp: maskPhone(e.target.value) })}
+                />
+              </label>
+            </div>
+
+            <div className="step-title">
+              <span>03</span>
+              <div>
+                <h3>INFORMAÇÕES PROFISSIONAIS</h3>
+                <p>Dados de renda e profissão</p>
+              </div>
+            </div>
+
+            <div className="customer-form-grid">
+              <label>
+                Empresa
+                <input
+                  type="text"
+                  value={form.empresaNome}
+                  onChange={(e) => setForm({ ...form, empresaNome: e.target.value })}
+                />
+              </label>
+              <label>
+                Cargo / Função
+                <input
+                  type="text"
+                  value={form.cargoFuncao}
+                  onChange={(e) => setForm({ ...form, cargoFuncao: e.target.value })}
+                />
+              </label>
+              <label>
+                Classificação do Trabalho
+                <select
+                  value={form.classificacaoTrabalho}
+                  onChange={(e) => setForm({ ...form, classificacaoTrabalho: e.target.value })}
+                >
+                  <option value="">Selecione</option>
+                  <option value="CLT">CLT</option>
+                  <option value="PJ">PJ</option>
+                  <option value="Autônomo">Autônomo</option>
+                  <option value="Servidor Público">Servidor Público</option>
+                  <option value="Aposentado">Aposentado</option>
+                </select>
+              </label>
+              <label>
+                Renda Mensal
+                <div className="money-input-wrapper">
+                  <MoneyInput
+                    value={form.renda}
+                    onChange={(v) => setForm({ ...form, renda: String(v || "") })}
+                    placeholder="0,00"
+                  />
+                </div>
+              </label>
+            </div>
+
+            <div className="step-title">
+              <span>04</span>
+              <div>
+                <h3>RESIDÊNCIA</h3>
+                <p>Dados do imóvel onde reside</p>
+              </div>
+            </div>
+
+            <div className="customer-form-grid">
+              <label>
+                Tipo de Residência
+                <select
+                  value={form.residenciaTipo}
+                  onChange={(e) => setForm({ ...form, residenciaTipo: e.target.value })}
+                >
+                  <option value="">Selecione</option>
+                  <option value="Própria">Própria</option>
+                  <option value="Alugada">Alugada</option>
+                  <option value="Cedida">Cedida</option>
+                </select>
+              </label>
+              <label>
+                Tempo na Residência (anos)
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={form.tempoResidencia}
+                  onChange={(e) => setForm({ ...form, tempoResidencia: e.target.value })}
+                />
+              </label>
+            </div>
+
+            <div className="step-title">
+              <span>05</span>
+              <div>
+                <h3>VALORES DE FINANCIAMENTO</h3>
+                <p>Projeção do investimento do cliente</p>
+              </div>
+            </div>
+
+            <div className="customer-form-grid">
+              <label>
+                Valor do Veículo
+                <div className="money-input-wrapper">
+                  <MoneyInput
+                    value={form.valorVeiculo}
+                    onChange={(v) => setForm({ ...form, valorVeiculo: String(v || "") })}
+                    placeholder="0,00"
+                  />
+                </div>
+              </label>
+              <label>
+                Valor de Entrada (Investimento)
+                <div className="money-input-wrapper">
+                  <MoneyInput
+                    value={form.valorEntrada}
+                    onChange={(v) => setForm({ ...form, valorEntrada: String(v || "") })}
+                    placeholder="0,00"
+                  />
+                </div>
+              </label>
+              <label>
+                Valor a Financiar
+                <div className="money-input-wrapper">
+                  <MoneyInput
+                    value={form.valorFinanciado}
+                    onChange={(v) => setForm({ ...form, valorFinanciado: String(v || "") })}
+                    placeholder="0,00"
+                  />
+                </div>
+              </label>
+              <label>
+                Taxa Mensal (%) *
+                <input
+                  type="number"
+                  step="0.01"
+                  value={form.taxaMensal}
+                  onChange={(e) => setForm({ ...form, taxaMensal: e.target.value })}
+                  required
+                />
+              </label>
+            </div>
+
+            <div className="form-actions" style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+              <button type="submit" disabled={loading || !clienteId} className="auth-submit">
+                {loading ? "Salvando..." : "Visualizar Ficha"}
+              </button>
+            </div>
+          </form>
+        </>
       )}
 
-      {passo === 2 && clienteSelecionado && (
-        <div className="panel form-panel">
-          <div className="step-title">
-            <span>02</span>
+      {/* Etapa 2: Preview da Ficha */}
+      {currentStep === "preview" && fichaData && (
+        <>
+          <section className="module-heading">
             <div>
-              <h3>DADOS DO CLIENTE SELECIONADO</h3>
-              <p>{clienteSelecionado.nome}</p>
+              <p>FICHA DO CLIENTE</p>
+              <h1>Visualização e Geração de PDF</h1>
+              <span>Revise os dados e gere o PDF para download.</span>
             </div>
+          </section>
+
+          {message && (
+            <div className={`panel form-panel ${message.type === "success" ? "notice-success" : "notice-error"}`}>
+              {message.text}
+            </div>
+          )}
+
+          <div ref={fichaPreviewRef} id="ficha-preview-content" className="panel form-panel ficha-preview">
+            <div className="ficha-header" style={{ textAlign: "center", marginBottom: "20px", paddingBottom: "20px", borderBottom: "2px solid #ddd" }}>
+              <h2 style={{ marginBottom: "5px" }}>FICHA DO CLIENTE</h2>
+              <p style={{ color: "#666", fontSize: "14px" }}>VFC Multimarcas - {new Date().toLocaleDateString("pt-BR")}</p>
+            </div>
+
+            <div style={{ marginBottom: "20px" }}>
+              <h3 style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "10px", borderBottom: "1px solid #ccc", paddingBottom: "5px" }}>DADOS PESSOAIS</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+                <div>
+                  <strong>Nome:</strong>
+                  <p>{fichaData.cliente?.nome || "N/A"}</p>
+                </div>
+                <div>
+                  <strong>CPF:</strong>
+                  <p>{fichaData.cliente?.documento || "N/A"}</p>
+                </div>
+                <div>
+                  <strong>Data de Nascimento:</strong>
+                  <p>{fichaData.dataNascimento ? new Date(fichaData.dataNascimento).toLocaleDateString("pt-BR") : "N/A"}</p>
+                </div>
+                <div>
+                  <strong>Sexo:</strong>
+                  <p>{fichaData.sexo === "M" ? "Masculino" : fichaData.sexo === "F" ? "Feminino" : "N/A"}</p>
+                </div>
+                <div>
+                  <strong>Estado Civil:</strong>
+                  <p>{fichaData.estadoCivil || "N/A"}</p>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: "20px" }}>
+              <h3 style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "10px", borderBottom: "1px solid #ccc", paddingBottom: "5px" }}>CONTATO</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "15px" }}>
+                <div>
+                  <strong>Telefone Fixo:</strong>
+                  <p>{fichaData.telefoneFixo || "N/A"}</p>
+                </div>
+                <div>
+                  <strong>Celular:</strong>
+                  <p>{fichaData.telefoneCelular || "N/A"}</p>
+                </div>
+                <div>
+                  <strong>WhatsApp:</strong>
+                  <p>{fichaData.whatsapp || "N/A"}</p>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: "20px" }}>
+              <h3 style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "10px", borderBottom: "1px solid #ccc", paddingBottom: "5px" }}>INFORMAÇÕES PROFISSIONAIS</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+                <div>
+                  <strong>Empresa:</strong>
+                  <p>{fichaData.empresaNome || "N/A"}</p>
+                </div>
+                <div>
+                  <strong>Cargo/Função:</strong>
+                  <p>{fichaData.cargoFuncao || "N/A"}</p>
+                </div>
+                <div>
+                  <strong>Classificação:</strong>
+                  <p>{fichaData.classificacaoTrabalho || "N/A"}</p>
+                </div>
+                <div>
+                  <strong>Renda Mensal:</strong>
+                  <p>
+                    {fichaData.renda
+                      ? `R$ ${parseFloat(fichaData.renda.toString()).toLocaleString("pt-BR", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}`
+                      : "N/A"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: "20px" }}>
+              <h3 style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "10px", borderBottom: "1px solid #ccc", paddingBottom: "5px" }}>RESIDÊNCIA</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+                <div>
+                  <strong>Tipo:</strong>
+                  <p>{fichaData.residenciaTipo || "N/A"}</p>
+                </div>
+                <div>
+                  <strong>Tempo na Residência:</strong>
+                  <p>{fichaData.tempoResidencia ? `${fichaData.tempoResidencia} anos` : "N/A"}</p>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: "20px" }}>
+              <h3 style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "10px", borderBottom: "1px solid #ccc", paddingBottom: "5px" }}>FINANCIAMENTO</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "15px" }}>
+                <div>
+                  <strong>Valor do Veículo:</strong>
+                  <p>
+                    {fichaData.valorVeiculo
+                      ? `R$ ${parseFloat(fichaData.valorVeiculo.toString()).toLocaleString("pt-BR", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}`
+                      : "N/A"}
+                  </p>
+                </div>
+                <div>
+                  <strong>Valor de Entrada:</strong>
+                  <p>
+                    {fichaData.valorEntrada
+                      ? `R$ ${parseFloat(fichaData.valorEntrada.toString()).toLocaleString("pt-BR", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}`
+                      : "N/A"}
+                  </p>
+                </div>
+                <div>
+                  <strong>Valor a Financiar:</strong>
+                  <p>
+                    {fichaData.valorFinanciado
+                      ? `R$ ${parseFloat(fichaData.valorFinanciado.toString()).toLocaleString("pt-BR", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}`
+                      : "N/A"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {simulacoes.length > 0 && (
+              <div style={{ marginBottom: "20px" }}>
+                <h3 style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "10px", borderBottom: "1px solid #ccc", paddingBottom: "5px" }}>SIMULAÇÕES DE PARCELAMENTO</h3>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ backgroundColor: "#f0f0f0" }}>
+                      <th style={{ border: "1px solid #ddd", padding: "8px", textAlign: "left" }}>Parcelamento</th>
+                      <th style={{ border: "1px solid #ddd", padding: "8px", textAlign: "right" }}>Valor Parcela</th>
+                      <th style={{ border: "1px solid #ddd", padding: "8px", textAlign: "right" }}>Total Parcelas</th>
+                      <th style={{ border: "1px solid #ddd", padding: "8px", textAlign: "right" }}>Juros Estimados</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {simulacoes.map((sim) => (
+                      <tr key={sim.parcelas}>
+                        <td style={{ border: "1px solid #ddd", padding: "8px" }}>{sim.parcelas}x</td>
+                        <td style={{ border: "1px solid #ddd", padding: "8px", textAlign: "right" }}>
+                          R$ {sim.valorParcela.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td style={{ border: "1px solid #ddd", padding: "8px", textAlign: "right" }}>
+                          R$ {sim.totalParcelas.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td style={{ border: "1px solid #ddd", padding: "8px", textAlign: "right" }}>
+                          R$ {sim.jurosEstimados.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-          <p style={{ color: "#666", marginTop: "1rem" }}>
-            Cliente {clienteSelecionado.nome} selecionado com sucesso!
-          </p>
-          <p>Próximas etapas de preenchimento da Ficha virão aqui...</p>
-          <button
-            type="button"
-            onClick={() => {
-              setPasso(1);
-              setClienteSelecionado(null);
-            }}
-            className="btn"
-            style={{ marginTop: "1rem" }}
-          >
-            ← Voltar
-          </button>
-        </div>
+
+          <div className="form-actions" style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "20px" }}>
+            <button onClick={handleBackToForm} className="secondary-button" disabled={loading}>
+              Editar Ficha
+            </button>
+            <button onClick={handleGeneratePdf} className="auth-submit" disabled={loading}>
+              {loading ? "Gerando PDF..." : "Gerar e Baixar PDF"}
+            </button>
+          </div>
+        </>
       )}
     </div>
   );

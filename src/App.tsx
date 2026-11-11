@@ -2161,7 +2161,7 @@ function EmailSettingsPage({ authToken }: { authToken: string }) {
       <section className="panel email-test-panel">
         <div className="panel-header"><div><h3>Testar envio</h3><p>Salve a configuração antes de enviar uma mensagem de teste.</p></div></div>
         <div className="modal-row"><label>Enviar teste para<input type="email" required value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="destinatario@exemplo.com" /></label><div className="form-actions"><button type="button" className="primary-button" disabled={testing || !recipient || !form.hasPassword || !configurationSaved} onClick={() => void sendTest()}>{testing ? "Enviando..." : "Enviar e-mail de teste"}</button></div></div>
-      </section>
+      </section>du
     </>}
     <ProposalSettingsPanel authToken={authToken}/>
   </div>;
