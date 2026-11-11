@@ -3,6 +3,7 @@ import { API_BASE_URL } from "./api/baseUrl";
 import MoneyInput from "./MoneyInput";
 import { generateFichaPdf, calcularSimulacoes } from "./components/FichaPdfGenerator";
 import { savePdfToServer, sendPdfByEmail } from "./api/pdfStorage";
+import { saveFichaToBackend, FichaDados } from "./api/fichasApi";
 
 const maskPhone = (v: string) => {
   const d = v.replace(/\D/g, "").slice(0, 11);
@@ -158,31 +159,48 @@ export default function SellerClientRegistration() {
     setLoading(true);
     setMessage(null);
     try {
-      const payload = {
+      const token = localStorage.getItem("vfcAuthToken") || "";
+
+      const fichaPayload: FichaDados = {
         clienteId: parseInt(clienteId, 10),
-        ...form,
-        renda: form.renda ? parseFloat(form.renda.replace(/[^\d.-]/g, "")) : null,
-        valorVeiculo: form.valorVeiculo ? parseFloat(form.valorVeiculo.replace(/[^\d.-]/g, "")) : null,
-        valorEntrada: form.valorEntrada ? parseFloat(form.valorEntrada.replace(/[^\d.-]/g, "")) : null,
-        valorFinanciado: form.valorFinanciado ? parseFloat(form.valorFinanciado.replace(/[^\d.-]/g, "")) : null,
-        taxaMensal: form.taxaMensal ? parseFloat(form.taxaMensal) : 1.2,
+        telefoneFixo: form.telefoneFixo,
+        telefoneCelular: form.telefoneCelular,
+        whatsapp: form.whatsapp,
+        dataNascimento: form.dataNascimento,
+        sexo: form.sexo,
+        estadoCivil: form.estadoCivil,
+        residenciaTipo: form.residenciaTipo,
+        tempoResidencia: form.tempoResidencia,
+        empresaNome: form.empresaNome,
+        cargoFuncao: form.cargoFuncao,
+        classificacaoTrabalho: form.classificacaoTrabalho,
+        renda: form.renda,
+        valorVeiculo: form.valorVeiculo,
+        valorEntrada: form.valorEntrada,
+        valorFinanciado: form.valorFinanciado,
+        taxaMensal: form.taxaMensal,
+        garantiaEstendida: form.garantiaEstendida,
+        garantiaEstendidaValor: form.garantiaEstendidaValor,
+        seguroVeiculo: form.seguroVeiculo,
+        seguroVeiculoValor: form.seguroVeiculoValor,
+        protecaoFinanceira: form.protecaoFinanceira,
+        protecaoFinanceiraValor: form.protecaoFinanceiraValor,
+        rastreamentoGps: form.rastreamentoGps,
+        rastreamentoGpsValor: form.rastreamentoGpsValor,
+        assessoriaJuridica: form.assessoriaJuridica,
+        assessoriaJuridicaValor: form.assessoriaJuridicaValor,
       };
 
-      const res = await fetch(`${API_BASE_URL}/seller-client-registration`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
+      // Salvar no backend via nova API
+      const backendResult = await saveFichaToBackend(fichaPayload, token);
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Erro ao salvar");
+      if (!backendResult.success) {
+        throw new Error(backendResult.message);
+      }
 
       setFichaData({
         ...form,
-        id: data.data?.id || 0,
+        id: backendResult.fichaId || 0,
         clienteId: parseInt(clienteId, 10),
         cliente: selectedClient,
         createdAt: new Date().toISOString(),
