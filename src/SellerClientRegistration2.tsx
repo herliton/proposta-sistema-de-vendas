@@ -42,6 +42,17 @@ type FormData = {
   valorEntrada: string;
   valorFinanciado: string;
   taxaMensal: string;
+  // Produtos e Serviços
+  garantiaEstendida: boolean;
+  garantiaEstendidaValor: string;
+  seguroVeiculo: boolean;
+  seguroVeiculoValor: string;
+  protecaoFinanceira: boolean;
+  protecaoFinanceiraValor: string;
+  rastreamentoGps: boolean;
+  rastreamentoGpsValor: string;
+  assessoriaJuridica: boolean;
+  assessoriaJuridicaValor: string;
 };
 
 type FichaSalva = {
@@ -78,6 +89,16 @@ export default function SellerClientRegistration() {
     valorEntrada: "",
     valorFinanciado: "",
     taxaMensal: "1.2",
+    garantiaEstendida: false,
+    garantiaEstendidaValor: "",
+    seguroVeiculo: false,
+    seguroVeiculoValor: "",
+    protecaoFinanceira: false,
+    protecaoFinanceiraValor: "",
+    rastreamentoGps: false,
+    rastreamentoGpsValor: "",
+    assessoriaJuridica: false,
+    assessoriaJuridicaValor: "",
   });
 
   useEffect(() => {
@@ -115,6 +136,16 @@ export default function SellerClientRegistration() {
       valorEntrada: "",
       valorFinanciado: "",
       taxaMensal: "1.2",
+      garantiaEstendida: false,
+      garantiaEstendidaValor: "",
+      seguroVeiculo: false,
+      seguroVeiculoValor: "",
+      protecaoFinanceira: false,
+      protecaoFinanceiraValor: "",
+      rastreamentoGps: false,
+      rastreamentoGpsValor: "",
+      assessoriaJuridica: false,
+      assessoriaJuridicaValor: "",
     });
     setClienteId("");
   };
@@ -430,6 +461,106 @@ export default function SellerClientRegistration() {
               </label>
             </div>
 
+            <div className="step-title">
+              <span>06</span>
+              <div>
+                <h3>PRODUTOS E SERVIÇOS</h3>
+                <p>Adicione serviços complementares ao financiamento</p>
+              </div>
+            </div>
+
+            <div className="customer-form-grid">
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={form.garantiaEstendida}
+                  onChange={(e) => setForm({ ...form, garantiaEstendida: e.target.checked })}
+                />
+                Garantia Estendida (12-24 meses)
+              </label>
+              <label>
+                Valor *
+                <MoneyInput
+                  value={form.garantiaEstendidaValor}
+                  onValueChange={(v) => setForm({ ...form, garantiaEstendidaValor: v })}
+                  placeholder="0,00"
+                  disabled={!form.garantiaEstendida}
+                />
+              </label>
+
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={form.seguroVeiculo}
+                  onChange={(e) => setForm({ ...form, seguroVeiculo: e.target.checked })}
+                />
+                Seguro do Veículo (Proteção Total)
+              </label>
+              <label>
+                Valor *
+                <MoneyInput
+                  value={form.seguroVeiculoValor}
+                  onValueChange={(v) => setForm({ ...form, seguroVeiculoValor: v })}
+                  placeholder="0,00"
+                  disabled={!form.seguroVeiculo}
+                />
+              </label>
+
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={form.protecaoFinanceira}
+                  onChange={(e) => setForm({ ...form, protecaoFinanceira: e.target.checked })}
+                />
+                Proteção Financeira (Seguro de Perda)
+              </label>
+              <label>
+                Valor *
+                <MoneyInput
+                  value={form.protecaoFinanceiraValor}
+                  onValueChange={(v) => setForm({ ...form, protecaoFinanceiraValor: v })}
+                  placeholder="0,00"
+                  disabled={!form.protecaoFinanceira}
+                />
+              </label>
+
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={form.rastreamentoGps}
+                  onChange={(e) => setForm({ ...form, rastreamentoGps: e.target.checked })}
+                />
+                Rastreamento GPS
+              </label>
+              <label>
+                Valor *
+                <MoneyInput
+                  value={form.rastreamentoGpsValor}
+                  onValueChange={(v) => setForm({ ...form, rastreamentoGpsValor: v })}
+                  placeholder="0,00"
+                  disabled={!form.rastreamentoGps}
+                />
+              </label>
+
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={form.assessoriaJuridica}
+                  onChange={(e) => setForm({ ...form, assessoriaJuridica: e.target.checked })}
+                />
+                Assessoria Jurídica
+              </label>
+              <label>
+                Valor *
+                <MoneyInput
+                  value={form.assessoriaJuridicaValor}
+                  onValueChange={(v) => setForm({ ...form, assessoriaJuridicaValor: v })}
+                  placeholder="0,00"
+                  disabled={!form.assessoriaJuridica}
+                />
+              </label>
+            </div>
+
             <div className="form-actions">
               <button type="submit" disabled={loading || !clienteId} className="auth-submit">
                 {loading ? "Salvando..." : "Visualizar Ficha"}
@@ -617,6 +748,69 @@ export default function SellerClientRegistration() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {(fichaData.garantiaEstendida || fichaData.seguroVeiculo || fichaData.protecaoFinanceira || fichaData.rastreamentoGps || fichaData.assessoriaJuridica) && (
+              <div>
+                <h3>PRODUTOS E SERVIÇOS</h3>
+                <div className="ficha-data-grid">
+                  {fichaData.garantiaEstendida && (
+                    <div>
+                      <strong>✓ Garantia Estendida</strong>
+                      <p>
+                        R$ {parseFloat(fichaData.garantiaEstendidaValor?.toString() || "0").toLocaleString("pt-BR", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </p>
+                    </div>
+                  )}
+                  {fichaData.seguroVeiculo && (
+                    <div>
+                      <strong>✓ Seguro do Veículo</strong>
+                      <p>
+                        R$ {parseFloat(fichaData.seguroVeiculoValor?.toString() || "0").toLocaleString("pt-BR", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </p>
+                    </div>
+                  )}
+                  {fichaData.protecaoFinanceira && (
+                    <div>
+                      <strong>✓ Proteção Financeira</strong>
+                      <p>
+                        R$ {parseFloat(fichaData.protecaoFinanceiraValor?.toString() || "0").toLocaleString("pt-BR", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </p>
+                    </div>
+                  )}
+                  {fichaData.rastreamentoGps && (
+                    <div>
+                      <strong>✓ Rastreamento GPS</strong>
+                      <p>
+                        R$ {parseFloat(fichaData.rastreamentoGpsValor?.toString() || "0").toLocaleString("pt-BR", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </p>
+                    </div>
+                  )}
+                  {fichaData.assessoriaJuridica && (
+                    <div>
+                      <strong>✓ Assessoria Jurídica</strong>
+                      <p>
+                        R$ {parseFloat(fichaData.assessoriaJuridicaValor?.toString() || "0").toLocaleString("pt-BR", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
