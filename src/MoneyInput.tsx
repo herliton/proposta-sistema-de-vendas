@@ -16,7 +16,7 @@ export default function MoneyInput({ value, onValueChange, ...props }: { value: 
   useEffect(() => {
     if (Number(moneyToDecimal(text) || 0) !== Number(value || 0)) setText(decimalToMoney(value));
   }, [value]);
-  return <input {...props} type="text" inputMode="decimal" autoComplete="off" value={text} placeholder={props.placeholder ?? "0,00"} onChange={(event) => {
+  return <input {...props} type="text" inputMode="decimal" autoComplete="off" className={`form-input ${props.className ?? ""}`} value={text} placeholder={props.placeholder ?? "0,00"} onChange={(event) => {
     const masked = maskMoney(event.target.value);
     setText(masked);
     onValueChange(moneyToDecimal(masked));
