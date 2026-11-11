@@ -239,6 +239,7 @@ export default function SellerClientRegistration() {
                   type="date"
                   value={form.dataNascimento}
                   onChange={(e) => setForm({ ...form, dataNascimento: e.target.value })}
+                  className="form-input"
                 />
               </label>
               <label>
@@ -341,13 +342,11 @@ export default function SellerClientRegistration() {
               </label>
               <label>
                 Renda Mensal
-                <div className="money-input-wrapper">
-                  <MoneyInput
-                    value={form.renda}
-                    onChange={(v) => setForm({ ...form, renda: String(v || "") })}
-                    placeholder="0,00"
-                  />
-                </div>
+                <MoneyInput
+                  value={form.renda}
+                  onValueChange={(v) => setForm({ ...form, renda: v })}
+                  placeholder="0,00"
+                />
               </label>
             </div>
 
@@ -380,6 +379,7 @@ export default function SellerClientRegistration() {
                   step="0.5"
                   value={form.tempoResidencia}
                   onChange={(e) => setForm({ ...form, tempoResidencia: e.target.value })}
+                  className="form-input"
                 />
               </label>
             </div>
@@ -395,33 +395,27 @@ export default function SellerClientRegistration() {
             <div className="customer-form-grid">
               <label>
                 Valor do Veículo
-                <div className="money-input-wrapper">
-                  <MoneyInput
-                    value={form.valorVeiculo}
-                    onChange={(v) => setForm({ ...form, valorVeiculo: String(v || "") })}
-                    placeholder="0,00"
-                  />
-                </div>
+                <MoneyInput
+                  value={form.valorVeiculo}
+                  onValueChange={(v) => setForm({ ...form, valorVeiculo: v })}
+                  placeholder="0,00"
+                />
               </label>
               <label>
                 Valor de Entrada (Investimento)
-                <div className="money-input-wrapper">
-                  <MoneyInput
-                    value={form.valorEntrada}
-                    onChange={(v) => setForm({ ...form, valorEntrada: String(v || "") })}
-                    placeholder="0,00"
-                  />
-                </div>
+                <MoneyInput
+                  value={form.valorEntrada}
+                  onValueChange={(v) => setForm({ ...form, valorEntrada: v })}
+                  placeholder="0,00"
+                />
               </label>
               <label>
                 Valor a Financiar
-                <div className="money-input-wrapper">
-                  <MoneyInput
-                    value={form.valorFinanciado}
-                    onChange={(v) => setForm({ ...form, valorFinanciado: String(v || "") })}
-                    placeholder="0,00"
-                  />
-                </div>
+                <MoneyInput
+                  value={form.valorFinanciado}
+                  onValueChange={(v) => setForm({ ...form, valorFinanciado: v })}
+                  placeholder="0,00"
+                />
               </label>
               <label>
                 Taxa Mensal (%) *
@@ -431,11 +425,12 @@ export default function SellerClientRegistration() {
                   value={form.taxaMensal}
                   onChange={(e) => setForm({ ...form, taxaMensal: e.target.value })}
                   required
+                  className="form-input"
                 />
               </label>
             </div>
 
-            <div className="form-actions" style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+            <div className="form-actions">
               <button type="submit" disabled={loading || !clienteId} className="auth-submit">
                 {loading ? "Salvando..." : "Visualizar Ficha"}
               </button>
@@ -462,14 +457,14 @@ export default function SellerClientRegistration() {
           )}
 
           <div ref={fichaPreviewRef} id="ficha-preview-content" className="panel form-panel ficha-preview">
-            <div className="ficha-header" style={{ textAlign: "center", marginBottom: "20px", paddingBottom: "20px", borderBottom: "2px solid #ddd" }}>
-              <h2 style={{ marginBottom: "5px" }}>FICHA DO CLIENTE</h2>
-              <p style={{ color: "#666", fontSize: "14px" }}>VFC Multimarcas - {new Date().toLocaleDateString("pt-BR")}</p>
+            <div className="ficha-preview-header">
+              <h2>FICHA DO CLIENTE</h2>
+              <p>VFC Multimarcas - {new Date().toLocaleDateString("pt-BR")}</p>
             </div>
 
-            <div style={{ marginBottom: "20px" }}>
-              <h3 style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "10px", borderBottom: "1px solid #ccc", paddingBottom: "5px" }}>DADOS PESSOAIS</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+            <div>
+              <h3>DADOS PESSOAIS</h3>
+              <div className="ficha-data-grid">
                 <div>
                   <strong>Nome:</strong>
                   <p>{fichaData.cliente?.nome || "N/A"}</p>
@@ -493,9 +488,9 @@ export default function SellerClientRegistration() {
               </div>
             </div>
 
-            <div style={{ marginBottom: "20px" }}>
-              <h3 style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "10px", borderBottom: "1px solid #ccc", paddingBottom: "5px" }}>CONTATO</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "15px" }}>
+            <div>
+              <h3>CONTATO</h3>
+              <div className="ficha-data-grid-contact">
                 <div>
                   <strong>Telefone Fixo:</strong>
                   <p>{fichaData.telefoneFixo || "N/A"}</p>
@@ -511,9 +506,9 @@ export default function SellerClientRegistration() {
               </div>
             </div>
 
-            <div style={{ marginBottom: "20px" }}>
-              <h3 style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "10px", borderBottom: "1px solid #ccc", paddingBottom: "5px" }}>INFORMAÇÕES PROFISSIONAIS</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+            <div>
+              <h3>INFORMAÇÕES PROFISSIONAIS</h3>
+              <div className="ficha-data-grid">
                 <div>
                   <strong>Empresa:</strong>
                   <p>{fichaData.empresaNome || "N/A"}</p>
@@ -540,9 +535,9 @@ export default function SellerClientRegistration() {
               </div>
             </div>
 
-            <div style={{ marginBottom: "20px" }}>
-              <h3 style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "10px", borderBottom: "1px solid #ccc", paddingBottom: "5px" }}>RESIDÊNCIA</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+            <div>
+              <h3>RESIDÊNCIA</h3>
+              <div className="ficha-data-grid">
                 <div>
                   <strong>Tipo:</strong>
                   <p>{fichaData.residenciaTipo || "N/A"}</p>
@@ -554,9 +549,9 @@ export default function SellerClientRegistration() {
               </div>
             </div>
 
-            <div style={{ marginBottom: "20px" }}>
-              <h3 style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "10px", borderBottom: "1px solid #ccc", paddingBottom: "5px" }}>FINANCIAMENTO</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "15px" }}>
+            <div>
+              <h3>FINANCIAMENTO</h3>
+              <div className="ficha-data-grid-contact">
                 <div>
                   <strong>Valor do Veículo:</strong>
                   <p>
@@ -594,28 +589,28 @@ export default function SellerClientRegistration() {
             </div>
 
             {simulacoes.length > 0 && (
-              <div style={{ marginBottom: "20px" }}>
-                <h3 style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "10px", borderBottom: "1px solid #ccc", paddingBottom: "5px" }}>SIMULAÇÕES DE PARCELAMENTO</h3>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <div>
+                <h3>SIMULAÇÕES DE PARCELAMENTO</h3>
+                <table>
                   <thead>
-                    <tr style={{ backgroundColor: "#f0f0f0" }}>
-                      <th style={{ border: "1px solid #ddd", padding: "8px", textAlign: "left" }}>Parcelamento</th>
-                      <th style={{ border: "1px solid #ddd", padding: "8px", textAlign: "right" }}>Valor Parcela</th>
-                      <th style={{ border: "1px solid #ddd", padding: "8px", textAlign: "right" }}>Total Parcelas</th>
-                      <th style={{ border: "1px solid #ddd", padding: "8px", textAlign: "right" }}>Juros Estimados</th>
+                    <tr>
+                      <th>Parcelamento</th>
+                      <th>Valor Parcela</th>
+                      <th>Total Parcelas</th>
+                      <th>Juros Estimados</th>
                     </tr>
                   </thead>
                   <tbody>
                     {simulacoes.map((sim) => (
                       <tr key={sim.parcelas}>
-                        <td style={{ border: "1px solid #ddd", padding: "8px" }}>{sim.parcelas}x</td>
-                        <td style={{ border: "1px solid #ddd", padding: "8px", textAlign: "right" }}>
+                        <td>{sim.parcelas}x</td>
+                        <td>
                           R$ {sim.valorParcela.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
-                        <td style={{ border: "1px solid #ddd", padding: "8px", textAlign: "right" }}>
+                        <td>
                           R$ {sim.totalParcelas.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
-                        <td style={{ border: "1px solid #ddd", padding: "8px", textAlign: "right" }}>
+                        <td>
                           R$ {sim.jurosEstimados.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                       </tr>
@@ -626,7 +621,7 @@ export default function SellerClientRegistration() {
             )}
           </div>
 
-          <div className="form-actions" style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "20px" }}>
+          <div className="form-actions">
             <button onClick={handleBackToForm} className="secondary-button" disabled={loading}>
               Editar Ficha
             </button>
