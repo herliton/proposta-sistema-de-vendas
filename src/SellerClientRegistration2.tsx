@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { API_BASE_URL } from "./api/baseUrl";
 import MoneyInput from "./MoneyInput";
 import { generateFichaPdf, calcularSimulacoes } from "./components/FichaPdfGenerator";
+import { savePdfToServer, sendPdfByEmail } from "./api/pdfStorage";
 
 const maskPhone = (v: string) => {
   const d = v.replace(/\D/g, "").slice(0, 11);
@@ -200,9 +201,41 @@ export default function SellerClientRegistration() {
     if (!fichaData) return;
     try {
       setLoading(true);
+      const token = localStorage.getItem("vfcAuthToken") || "";
+      const clienteData = clientes.find((c) => c.id === Number(clienteId));
+      const clienteEmail = clienteData?.email || "";
+
+      // Gerar PDF
       const pdf = await generateFichaPdf(fichaData, "ficha-preview-content");
+
+      // Baixar localmente também
       pdf.save(`Ficha_${selectedClient?.nome || "Cliente"}_${new Date().toISOString().split("T")[0]}.pdf`);
-      setMessage({ type: "success", text: "PDF gerado e baixado com sucesso!" });
+
+      // Salvar no servidor
+      const saveResult = await savePdfToServer(pdf, selectedClient?.nome || "Cliente", clienteEmail, token);
+
+      if (saveResult.success) {
+        setMessage({
+          type: "success",
+          text: `PDF gerado e salvo com sucesso! ${saveResult.emailSent ? "Email enviado para o cliente." : "Preparado para envio de email."}`,
+        });
+
+        // Se tiver email, enviar também
+        if (saveResult.pdfId && clienteEmail && !saveResult.emailSent) {
+          setTimeout(() => {
+            sendPdfByEmail(saveResult.pdfId!, clienteEmail, token).then((emailResult) => {
+              if (emailResult.success) {
+                setMessage({ type: "success", text: "Email com PDF enviado com sucesso!" });
+              }
+            });
+          }, 1000);
+        }
+      } else {
+        setMessage({
+          type: "error",
+          text: `PDF gerado localmente, mas erro ao salvar: ${saveResult.message}`,
+        });
+      }
     } catch (e) {
       setMessage({ type: "error", text: `Erro ao gerar PDF: ${String(e)}` });
     } finally {
