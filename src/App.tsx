@@ -1148,7 +1148,7 @@ function ClassifiedsPage({ authToken, onSimulate }: { authToken: string; onSimul
           {gallery.length ? gallery.map((photo, index) => index === 0
             ? <div className="gallery-main" key={photo}><img src={photo} alt={`${vehicleName(selectedVehicle)} - foto ${index + 1}`}/><span>Foto principal</span></div>
             : <button type="button" key={photo}><img src={photo} alt={`${vehicleName(selectedVehicle)} - foto ${index + 1}`}/></button>) : <div className="gallery-main gallery-empty">Sem fotos cadastradas</div>}
-          {selectedVehicle.videoUrl && <video controls preload="metadata" src={apiAssetUrl(selectedVehicle.videoUrl)} style={{ width: "100%", height: "100%", objectFit: "cover" }}>Seu navegador não suporta a reprodução de vídeo.</video>}
+          {selectedVehicle.videoUrl && <video controls preload="metadata" src={apiAssetUrl(selectedVehicle.videoUrl)} className="video-container">Seu navegador não suporta a reprodução de vídeo.</video>}
         </div>
         <div className="classified-detail-grid">
           <section className="panel vehicle-information">
@@ -1307,7 +1307,7 @@ function SupportDashboard() {
       <div className="support-grid">
         <section className="panel ranking-panel">
           <div className="panel-header"><div><h3>Resultado por gerente</h3><p>Consolidado de vendedores associados no período</p></div></div>
-          <div className="team-ranking">{teams.length ? teams.map((team, index) => <div className="rank-row" key={team.name}><span className={`rank-number rank-${index + 1}`}>{index + 1}</span><div className="rank-main"><strong>{team.name}</strong><small>{team.sellers} vendedores associados</small><div><i style={{ width: `${Math.max(2, team.sales / maxTeamSales * 100)}%` }}/></div></div><div className="rank-metric"><strong>{money(team.sales)}</strong><span>{team.contracts} contratos</span></div></div>) : <p className="empty-state">{loading ? "Carregando resultados..." : "Sem resultados de equipe neste período."}</p>}</div>
+          <div className="team-ranking">{teams.length ? teams.map((team, index) => <div className="rank-row" key={team.name}><span className={`rank-number rank-${index + 1}`}>{index + 1}</span><div className="rank-main"><strong>{team.name}</strong><small>{team.sellers} vendedores associados</small><div className="rank-progress"><div className="rank-progress-bar" style={{ width: `${Math.max(2, team.sales / maxTeamSales * 100)}%` }}/></div></div><div className="rank-metric"><strong>{money(team.sales)}</strong><span>{team.contracts} contratos</span></div></div>) : <p className="empty-state">{loading ? "Carregando resultados..." : "Sem resultados de equipe neste período."}</p>}</div>
         </section>
         <section className="panel seller-ranking">
           <div className="panel-header"><div><h3>Vendedores em destaque</h3><p>Maiores volumes no intervalo selecionado</p></div></div>
@@ -2063,7 +2063,7 @@ function ProposalSettingsPanel({ authToken }: { authToken: string }) {
     finally { setSaving(false); }
   };
   const update = (field: keyof ProposalSettingsForm, value: string) => { setNotice(""); setForm((current) => current ? { ...current, [field]: value } : current); };
-  return <form onSubmit={save} className="panel email-settings-form" style={{ padding: 24, marginTop: 20 }}>
+  return <form onSubmit={save} className="panel email-settings-form">
     <div className="panel-header"><div><h3>Proposta comercial (PDF)</h3><p>Prazos, logística, garantia e validade exibidos na proposta de cada loja.</p></div></div>
     {notice && <div className="auth-notice success">{notice}</div>}
     {error && <div className="auth-notice">{error}</div>}
@@ -2077,7 +2077,7 @@ function ProposalSettingsPanel({ authToken }: { authToken: string }) {
         <label>Documentação e transferência<input required maxLength={255} value={form.documentacaoTransferencia} onChange={(event) => update("documentacaoTransferencia", event.target.value)}/></label>
       </div>
       <label>Texto de prazos e logística<textarea required rows={3} maxLength={2000} value={form.textoPrazos} onChange={(event) => update("textoPrazos", event.target.value)}/></label>
-      <label style={{ marginTop: 12 }}>Texto de garantia e pós-venda<textarea required rows={4} maxLength={2000} value={form.textoGarantia} onChange={(event) => update("textoGarantia", event.target.value)}/></label>
+      <label>Texto de garantia e pós-venda<textarea required rows={4} maxLength={2000} value={form.textoGarantia} onChange={(event) => update("textoGarantia", event.target.value)}/></label>
       <div className="modal-actions"><button type="submit" className="primary-button" disabled={saving}>{saving ? "Salvando..." : "Salvar proposta"}</button></div>
     </> : !error && <p className="table-subcopy">Carregando configuração...</p>}
   </form>;
@@ -2139,7 +2139,7 @@ function EmailSettingsPage({ authToken }: { authToken: string }) {
     {notice && <div className="auth-notice success">{notice}</div>}
     {error && <div className="auth-notice">{error}</div>}
     {loading ? <section className="panel">Carregando configuração...</section> : <>
-      <form onSubmit={save} className="panel email-settings-form" style={{ padding: 24, marginBottom: 20 }}>
+      <form onSubmit={save} className="panel email-settings-form second-form">
         <div className="panel-header"><div><h3>Servidor de saída SMTP</h3><p>A senha é armazenada criptografada no arquivo de dados local.</p></div></div>
         <div className="form-section-title">Conexão</div>
         <div className="modal-row">
@@ -2382,9 +2382,9 @@ export default function App() {
                   <div className="dashboard-timeline">
                     {dashboardTimeline.map((bucket) => <div className="timeline-column" key={bucket.label} title={`${bucket.label}: ${bucket.simulations} simulações, ${bucket.proposals} propostas, ${bucket.contracts} contratos`}>
                       <div className="timeline-bars">
-                        <i className="timeline-bar blue" style={{ height: `${bucket.simulations / timelineMax * 100}%` }}/>
-                        <i className="timeline-bar purple" style={{ height: `${bucket.proposals / timelineMax * 100}%` }}/>
-                        <i className="timeline-bar green" style={{ height: `${bucket.contracts / timelineMax * 100}%` }}/>
+                        <i className="timeline-bar blue" style={{ height: `${bucket.simulations / timelineMax * 100}%` }}></i>
+                        <i className="timeline-bar purple" style={{ height: `${bucket.proposals / timelineMax * 100}%` }}></i>
+                        <i className="timeline-bar green" style={{ height: `${bucket.contracts / timelineMax * 100}%` }}></i>
                       </div>
                       <span>{bucket.label}</span>
                     </div>)}

@@ -984,3 +984,139 @@ body {
 .ficha-preview table th:nth-child(4) {
   text-align: right;
 }
+
+/* ========== VIDEO CONTAINER ========== */
+.video-container {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ========== TIMELINE BARS ========== */
+.timeline-bar {
+  display: block;
+  width: 100%;
+  margin: 0 auto;
+  border-radius: 2px;
+  background: currentColor;
+  transition: all 0.2s ease;
+}
+
+.timeline-bar.blue {
+  color: #2867df;
+}
+
+.timeline-bar.purple {
+  color: #9b59b6;
+}
+
+.timeline-bar.green {
+  color: #27ae60;
+}
+
+/* ========== EMAIL SETTINGS FORM ========== */
+.email-settings-form {
+  padding: 24px;
+  margin-top: 20px;
+}
+
+.email-settings-form.second-form {
+  margin-top: 0;
+  margin-bottom: 20px;
+}
+
+.email-settings-form label {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 12px;
+}
+
+.email-settings-form label:not(:first-of-type) {
+  margin-top: 0;
+}
+
+.email-settings-form textarea {
+  width: 100%;
+  padding: 11px;
+  border: 1px solid #dfe4eb;
+  border-radius: 7px;
+  outline: none;
+  color: #334057;
+  background: #fbfcfd;
+  font-size: 10px;
+  font-weight: 500;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.email-settings-form textarea:focus {
+  border-color: #8eaff0;
+  box-shadow: 0 0 0 3px #2867df12;
+}
+
+.email-settings-form .modal-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 768px) {
+  .email-settings-form .modal-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.email-settings-form .modal-row label {
+  margin-bottom: 0;
+}
+
+.email-settings-form .modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+.email-settings-form select {
+  height: 40px;
+  padding: 0 11px;
+  border: 1px solid #dfe4eb;
+  border-radius: 7px;
+  outline: none;
+  color: #334057;
+  background: #fbfcfd;
+  font-size: 10px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.email-settings-form select:focus {
+  border-color: #8eaff0;
+  box-shadow: 0 0 0 3px #2867df12;
+}
+
+/* ========== RANK PROGRESS BAR ========== */
+.rank-progress {
+  width: 100%;
+  height: 4px;
+  background: #e2e8f0;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.rank-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #2867df, #3d7ae0);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* ========== TIMELINE DETAIL LABEL ========== */
+.timeline-detail-label {
+  display: block;
+  white-space: pre-line;
+  color: #486581;
+  font-size: 11px;
+  margin-top: 6px;
+}
