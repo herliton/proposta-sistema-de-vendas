@@ -308,7 +308,7 @@ function DossieStep({ id, authToken, api, saving, run }: { id: number; authToken
       <div className="ficha-card-head"><strong>Histórico de registros</strong></div>
       {items === null && <p>Carregando…</p>}
       {items?.length === 0 && <p>Nenhum registro de histórico.</p>}
-      {items?.map((item) => <p key={item.id}><strong>{fmtDateTime(item.em)}</strong> · {item.por} — {item.acao}{item.detalhe && <span style={{ display: "block", whiteSpace: "pre-line", color: "#486581" }}>{item.detalhe}</span>}</p>)}
+      {items?.map((item) => <p key={item.id}><strong>{fmtDateTime(item.em)}</strong> · {item.por} — {item.acao}{item.detalhe && <span className="timeline-detail-label">{item.detalhe}</span>}</p>)}
     </div>
   </div>;
 }
