@@ -20,7 +20,7 @@ export const createStore = async (req, res) => {
   const cnpj = String(req.body.cnpj || '').replace(/\D/g, '') || null;
   if (!nome) return res.status(400).json({ success: false, error: 'INVALID_STORE', message: 'O nome da loja é obrigatório.' });
   if (cnpj && cnpj.length !== 14) return res.status(400).json({ success: false, error: 'INVALID_CNPJ', message: 'Informe um CNPJ com 14 dígitos.' });
-  if (await prisma.loja.findFirst({ where: { OR: [{ nome: { equals: nome, mode: 'insensitive' } }, ...(cnpj ? [{ cnpj }] : [])] } })) return res.status(409).json({ success: false, error: 'STORE_EXISTS', message: 'Já existe uma loja com este nome ou CNPJ.' });
+  if (await prisma.loja.findFirst({ where: { OR: [{ nome: { equals: nome } }, ...(cnpj ? [{ cnpj }] : [])] } })) return res.status(409).json({ success: false, error: 'STORE_EXISTS', message: 'Já existe uma loja com este nome ou CNPJ.' });
   const row = await prisma.loja.create({ data: { nome, cnpj, telefone: String(req.body.telefone || '').trim() || null, email: String(req.body.email || '').trim().toLowerCase() || null, cep: String(req.body.cep || '').trim() || null, logradouro: String(req.body.logradouro || '').trim() || null, numero: String(req.body.numero || '').trim() || null, complemento: String(req.body.complemento || '').trim() || null, bairro: String(req.body.bairro || '').trim() || null, cidade: String(req.body.cidade || '').trim() || null, estado: String(req.body.estado || '').trim().toUpperCase() || null, status: 'ativo' }, include: listInclude });
   return created(res, present(row), 'Loja cadastrada.');
 };
@@ -32,7 +32,7 @@ export const updateStore = async (req, res) => {
   const nome = String(req.body.nome ?? current.nome).trim();
   const cnpj = req.body.cnpj === undefined ? current.cnpj : String(req.body.cnpj || '').replace(/\D/g, '') || null;
   if (!nome || (cnpj && cnpj.length !== 14)) return res.status(400).json({ success: false, error: 'INVALID_STORE', message: 'Informe nome e CNPJ válidos.' });
-  const duplicate = await prisma.loja.findFirst({ where: { id: { not: id }, OR: [{ nome: { equals: nome, mode: 'insensitive' } }, ...(cnpj ? [{ cnpj }] : [])] } });
+  const duplicate = await prisma.loja.findFirst({ where: { id: { not: id }, OR: [{ nome: { equals: nome } }, ...(cnpj ? [{ cnpj }] : [])] } });
   if (duplicate) return res.status(409).json({ success: false, error: 'STORE_EXISTS', message: 'Já existe outra loja com este nome ou CNPJ.' });
   const data = { nome, cnpj, status: req.body.status === 'inativo' ? 'inativo' : req.body.status === 'ativo' ? 'ativo' : current.status, updatedAt: new Date() };
   for (const field of ['telefone', 'email', 'cep', 'logradouro', 'numero', 'complemento', 'bairro', 'cidade', 'estado']) if (req.body[field] !== undefined) data[field] = String(req.body[field] || '').trim() || null;

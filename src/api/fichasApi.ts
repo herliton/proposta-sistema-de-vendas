@@ -64,7 +64,7 @@ export const saveFichaToBackend = async (
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `****** `,
+        Authorization: `Bearer ${authToken}`,
       },
       body: JSON.stringify(dados),
     });
@@ -106,7 +106,7 @@ export const updateFichaOnBackend = async (
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `****** `,
+        Authorization: `Bearer ${authToken}`,
       },
       body: JSON.stringify(dados),
     });
@@ -146,7 +146,7 @@ export const getFichaFromBackend = async (
     const response = await fetch(`${API_BASE_URL}/fichas/${fichaId}`, {
       method: "GET",
       headers: {
-        Authorization: `****** `,
+        Authorization: `Bearer ${authToken}`,
       },
     });
 
@@ -184,7 +184,7 @@ export const listClientFichas = async (
     const response = await fetch(`${API_BASE_URL}/fichas/cliente/${clienteId}`, {
       method: "GET",
       headers: {
-        Authorization: `****** `,
+        Authorization: `Bearer ${authToken}`,
       },
     });
 
@@ -212,7 +212,7 @@ export const deleteFichaFromBackend = async (
     const response = await fetch(`${API_BASE_URL}/fichas/${fichaId}`, {
       method: "DELETE",
       headers: {
-        Authorization: `****** `,
+        Authorization: `Bearer ${authToken}`,
       },
     });
 
@@ -242,7 +242,7 @@ export const persistFichaWithPdf = async (
     const response = await fetch(`${API_BASE_URL}/fichas/persist-with-pdf`, {
       method: "POST",
       headers: {
-        Authorization: `****** `,
+        Authorization: `Bearer ${authToken}`,
       },
       body: formData,
     });
@@ -287,7 +287,7 @@ export const sendFichaByEmail = async (
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `****** `,
+        Authorization: `Bearer ${authToken}`,
       },
       body: JSON.stringify({
         destinatario,
@@ -328,7 +328,7 @@ export const getFichasStats = async (
     const response = await fetch(`${API_BASE_URL}/fichas/stats`, {
       method: "GET",
       headers: {
-        Authorization: `****** `,
+        Authorization: `Bearer ${authToken}`,
       },
     });
 

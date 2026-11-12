@@ -21,6 +21,7 @@
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
+    "ejs": "^7.0.2",
     "express": "^4.21.2",
     "hostinger-mail-api-sdk": "^1.19.6",
     "jsonwebtoken": "^9.0.2",

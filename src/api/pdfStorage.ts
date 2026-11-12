@@ -36,7 +36,7 @@ export const savePdfToServer = async (
     const response = await fetch(`${API_BASE_URL}/fichas/upload-pdf`, {
       method: "POST",
       headers: {
-        Authorization: `****** `,
+        Authorization: `Bearer ${authToken}`,
       },
       body: formData,
     });
@@ -75,7 +75,7 @@ export const downloadPdfFromServer = async (pdfId: string, authToken: string): P
     const response = await fetch(`${API_BASE_URL}/fichas/download-pdf/${pdfId}`, {
       method: "GET",
       headers: {
-        Authorization: `****** `,
+        Authorization: `Bearer ${authToken}`,
       },
     });
 
@@ -100,7 +100,7 @@ export const listClientPdfs = async (clienteId: number, authToken: string): Prom
     const response = await fetch(`${API_BASE_URL}/fichas/pdfs/${clienteId}`, {
       method: "GET",
       headers: {
-        Authorization: `****** `,
+        Authorization: `Bearer ${authToken}`,
       },
     });
 
@@ -128,7 +128,7 @@ export const sendPdfByEmail = async (pdfId: string, destinatario: string, authTo
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `****** `,
+        Authorization: `Bearer ${authToken}`,
       },
       body: JSON.stringify({
         pdfId,
@@ -166,7 +166,7 @@ export const deletePdfFromServer = async (pdfId: string, authToken: string): Pro
     const response = await fetch(`${API_BASE_URL}/fichas/pdf/${pdfId}`, {
       method: "DELETE",
       headers: {
-        Authorization: `****** `,
+        Authorization: `Bearer ${authToken}`,
       },
     });
 

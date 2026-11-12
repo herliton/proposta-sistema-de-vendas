@@ -8,6 +8,7 @@ import { transitionSalesStage, type SalesStage } from "./utils/salesLifecycle";
 import MoneyInput from "./MoneyInput";
 import CreditRecoveryFichas from "./CreditRecoveryFichas";
 import SellerClientRegistration from "./SellerClientRegistration2";
+import ManagerDashboard from "./components/ManagerDashboard";
 
 const clientCompany = "VFC Multimarcas";
 const currentDateLabel = new Intl.DateTimeFormat("pt-BR", {
@@ -1795,35 +1796,7 @@ function ReportsPage({ profile, userName, authToken }: { profile: string; userNa
   </div>;
 }
 
-function ManagerDashboard() {
-  const { dateRange, setDateRange } = useDateRangeContext();
-  const { dashboard, loading, error } = useDashboardContext();
-  const production = dashboard?.sellers || [];
-  const summary = dashboard?.summary;
-  const money = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(value || 0);
-  return (
-    <div className="content module-content">
-      <section className="module-heading"><div><p>GESTÃO DA EQUIPE</p><h1>Visão da gerência</h1><span>Acompanhe a produção dos seus vendedores e a evolução das metas.</span></div><DateRangePicker value={dateRange} onChange={setDateRange}/></section>
-      {error && <div className="auth-notice">{error}</div>}
-      <section className="stats-grid manager-stats">
-        <article className="stat-card"><div className="stat-icon blue"><Icon name="proposal"/></div><div className="stat-title"><span>Simulações da equipe</span><strong>{loading ? "Atualizando" : "No período"}</strong></div><h2>{summary?.simulations ?? "—"}</h2><p>Registros criados no intervalo selecionado</p></article>
-        <article className="stat-card"><div className="stat-icon purple"><Icon name="file"/></div><div className="stat-title"><span>Propostas em andamento</span><strong>{loading ? "Atualizando" : "No período"}</strong></div><h2>{summary?.proposals ?? "—"}</h2><p>Em análise ou aguardando decisão</p></article>
-        <article className="stat-card"><div className="stat-icon green"><Icon name="check"/></div><div className="stat-title"><span>Contratos efetivados</span><strong>{loading ? "Atualizando" : "No período"}</strong></div><h2>{summary?.contracts ?? "—"}</h2><p>{summary ? money(summary.salesVolume) : "—"} em vendas</p></article>
-        <article className="stat-card commission-stat"><div className="stat-icon orange"><Icon name="percent"/></div><div className="stat-title"><span>Comissões registradas</span><strong>{loading ? "Atualizando" : "No período"}</strong></div><h2>{summary ? money(summary.commissionAmount) : "—"}</h2><p>Comissões associadas à equipe</p></article>
-      </section>
-      <div className="manager-grid">
-        <section className="panel production-panel">
-          <div className="panel-header"><div><h3>Produção por vendedor</h3><p>Resultados individuais no período selecionado</p></div></div>
-          <div className="table-wrap"><table><thead><tr><th>VENDEDOR</th><th>SIMULAÇÕES</th><th>PROPOSTAS EM ANDAMENTO</th><th>CONTRATOS</th><th>VOLUME</th></tr></thead><tbody>{loading ? <tr><td colSpan={5}>Carregando resultados...</td></tr> : production.length ? production.map((seller) => <tr key={seller.name}><td><div className="seller-cell"><div className="mini-avatar blue">{seller.name.split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase()}</div><strong>{seller.name}</strong></div></td><td>{seller.simulations}</td><td>{seller.proposals}</td><td><strong>{seller.contracts}</strong></td><td><strong>{money(seller.sales)}</strong></td></tr>) : <tr><td colSpan={5}>Sem produção registrada neste período.</td></tr>}</tbody></table></div>
-        </section>
-        <aside className="panel manager-goal">
-          <div className="panel-header"><div><h3>Resumo do período</h3><p>Produção real da equipe</p></div></div>
-          <div className="goal-values"><span><em>Vendedores com atividade</em><strong>{production.length}</strong></span><span><em>Vendas efetivadas</em><strong>{summary?.contracts ?? "—"}</strong></span><span><em>Propostas recusadas</em><strong>{summary?.rejectedProposals ?? "—"}</strong></span><span><em>Volume vendido</em><strong>{summary ? money(summary.salesVolume) : "—"}</strong></span></div>
-        </aside>
-      </div>
-    </div>
-  );
-}
+
 
 type TeamSeller = { id: number; nome: string; email: string; status: string; createdAt: string; usuario?: { id: number; status: string; gerenteId: number | null } | null };
 
@@ -2324,7 +2297,7 @@ export default function App() {
           </div>
         </header>
 
-        {visibleActive === "Taxas e tabelas" ? <RatesBenefitsPage kind="rates" profile={profile} authToken={authToken}/> : visibleActive === "Benefícios" ? <RatesBenefitsPage kind="benefits" profile={profile} authToken={authToken}/> : visibleActive === "Ficha do Cliente" ? <SellerClientRegistration /> : visibleActive === "Recuperação de crédito" ? <CreditRecoveryPage authToken={authToken} profile={profile} userName={sessionUser.nome}/> : visibleActive === "Clientes" ? <CustomersPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Classificados" ? <ClassifiedsPage authToken={authToken} onSimulate={(vehicleId) => { setSimulationVehicleId(vehicleId); setActive("Simulações"); }}/> : visibleActive === "Simulações" ? <SimulationPage profile={profile} userName={sessionUser.nome} authToken={authToken} initialVehicleId={simulationVehicleId}/> : visibleActive === "Usuários e perfis" && profile === "ADMIN" ? <UsersPage authToken={authToken}/> : visibleActive === "Lojas" && profile === "ADMIN" ? <StoresPage authToken={authToken}/> : visibleActive === "Permissões de acesso" && profile === "ADMIN" ? <PermissionsPage authToken={authToken}/> : visibleActive === "Configurações" && profile === "ADMIN" ? <EmailSettingsPage authToken={authToken}/> : visibleActive === "Veículos" ? <VehiclesPage authToken={authToken} profile={profile}/> : visibleActive === "Painel do gerente" && profile === "MANAGER" ? <ManagerDashboard/> : visibleActive === "Minha equipe" && profile === "MANAGER" ? <MyTeamPage authToken={authToken}/> : visibleActive === "Painel de suporte" && profile === "SUPPORT" ? <SupportDashboard/> : visibleActive === "Propostas" && ["ADMIN", "SUPPORT"].includes(profile) ? <ProposalReviewPage authToken={authToken}/> : visibleActive === "Contratos" ? <ContractsPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Propostas" ? <SellerProposalsPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Equipes e comissões" && ["ADMIN", "MANAGER", "SUPPORT"].includes(profile) ? <TeamsCommissionsPage profile={profile} userId={sessionUser.id} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Relatórios" && ["ADMIN", "MANAGER", "SUPPORT"].includes(profile) ? <ReportsPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive !== "Dashboard" ? <div className="content module-content"><div className="support-note">Módulo indisponível.</div></div> : <div className="content">
+        {visibleActive === "Taxas e tabelas" ? <RatesBenefitsPage kind="rates" profile={profile} authToken={authToken}/> : visibleActive === "Benefícios" ? <RatesBenefitsPage kind="benefits" profile={profile} authToken={authToken}/> : visibleActive === "Ficha do Cliente" ? <SellerClientRegistration /> : visibleActive === "Recuperação de crédito" ? <CreditRecoveryPage authToken={authToken} profile={profile} userName={sessionUser.nome}/> : visibleActive === "Clientes" ? <CustomersPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Classificados" ? <ClassifiedsPage authToken={authToken} onSimulate={(vehicleId) => { setSimulationVehicleId(vehicleId); setActive("Simulações"); }}/> : visibleActive === "Simulações" ? <SimulationPage profile={profile} userName={sessionUser.nome} authToken={authToken} initialVehicleId={simulationVehicleId}/> : visibleActive === "Usuários e perfis" && profile === "ADMIN" ? <UsersPage authToken={authToken}/> : visibleActive === "Lojas" && profile === "ADMIN" ? <StoresPage authToken={authToken}/> : visibleActive === "Permissões de acesso" && profile === "ADMIN" ? <PermissionsPage authToken={authToken}/> : visibleActive === "Configurações" && profile === "ADMIN" ? <EmailSettingsPage authToken={authToken}/> : visibleActive === "Veículos" ? <VehiclesPage authToken={authToken} profile={profile}/> : visibleActive === "Painel do gerente" && profile === "MANAGER" ? <ManagerDashboard authToken={authToken} userName={sessionUser.nome} lojaNome={sessionUser.lojaNome} dateRange={dateRange} setDateRange={setDateRange} dashboard={dashboardState.dashboard} loading={dashboardState.loading} error={dashboardState.error} onNavigate={(tab) => setActive(tab)}/> : visibleActive === "Minha equipe" && profile === "MANAGER" ? <MyTeamPage authToken={authToken}/> : visibleActive === "Painel de suporte" && profile === "SUPPORT" ? <SupportDashboard/> : visibleActive === "Propostas" && ["ADMIN", "SUPPORT"].includes(profile) ? <ProposalReviewPage authToken={authToken}/> : visibleActive === "Contratos" ? <ContractsPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Propostas" ? <SellerProposalsPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Equipes e comissões" && ["ADMIN", "MANAGER", "SUPPORT"].includes(profile) ? <TeamsCommissionsPage profile={profile} userId={sessionUser.id} userName={sessionUser.nome} authToken={authToken}/> : visibleActive === "Relatórios" && ["ADMIN", "MANAGER", "SUPPORT"].includes(profile) ? <ReportsPage profile={profile} userName={sessionUser.nome} authToken={authToken}/> : visibleActive !== "Dashboard" ? <div className="content module-content"><div className="support-note">Módulo indisponível.</div></div> : <div className="content">
           <section className="page-heading">
             <div>
               <p>{currentDateLabel}</p>

@@ -18,8 +18,8 @@ export const listSellerFichas = async (req, res) => {
     ...(status && { status }),
     ...(search && {
       OR: [
-        { cliente: { nome: { contains: search, mode: 'insensitive' } } },
-        { cliente: { documento: { contains: search, mode: 'insensitive' } } },
+        { cliente: { nome: { contains: search } } },
+        { cliente: { documento: { contains: search } } },
       ],
     }),
   };

@@ -104,12 +104,12 @@ export const listVeiculos = async (req, res) => {
   const commonFilters = {
     deletedAt: null,
     ...storeScope(req.user),
-    ...(brandValue ? { marca: { equals: brandValue, mode: 'insensitive' } } : {}),
-    ...(modelValue ? { modelo: { contains: modelValue, mode: 'insensitive' } } : {}),
+    ...(brandValue ? { marca: { equals: brandValue } } : {}),
+    ...(modelValue ? { modelo: { contains: modelValue } } : {}),
     ...(mfg !== undefined ? { anoFabricacao: mfg } : {}),
     ...(modelYear !== undefined ? { anoModelo: modelYear } : {}),
     ...(minimumPrice !== undefined || maximumPrice !== undefined ? { precoSugerido: { ...(minimumPrice !== undefined ? { gte: minimumPrice } : {}), ...(maximumPrice !== undefined ? { lte: maximumPrice } : {}) } } : {}),
-    ...(term ? { OR: [{ marca: { contains: term, mode: 'insensitive' } }, { modelo: { contains: term, mode: 'insensitive' } }, { placa: { contains: term, mode: 'insensitive' } }] } : {}),
+    ...(term ? { OR: [{ marca: { contains: term } }, { modelo: { contains: term } }, { placa: { contains: term } }] } : {}),
   };
   const where = { ...commonFilters, ...(normalizedStatus ? { status: dbStatus(normalizedStatus) } : {}) };
   const include = { _count: { select: { propostas: { where: { deletedAt: null, status: { in: activeProposalStatuses } } } } } };

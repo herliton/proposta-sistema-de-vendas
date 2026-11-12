@@ -29,3 +29,11 @@ export const notFound = (res, message = 'Registro não encontrado') => {
     error: 'NOT_FOUND',
   });
 };
+
+export const serverError = (res, message = 'Erro interno do servidor') => {
+  return res.status(500).json({
+    success: false,
+    message,
+    error: 'SERVER_ERROR',
+  });
+};
