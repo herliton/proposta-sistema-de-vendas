@@ -26,6 +26,7 @@ export const roleModuleIds = async (rawRole) => {
   const permissions = new Map(rows.map((item) => [item.moduleId, item.canAccess]));
   const selected = new Set(systemModules.filter((module) => permissions.has(module.id) ? permissions.get(module.id) : module.defaultRoles.includes(role)).map((module) => module.id));
   if (role === 'SELLER') for (const moduleId of sellerSimulationModuleIds) selected.add(moduleId);
+  if (['SELLER', 'MANAGER'].includes(role)) selected.delete('CREDIT_RECOVERY');
   if (role === 'MANAGER') selected.add('SIMULATIONS');
   if (role === 'MANAGER') for (const moduleId of await roleModuleIds('SELLER')) selected.add(moduleId);
   return new Set([...selected].filter((moduleId) => systemModules.some((module) => module.id === moduleId)));
@@ -56,9 +57,9 @@ export const updateRolePermissions = async (req, res) => {
   if (role === 'ADMIN') return res.status(400).json({ success: false, error: 'ADMIN_LOCKED', message: 'O perfil ADMIN mantém acesso total ao sistema.' });
   const moduleIds = req.body.moduleIds;
   if (!Array.isArray(moduleIds) || moduleIds.some((id) => !systemModules.some((module) => module.id === id))) return res.status(400).json({ success: false, error: 'BAD_MODULES', message: 'A lista de módulos contém valores inválidos.' });
-  const effectiveModuleIds = role === 'SELLER'
-    ? [...new Set([...moduleIds, ...sellerSimulationModuleIds])]
-    : moduleIds;
+  let effectiveModuleIds = moduleIds;
+  if (role === 'SELLER') effectiveModuleIds = [...new Set([...moduleIds, ...sellerSimulationModuleIds])].filter((moduleId) => moduleId !== 'CREDIT_RECOVERY');
+  if (role === 'MANAGER') effectiveModuleIds = [...new Set(moduleIds)].filter((moduleId) => moduleId !== 'CREDIT_RECOVERY');
   await prisma.$transaction(async (tx) => {
     await tx.rolePermission.deleteMany({ where: { role } });
     if (effectiveModuleIds.length) await tx.rolePermission.createMany({ data: [...new Set(effectiveModuleIds)].map((moduleId) => ({ role, moduleId, canAccess: true })) });

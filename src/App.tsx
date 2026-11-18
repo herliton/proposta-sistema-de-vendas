@@ -198,7 +198,7 @@ const navGroups = [
 const roleModules: Record<string, string[]> = {
   ADMIN: navGroups.flatMap((group) => group.items.map((item) => item.label)),
   SELLER: ["Simulações", "Propostas", "Contratos", "Clientes", "Ficha do Cliente", "Classificados", "Veículos", "Taxas e tabelas", "Benefícios"],
-  MANAGER: ["Simulações", "Propostas", "Contratos", "Clientes", "Ficha do Cliente", "Recuperação de crédito", "Classificados", "Veículos", "Taxas e tabelas", "Benefícios", "Painel do gerente", "Minha equipe", "Equipes e comissões", "Relatórios"],
+  MANAGER: ["Simulações", "Propostas", "Contratos", "Clientes", "Ficha do Cliente", "Classificados", "Veículos", "Taxas e tabelas", "Benefícios", "Painel do gerente", "Minha equipe", "Equipes e comissões", "Relatórios"],
   SUPPORT: ["Propostas", "Contratos", "Recuperação de crédito", "Taxas e tabelas", "Benefícios", "Painel de suporte", "Equipes e comissões", "Relatórios"],
 };
 
