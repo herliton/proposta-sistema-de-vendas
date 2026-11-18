@@ -35,6 +35,9 @@ export const createFicha = async (req, res) => {
       valorEntrada,
       valorFinanciado,
       taxaMensal,
+      marcaModelo,
+      anoVeiculo,
+      valorFipe,
       garantiaEstendida,
       garantiaEstendidaValor,
       seguroVeiculo,
@@ -59,9 +62,67 @@ export const createFicha = async (req, res) => {
       return notFound(res, 'Cliente não encontrado');
     }
 
-    // Garantir oportunidade de crédito vinculada para dar início à recuperação de crédito
+    // Verificar se já existe uma ficha em aberto para esse cliente
+    let ficha = await prisma.fichaRecuperacao.findFirst({
+      where: { clienteId, lojaId, status: { in: ['ABERTA', 'EM_ANDAMENTO'] } },
+      orderBy: { id: 'desc' },
+    });
+
+    if (ficha) {
+      // Atualizar a ficha existente com os novos dados
+      ficha = await prisma.fichaRecuperacao.update({
+        where: { id: ficha.id },
+        data: {
+          vendedorId: vendedorId || ficha.vendedorId,
+          telefoneFixo: telefoneFixo ?? ficha.telefoneFixo,
+          telefoneCelular: telefoneCelular ?? ficha.telefoneCelular,
+          whatsapp: whatsapp ?? ficha.whatsapp,
+          dataNascimento: dataNascimento ? new Date(dataNascimento) : ficha.dataNascimento,
+          sexo: sexo ?? ficha.sexo,
+          estadoCivil: estadoCivil ?? ficha.estadoCivil,
+          residenciaTipo: residenciaTipo ?? ficha.residenciaTipo,
+          tempoResidencia: tempoResidencia ?? ficha.tempoResidencia,
+          empresaNome: empresaNome ?? ficha.empresaNome,
+          cargoFuncao: cargoFuncao ?? ficha.cargoFuncao,
+          classificacaoTrabalho: classificacaoTrabalho ?? ficha.classificacaoTrabalho,
+          renda: renda ? parseFloat(renda) : ficha.renda,
+          valorVeiculo: valorVeiculo ? parseFloat(valorVeiculo) : ficha.valorVeiculo,
+          valorEntrada: valorEntrada ? parseFloat(valorEntrada) : ficha.valorEntrada,
+          valorFinanciado: valorFinanciado ? parseFloat(valorFinanciado) : ficha.valorFinanciado,
+        },
+        include: {
+          cliente: true,
+          opcoes: true,
+        },
+      });
+
+      if (marcaModelo) {
+        await prisma.fichaOpcaoVeiculo.deleteMany({ where: { fichaId: ficha.id } });
+        await prisma.fichaOpcaoVeiculo.create({
+          data: {
+            fichaId: ficha.id,
+            ordem: 1,
+            marca: marcaModelo.trim().split(' ')[0] || 'Veículo',
+            modelo: marcaModelo.trim(),
+            anoModelo: anoVeiculo ? parseInt(anoVeiculo, 10) : null,
+          },
+        });
+      }
+
+      return ok(res, {
+        id: ficha.id,
+        clienteId: ficha.clienteId,
+        createdAt: ficha.dataEntradaFicha,
+      }, 'Ficha atualizada com sucesso');
+    }
+
+    // Caso não exista ficha em aberto, garantir oportunidade de crédito sem ficha vinculada
     let oportunidade = await prisma.oportunidadeCredito.findFirst({
-      where: { clienteId, status: { in: ['ABERTA', 'EM_ANDAMENTO'] } },
+      where: {
+        clienteId,
+        status: { in: ['ABERTA', 'EM_ANDAMENTO'] },
+        ficha: null,
+      },
     });
     if (!oportunidade) {
       oportunidade = await prisma.oportunidadeCredito.create({
@@ -77,8 +138,8 @@ export const createFicha = async (req, res) => {
       });
     }
 
-    // Criar ficha
-    const ficha = await prisma.fichaRecuperacao.create({
+    // Criar nova ficha
+    ficha = await prisma.fichaRecuperacao.create({
       data: {
         lojaId,
         clienteId,
@@ -101,9 +162,18 @@ export const createFicha = async (req, res) => {
         valorVeiculo: valorVeiculo ? parseFloat(valorVeiculo) : null,
         valorEntrada: valorEntrada ? parseFloat(valorEntrada) : null,
         valorFinanciado: valorFinanciado ? parseFloat(valorFinanciado) : null,
+        opcoes: marcaModelo ? {
+          create: [{
+            ordem: 1,
+            marca: marcaModelo.trim().split(' ')[0] || 'Veículo',
+            modelo: marcaModelo.trim(),
+            anoModelo: anoVeiculo ? parseInt(anoVeiculo, 10) : null,
+          }],
+        } : undefined,
       },
       include: {
         cliente: true,
+        opcoes: true,
       },
     });
 
@@ -144,6 +214,9 @@ export const updateFicha = async (req, res) => {
       valorEntrada,
       valorFinanciado,
       taxaMensal,
+      marcaModelo,
+      anoVeiculo,
+      valorFipe,
       garantiaEstendida,
       garantiaEstendidaValor,
       seguroVeiculo,
@@ -562,51 +635,84 @@ export const persistFichaWithPdf = async (req, res) => {
     // Salvar PDF no filesystem
     await fs.writeFile(filePath, req.file.buffer);
 
-    // Garantir oportunidade de crédito vinculada
-    let oportunidade = await prisma.oportunidadeCredito.findFirst({
-      where: { clienteId, status: { in: ['ABERTA', 'EM_ANDAMENTO'] } },
+    // Verificar se já existe uma ficha em aberto para esse cliente
+    let ficha = await prisma.fichaRecuperacao.findFirst({
+      where: { clienteId, lojaId, status: { in: ['ABERTA', 'EM_ANDAMENTO'] } },
+      orderBy: { id: 'desc' },
     });
-    if (!oportunidade) {
-      oportunidade = await prisma.oportunidadeCredito.create({
+
+    if (ficha) {
+      ficha = await prisma.fichaRecuperacao.update({
+        where: { id: ficha.id },
         data: {
-          clienteId,
+          vendedorId: vendedorId || ficha.vendedorId,
+          telefoneFixo: fichaData.telefoneFixo ?? ficha.telefoneFixo,
+          telefoneCelular: fichaData.telefoneCelular ?? ficha.telefoneCelular,
+          whatsapp: fichaData.whatsapp ?? ficha.whatsapp,
+          dataNascimento: fichaData.dataNascimento ? new Date(fichaData.dataNascimento) : ficha.dataNascimento,
+          sexo: fichaData.sexo ?? ficha.sexo,
+          estadoCivil: fichaData.estadoCivil ?? ficha.estadoCivil,
+          residenciaTipo: fichaData.residenciaTipo ?? ficha.residenciaTipo,
+          tempoResidencia: fichaData.tempoResidencia ?? ficha.tempoResidencia,
+          empresaNome: fichaData.empresaNome ?? ficha.empresaNome,
+          cargoFuncao: fichaData.cargoFuncao ?? ficha.cargoFuncao,
+          classificacaoTrabalho: fichaData.classificacaoTrabalho ?? ficha.classificacaoTrabalho,
+          renda: fichaData.renda ? parseFloat(fichaData.renda) : ficha.renda,
+          valorVeiculo: fichaData.valorVeiculo ? parseFloat(fichaData.valorVeiculo) : ficha.valorVeiculo,
+          valorEntrada: fichaData.valorEntrada ? parseFloat(fichaData.valorEntrada) : ficha.valorEntrada,
+          valorFinanciado: fichaData.valorFinanciado ? parseFloat(fichaData.valorFinanciado) : ficha.valorFinanciado,
+        },
+        include: {
+          cliente: true,
+        },
+      });
+    } else {
+      // Garantir oportunidade de crédito vinculada que não tenha ficha
+      let oportunidade = await prisma.oportunidadeCredito.findFirst({
+        where: { clienteId, status: { in: ['ABERTA', 'EM_ANDAMENTO'] }, ficha: null },
+      });
+      if (!oportunidade) {
+        oportunidade = await prisma.oportunidadeCredito.create({
+          data: {
+            clienteId,
+            lojaId,
+            responsavelId: vendedorId,
+            tipo: 'REANALISE_CREDITO',
+            status: 'ABERTA',
+            motivo: 'Captação inicial com PDF realizada pelo vendedor via Ficha do Cliente',
+          },
+        });
+      }
+
+      // Criar ficha no banco de dados
+      ficha = await prisma.fichaRecuperacao.create({
+        data: {
           lojaId,
-          responsavelId: vendedorId,
-          tipo: 'REANALISE_CREDITO',
+          clienteId,
+          vendedorId,
+          oportunidadeId: oportunidade.id,
           status: 'ABERTA',
-          motivo: 'Captação inicial com PDF realizada pelo vendedor via Ficha do Cliente',
+          telefoneFixo: fichaData.telefoneFixo,
+          telefoneCelular: fichaData.telefoneCelular,
+          whatsapp: fichaData.whatsapp,
+          dataNascimento: fichaData.dataNascimento ? new Date(fichaData.dataNascimento) : null,
+          sexo: fichaData.sexo,
+          estadoCivil: fichaData.estadoCivil,
+          residenciaTipo: fichaData.residenciaTipo,
+          tempoResidencia: fichaData.tempoResidencia,
+          empresaNome: fichaData.empresaNome,
+          cargoFuncao: fichaData.cargoFuncao,
+          classificacaoTrabalho: fichaData.classificacaoTrabalho,
+          renda: fichaData.renda ? parseFloat(fichaData.renda) : null,
+          valorVeiculo: fichaData.valorVeiculo ? parseFloat(fichaData.valorVeiculo) : null,
+          valorEntrada: fichaData.valorEntrada ? parseFloat(fichaData.valorEntrada) : null,
+          valorFinanciado: fichaData.valorFinanciado ? parseFloat(fichaData.valorFinanciado) : null,
+        },
+        include: {
+          cliente: true,
         },
       });
     }
-
-    // Criar ficha no banco de dados
-    const ficha = await prisma.fichaRecuperacao.create({
-      data: {
-        lojaId,
-        clienteId,
-        vendedorId,
-        oportunidadeId: oportunidade.id,
-        status: 'ABERTA',
-        telefoneFixo: fichaData.telefoneFixo,
-        telefoneCelular: fichaData.telefoneCelular,
-        whatsapp: fichaData.whatsapp,
-        dataNascimento: fichaData.dataNascimento ? new Date(fichaData.dataNascimento) : null,
-        sexo: fichaData.sexo,
-        estadoCivil: fichaData.estadoCivil,
-        residenciaTipo: fichaData.residenciaTipo,
-        tempoResidencia: fichaData.tempoResidencia,
-        empresaNome: fichaData.empresaNome,
-        cargoFuncao: fichaData.cargoFuncao,
-        classificacaoTrabalho: fichaData.classificacaoTrabalho,
-        renda: fichaData.renda ? parseFloat(fichaData.renda) : null,
-        valorVeiculo: fichaData.valorVeiculo ? parseFloat(fichaData.valorVeiculo) : null,
-        valorEntrada: fichaData.valorEntrada ? parseFloat(fichaData.valorEntrada) : null,
-        valorFinanciado: fichaData.valorFinanciado ? parseFloat(fichaData.valorFinanciado) : null,
-      },
-      include: {
-        cliente: true,
-      },
-    });
 
     const pdfId = fileName;
 

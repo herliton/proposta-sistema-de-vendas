@@ -41,8 +41,8 @@ export const generateFichaPdf = async (data: any, htmlElementId: string) => {
   return pdf;
 };
 
-export const calcularSimulacoes = (valorFinanciado: number, taxaMensal: number) => {
-  const prazos = [12, 24, 36, 48, 60];
+export const calcularSimulacoes = (valorFinanciado: number, taxaMensal: number, customPrazos?: number[]) => {
+  const prazos = customPrazos || [24, 36, 48, 60];
   const simulacoes = prazos.map((parcelas) => {
     const taxaDecimal = taxaMensal / 100;
     const numerador = valorFinanciado * taxaDecimal * Math.pow(1 + taxaDecimal, parcelas);

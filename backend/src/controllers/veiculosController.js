@@ -56,10 +56,12 @@ const validateVehicle = (body, existing = {}) => {
   if (vehicle.precoSugerido < vehicle.precoMinimo) return { error: 'O preço sugerido não pode ser menor que o preço mínimo.' };
   if (!Number.isFinite(vehicle.valorFipe) || vehicle.valorFipe < 0) return { error: 'O valor FIPE não pode ser negativo.' };
   if (!['AVAILABLE', 'IN_NEGOTIATION', 'SOLD'].includes(vehicle.status)) return { error: 'Status do veículo inválido.' };
-  const requiredPhotos = ['right', 'left', 'front', 'rear', 'interior'];
-  if (requiredPhotos.some((key) => !String(vehicle.fotos[key] || '').trim())) return { error: 'Informe as cinco fotos obrigatórias.' };
   const validUrl = (url) => { if (url.startsWith('/uploads/vehicles/')) return true; try { return ['http:', 'https:'].includes(new URL(url).protocol); } catch { return false; } };
-  if (requiredPhotos.some((key) => !validUrl(String(vehicle.fotos[key])))) return { error: 'Cada foto deve ter uma URL HTTP ou HTTPS válida.' };
+  const photoKeys = ['right', 'left', 'front', 'rear', 'interior'];
+  for (const key of photoKeys) {
+    const photoUrl = String(vehicle.fotos?.[key] || '').trim();
+    if (photoUrl && !validUrl(photoUrl)) return { error: 'Cada foto informada deve ter uma URL HTTP ou HTTPS válida.' };
+  }
   if (vehicle.videoUrl && (!Number.isFinite(vehicle.videoDuracaoSegundos) || vehicle.videoDuracaoSegundos <= 0 || vehicle.videoDuracaoSegundos > 60)) return { error: 'O vídeo deve ter duração entre 1 e 60 segundos.' };
   if (vehicle.videoUrl && !validUrl(vehicle.videoUrl)) return { error: 'Informe uma URL HTTP ou HTTPS válida para o vídeo.' };
   return { vehicle };
@@ -69,8 +71,12 @@ const vehicleData = (vehicle) => ({
   anoModelo: vehicle.anoModelo, codigoFipe: vehicle.codigoFipe || null, tipoVeiculo: vehicle.tipoVeiculo, combustivel: vehicle.combustivel || null, mesReferencia: vehicle.mesReferencia || null, valorFipe: vehicle.valorFipe ?? null,
   precoSugerido: vehicle.precoSugerido, precoMinimo: vehicle.precoMinimo, placa: vehicle.placa || null,
   status: dbStatus(vehicle.status), observacoes: vehicle.observacoes || null,
-  fotoDireita: vehicle.fotos.right, fotoEsquerda: vehicle.fotos.left, fotoFrente: vehicle.fotos.front,
-  fotoTraseira: vehicle.fotos.rear, fotoInterior: vehicle.fotos.interior, videoUrl: vehicle.videoUrl || null,
+  fotoDireita: vehicle.fotos?.right ? String(vehicle.fotos.right).trim() : null,
+  fotoEsquerda: vehicle.fotos?.left ? String(vehicle.fotos.left).trim() : null,
+  fotoFrente: vehicle.fotos?.front ? String(vehicle.fotos.front).trim() : null,
+  fotoTraseira: vehicle.fotos?.rear ? String(vehicle.fotos.rear).trim() : null,
+  fotoInterior: vehicle.fotos?.interior ? String(vehicle.fotos.interior).trim() : null,
+  videoUrl: vehicle.videoUrl || null,
   videoDuracao: vehicle.videoUrl ? vehicle.videoDuracaoSegundos : null, updatedAt: new Date(),
 });
 

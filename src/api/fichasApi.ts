@@ -38,6 +38,10 @@ export type FichaDados = {
   valorEntrada: string;
   valorFinanciado: string;
   taxaMensal: string;
+  marcaModelo?: string;
+  anoVeiculo?: string;
+  valorFipe?: string;
+  cidadeData?: string;
   // Produtos e Serviços
   garantiaEstendida: boolean;
   garantiaEstendidaValor: string;
