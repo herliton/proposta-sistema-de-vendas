@@ -11,12 +11,22 @@ export const normalizeRole = (value) => {
   return role;
 };
 
+const sellerSimulationModuleIds = [
+  'SIMULATIONS',
+  'CUSTOMERS',
+  'VEHICLES',
+  'RATES',
+  'BENEFITS',
+];
+
 export const roleModuleIds = async (rawRole) => {
   const role = normalizeRole(rawRole);
   if (role === 'ADMIN') return new Set(systemModules.map((module) => module.id));
   const rows = await prisma.rolePermission.findMany({ where: { role }, select: { moduleId: true, canAccess: true } });
   const permissions = new Map(rows.map((item) => [item.moduleId, item.canAccess]));
   const selected = new Set(systemModules.filter((module) => permissions.has(module.id) ? permissions.get(module.id) : module.defaultRoles.includes(role)).map((module) => module.id));
+  if (role === 'SELLER') for (const moduleId of sellerSimulationModuleIds) selected.add(moduleId);
+  if (role === 'MANAGER') selected.add('SIMULATIONS');
   if (role === 'MANAGER') for (const moduleId of await roleModuleIds('SELLER')) selected.add(moduleId);
   return new Set([...selected].filter((moduleId) => systemModules.some((module) => module.id === moduleId)));
 };
@@ -46,10 +56,13 @@ export const updateRolePermissions = async (req, res) => {
   if (role === 'ADMIN') return res.status(400).json({ success: false, error: 'ADMIN_LOCKED', message: 'O perfil ADMIN mantém acesso total ao sistema.' });
   const moduleIds = req.body.moduleIds;
   if (!Array.isArray(moduleIds) || moduleIds.some((id) => !systemModules.some((module) => module.id === id))) return res.status(400).json({ success: false, error: 'BAD_MODULES', message: 'A lista de módulos contém valores inválidos.' });
+  const effectiveModuleIds = role === 'SELLER'
+    ? [...new Set([...moduleIds, ...sellerSimulationModuleIds])]
+    : moduleIds;
   await prisma.$transaction(async (tx) => {
     await tx.rolePermission.deleteMany({ where: { role } });
-    if (moduleIds.length) await tx.rolePermission.createMany({ data: [...new Set(moduleIds)].map((moduleId) => ({ role, moduleId, canAccess: true })) });
-    const denied = systemModules.filter((module) => !moduleIds.includes(module.id));
+    if (effectiveModuleIds.length) await tx.rolePermission.createMany({ data: [...new Set(effectiveModuleIds)].map((moduleId) => ({ role, moduleId, canAccess: true })) });
+    const denied = systemModules.filter((module) => !effectiveModuleIds.includes(module.id));
     if (denied.length) await tx.rolePermission.createMany({ data: denied.map((module) => ({ role, moduleId: module.id, canAccess: false })) });
   });
   const updatedIds = [...await roleModuleIds(role)];

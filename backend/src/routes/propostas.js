@@ -11,13 +11,13 @@ import {
 } from '../controllers/propostasController.js';
 
 const router = Router();
-router.use(authMiddleware, requireModuleAccess('PROPOSALS'));
+router.use(authMiddleware);
 
-router.get('/', listPropostas);
-router.get('/:id/pdf', downloadPropostaPdf);
-router.get('/:id/history', getPropostaHistory);
-router.get('/:id', getPropostaById);
-router.post('/', createProposta);
-router.patch('/:id/status', updateStatusProposta);
+router.get('/', requireModuleAccess('PROPOSALS'), listPropostas);
+router.get('/:id/pdf', requireModuleAccess('PROPOSALS'), downloadPropostaPdf);
+router.get('/:id/history', requireModuleAccess('PROPOSALS'), getPropostaHistory);
+router.get('/:id', requireModuleAccess('PROPOSALS'), getPropostaById);
+router.post('/', requireModuleAccess('SIMULATIONS'), createProposta);
+router.patch('/:id/status', requireModuleAccess('PROPOSALS'), updateStatusProposta);
 
 export default router;
