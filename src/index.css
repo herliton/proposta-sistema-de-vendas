@@ -861,6 +861,17 @@ body {
   margin-top: 20px;
 }
 
+/* A proposta também é capturada para o PDF e precisa permitir texto em várias linhas. */
+#ficha-preview-content table {
+  table-layout: fixed;
+  white-space: normal;
+}
+
+#ficha-preview-content th,
+#ficha-preview-content td {
+  overflow-wrap: anywhere;
+}
+
 .ficha-preview {
   background: #fff;
   padding: 25px;
